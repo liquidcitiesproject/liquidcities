@@ -499,7 +499,7 @@
   </div>
 </section>
 
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px; cursor:default">build 2026-07-11g</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px; cursor:default">build 2026-07-11h</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -1626,9 +1626,13 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   if (file.type.startsWith('video/')) {
     state.mediaType = 'video';
     video.src = url;
+    video.load(); // iOS Safari: 명시적으로 로드를 시작해야 메타데이터가 온다
     await new Promise((ok, no) => {
+      // iOS는 재생 전에 loadeddata를 주지 않는 경우가 있어 metadata 기준으로 대기
+      video.onloadedmetadata = ok;
       video.onloadeddata = ok;
       video.onerror = () => no(new Error(t('errPlay')));
+      setTimeout(() => no(new Error(t('errPlay'))), 15000); // 안전 타임아웃
     }).catch(ex => { err.textContent = ex.message; err.style.display = 'block'; });
     if (!video.videoWidth) { err.textContent = t('errRes'); err.style.display = 'block'; return; }
     state.mediaEl = video;
