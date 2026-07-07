@@ -498,7 +498,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11k</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11m</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -3281,6 +3281,9 @@ document.getElementById('backMapBtn').addEventListener('click', () => goto(1));
 
 // 기록 상세: 저장해둔 산출물(IndexedDB)을 미리보기 + 다시 다운로드
 async function openRecordDetail(rec) {
+  // 뒤로 버튼이 진입한 화면(맵 97 또는 내 기록 99)으로 돌아가게 출처를 기억
+  const cur = document.querySelector('.step.active');
+  state._detailFrom = cur && cur.id === 'step97' ? 97 : 99;
   const info = document.getElementById('recDetailInfo');
   const box = document.getElementById('recOutputs');
   // 우리가 적은/측정한 모든 정보 나열 (우선 기능 — 디자인은 추후)
@@ -3366,7 +3369,7 @@ async function openRecordDetail(rec) {
     box.appendChild(pNo);
   }
 }
-document.getElementById('backRecBtn').addEventListener('click', () => goto(99));
+document.getElementById('backRecBtn').addEventListener('click', () => goto(state._detailFrom || 99));
 
 document.getElementById('myDataBtn').addEventListener('click', () => {
   renderRecList();
