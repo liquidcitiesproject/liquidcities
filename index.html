@@ -517,7 +517,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11t</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11u</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -3090,6 +3090,7 @@ async function renderMassCats() {
   try { savedThumbs = JSON.parse(localStorage.getItem('lc_saved_buildings')) || []; } catch (e) {}
   let customNames = {};
   try { customNames = JSON.parse(localStorage.getItem('lc_mass_names')) || {}; } catch (e) {}
+  if (viewerRecords) customNames = { ...customNames, ...viewerMassNames }; // 공유자가 지정한 이름
   // "All" 칩 — 모든 매스의 기록을 한 번에 (기본 선택 상태)
   {
     const allChip = document.createElement('button');
@@ -3209,6 +3210,7 @@ document.getElementById('viewMapBtn').addEventListener('click', () => setMapMode
 
 let lcTileLayer = null;
 let lcFitted = false; // 모드 전환마다 뷰를 리셋하지 않도록 1회만 fit
+let lcEverFitted = false; // 첫 진입 이후에는 부드러운 flyTo 사용
 const escHtml = str => String(str).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 async function renderMapMarkers() {
@@ -3283,8 +3285,17 @@ async function renderMapMarkers() {
   const noGps = recs.length - pts.length;
   document.getElementById('mapStatus').textContent = noGps > 0 ? t('mapNoGps', noGps) : '';
   if (!lcFitted) {
-    if (pts.length) lcMap.fitBounds(pts, { padding: [80, 80], maxZoom: 17 });
-    else lcMap.setView([37.5665, 126.978], 11);
+    if (pts.length) {
+      if (lcEverFitted) {
+        // 카테고리 전환 — 뚝 끊기는 점프 대신 부드러운 비행 줌 (사용자 확정)
+        lcMap.flyToBounds(pts, { padding: [80, 80], maxZoom: 17, duration: 0.9 });
+      } else {
+        lcMap.fitBounds(pts, { padding: [80, 80], maxZoom: 17 }); // 첫 진입은 즉시
+      }
+      lcEverFitted = true;
+    } else {
+      lcMap.setView([37.5665, 126.978], 11);
+    }
     lcFitted = pts.length > 0;
   }
   setTimeout(() => lcMap.invalidateSize(), 60);
@@ -3294,6 +3305,7 @@ async function renderMapMarkers() {
 // 내 보드 스냅샷을 공개 열람 테이블(shared_boards)에 저장하고 고정 링크 발급.
 // 개인 정보(생각·연락처·자동 태그)는 스냅샷에 넣지 않는다.
 let viewerRecords = null; // ?board= 뷰어 모드일 때 이 목록을 데이터 소스로 사용
+let viewerMassNames = {};  // 공유자가 지정한 매스 이름
 function boardRecords() { return viewerRecords || getRecords(); }
 document.getElementById('shareBoardBtn').addEventListener('click', async () => {
   const st = document.getElementById('shareStatus');
@@ -3308,8 +3320,20 @@ document.getElementById('shareBoardBtn').addEventListener('click', async () => {
       address: r.address, lat: r.lat, lon: r.lon, mediaGps: r.mediaGps,
       segments: r.segments, massThumb: r.massThumb, gpsDistM: r.gpsDistM,
     }));
+    // 사용자가 지정한 매스 이름도 함께 담는다 (뷰어에서 동일하게 표시)
+    const massNames = {};
+    try { Object.assign(massNames, JSON.parse(localStorage.getItem('lc_mass_names')) || {}); } catch (e) {}
+    const savedB = getSavedBuildings();
+    for (const r of getRecords()) {
+      const k = massKeyOf(r);
+      if (!massNames[k]) {
+        const m = savedB.find(b => isFinite(b.lat) && isFinite(r.lat)
+          && Math.abs(b.lat - r.lat) < 0.001 && Math.abs(b.lon - r.lon) < 0.001);
+        if (m && m.customName) massNames[k] = m.customName;
+      }
+    }
     const { error } = await sb.from('shared_boards')
-      .upsert({ user_id: uid, payload: { records: snapshot }, updated_at: new Date().toISOString() });
+      .upsert({ user_id: uid, payload: { records: snapshot, massNames }, updated_at: new Date().toISOString() });
     if (error) throw error;
     const link = location.origin + location.pathname + '?board=' + uid;
     st.textContent = t('shareReady') + ' ' + link;
@@ -3328,6 +3352,7 @@ async function initBoardViewer(uid) {
     const { data, error } = await client.from('shared_boards').select('payload').eq('user_id', uid).single();
     if (error || !data) throw error || new Error('not found');
     viewerRecords = (data.payload && data.payload.records) || [];
+    viewerMassNames = (data.payload && data.payload.massNames) || {};
     // 풀스크린 보드 뷰어 — 지도 토글·공유·계정 등 앱 UI 없이 보드만
     document.body.classList.add('board-viewer');
     document.getElementById('accountBar') && (document.getElementById('accountBar').style.display = 'none');
