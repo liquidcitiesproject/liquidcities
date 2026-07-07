@@ -517,7 +517,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11r</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11s</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -3099,6 +3099,7 @@ async function renderMassCats() {
     allChip.appendChild(span);
     allChip.addEventListener('click', () => {
       lcMapSelKey = null;
+      lcFitted = false; // 선택한 매스가 잘 보이게 자동 확대
       renderMassCats();
       renderMapMarkers();
     });
@@ -3128,6 +3129,7 @@ async function renderMassCats() {
     // 이름 변경은 검색 기록(아카이브)의 ✏️에서만 — 맵 칩에서는 제거 (사용자 확정)
     chip.addEventListener('click', () => {
       lcMapSelKey = (lcMapSelKey === key) ? null : key; // 재클릭 = 전체 보기
+      lcFitted = false; // 선택한 매스의 기록들이 잘 보이게 자동 확대
       renderMassCats();
       renderMapMarkers();
     });
