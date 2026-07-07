@@ -499,7 +499,7 @@
   </div>
 </section>
 
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px; cursor:default">build 2026-07-11e</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px; cursor:default">build 2026-07-11f</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -2095,7 +2095,7 @@ async function updateAccountBar() {
 // 배포 기본값 — anon public key는 공개되어도 안전(행 접근은 RLS가 막음).
 // 운영자가 설정 패널(빌드 표시 5연타)에서 다른 값을 저장하면 그것이 우선.
 const DEFAULT_SB_URL = 'https://yntccmzrayqbvzusdlud.supabase.co';
-const DEFAULT_SB_KEY = ''; // ← 운영자 anon key 내장 슬롯
+const DEFAULT_SB_KEY = 'sb_publishable_JyyBBJXaB2KW15biPR-8tA_ar3M3KO4'; // 공개 가능 키 (RLS가 데이터 보호)
 async function initSupabase() {
   const url = localStorage.getItem('lc_sb_url') || DEFAULT_SB_URL;
   const key = localStorage.getItem('lc_sb_key') || DEFAULT_SB_KEY;
