@@ -187,6 +187,8 @@
 <section class="step active" id="step1">
   <div id="accountBar" style="display:none; margin-bottom:14px; font-size:12px; color:var(--dim)">
     <span id="accountLabel"></span>
+    <button id="accLinkBtn" class="secondary" data-i18n="btnLinkEmail"
+      style="padding:4px 10px; font-size:11px; margin-left:8px; display:none"></button>
     <button id="logoutBtn" class="secondary" data-i18n="btnLogout"
       style="padding:4px 10px; font-size:11px; margin-left:8px"></button>
   </div>
@@ -496,7 +498,7 @@
   </div>
 </section>
 
-<p style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px">build 2026-07-11b</p>
+<p style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px">build 2026-07-11c</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -579,7 +581,8 @@ const I18N = {
     btnGuest: '게스트로 시작',
     s0GuestHint: '게스트로 시작해도 기록은 이 브라우저의 익명 계정에 저장되며, 나중에 설정(⚙️)에서 이메일을 연결할 수 있습니다.',
     stMagicSent: '로그인 링크를 보냈습니다 — 메일함에서 링크를 눌러주세요',
-    btnLogout: '로그아웃',
+    btnLogout: '로그아웃', btnLinkEmail: '이메일 연결',
+    askLinkEmail: '연결할 이메일 주소를 입력해주세요', stLinkSent: '확인 메일을 보냈습니다 — 메일함에서 승인해주세요',
     accGuest: '게스트(익명 계정)', accUser: e => e,
     stReading: '장면을 읽는 중...',
     sndOnHint: '소리 켜짐 — 안 들리면 기기 볼륨과 무음 설정을 확인하세요',
@@ -2057,15 +2060,16 @@ async function updateSbStatus() {
 }
 async function updateAccountBar() {
   const bar = document.getElementById('accountBar');
-  bar.style.display = 'none'; // 로그인 페이지 중단에 따라 배지 비표시
-  if (!sb) { return; }
-  return; /* 재개 시 아래 로직 복원 */
+  if (!sb) { bar.style.display = 'none'; return; }
   try {
     const { data } = await sb.auth.getUser();
     const u = data && data.user;
     if (!u) { bar.style.display = 'none'; return; }
     document.getElementById('accountLabel').textContent =
       u.email ? t('accUser', u.email) : t('accGuest');
+    // 게스트에게만 "이메일 연결" 노출 — 연결하면 기록이 계정으로 승격됨
+    const linkBtn = document.getElementById('accLinkBtn');
+    if (linkBtn) linkBtn.style.display = u.email ? 'none' : '';
     bar.style.display = '';
   } catch (e) { bar.style.display = 'none'; }
 }
@@ -2075,23 +2079,25 @@ async function initSupabase() {
   if (!url || !key || !window.supabase) { sb = null; return; }
   try {
     sb = window.supabase.createClient(url, key);
-    // 매직링크로 돌아온 경우 세션이 자동 수립됨 — 상태 변화에 맞춰 화면 갱신
+    // 매직링크로 돌아온 경우 세션이 자동 수립됨 — 복원 후 화면 진입
     sb.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
         updateAccountBar();
         updateSbStatus();
-        if (document.getElementById('step0').classList.contains('active')) goto(1);
+        pullServerRecords().then(() => {
+          if (document.getElementById('step0').classList.contains('active')) goto(1);
+        });
       }
     });
     const { data } = await sb.auth.getSession();
     if (data && data.session) {
+      // 기존 로그인 유지 — 서버 기록 복원 + 미전송분 업로드
+      await pullServerRecords();
       syncPendingRecords();
+      updateAccountBar();
     } else {
-      // 로그인 페이지 구현 중단(사용자 지시) — 조용히 익명 계정 자동 생성.
-      // step0 마크업은 재개 대비로 남아있으나 진입 경로 없음.
-      const r = await sb.auth.signInAnonymously();
-      if (r.error) throw r.error;
-      syncPendingRecords();
+      // 세션 없음 → 로그인 화면 게이트 (이메일 또는 게스트 선택)
+      goto(0);
     }
   } catch (e) {
     console.warn('supabase init failed:', e.message);
@@ -2106,6 +2112,7 @@ document.getElementById('guestBtn').addEventListener('click', async () => {
     try {
       const r = await sb.auth.signInAnonymously();
       if (r.error) throw r.error;
+      await pullServerRecords();
       syncPendingRecords();
       updateAccountBar();
     } catch (e) { st.textContent = t('sbFail') + ' — ' + e.message; }
@@ -2125,6 +2132,47 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   updateSbStatus();
   goto(0);
 });
+// 게스트 → 이메일 계정 승격 (기록이 그대로 계정에 귀속됨)
+document.getElementById('accLinkBtn').addEventListener('click', async () => {
+  if (!sb) return;
+  const email = prompt(t('askLinkEmail'));
+  if (!email || !email.trim()) return;
+  const { error } = await sb.auth.updateUser({ email: email.trim() });
+  alert(error ? t('sbFail') + ' — ' + error.message : t('stLinkSent'));
+});
+// 서버에 저장된 내 기록을 이 기기의 로컬 목록에 병합 — 다른 기기에서
+// 로그인해도 기록이 보이게 하는 복원 경로 (업로드만 있던 동기화의 반쪽)
+async function pullServerRecords() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('records').select('id, payload').order('created_at', { ascending: true });
+    if (error) throw error;
+    if (!data || !data.length) return;
+    const list = getRecords();
+    const bySavedAt = new Map(list.map(r => [r.savedAt, r]));
+    let added = 0;
+    for (const row of data) {
+      const rec = row.payload;
+      if (!rec || !rec.savedAt) continue;
+      const local = bySavedAt.get(rec.savedAt);
+      if (local) {
+        // 이미 있는 기록 — 서버 행 id만 보정 (로컬 편집이 최신일 수 있으니 내용은 유지)
+        if (!local.serverId) { local.serverId = row.id; local.synced = true; }
+      } else {
+        rec.serverId = row.id;
+        rec.synced = true;
+        list.push(rec);
+        bySavedAt.set(rec.savedAt, rec);
+        added++;
+      }
+    }
+    if (added > 0) {
+      list.sort((a, b) => a.savedAt - b.savedAt);
+      localStorage.setItem(REC_KEY, JSON.stringify(list));
+      renderSavedList();
+    }
+  } catch (e) { console.warn('pull records failed:', e.message); }
+}
 async function syncRecordToServer(rec) {
   if (!sb) return false;
   try {
