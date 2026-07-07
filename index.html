@@ -115,7 +115,6 @@
     .canvas-wrap { max-width: 100% !important; }
     #boardView { height: min(560px, 62vh); }
     #boardZoomIn, #boardZoomOut { width: 44px; height: 44px; font-size: 20px; }
-    #langBar { top: 8px; right: 8px; }
     .saved-item { flex-wrap: wrap; }
     .saved-item span { flex: 1 1 100%; }
   }
@@ -139,12 +138,8 @@
 <body>
 
 <!-- 언어 전환 (향후 언어 추가는 I18N 딕셔너리에 항목만 추가하면 됨) -->
-<div id="langBar" style="position:fixed; top:12px; right:12px; z-index:20; display:flex; gap:6px">
-  <button id="langKo" class="secondary" style="padding:6px 10px; font-size:12px">한국어</button>
-  <button id="langEn" class="secondary" style="padding:6px 10px; font-size:12px; opacity:0.5">EN</button>
-  <button id="cfgBtn" class="secondary" style="display:none; padding:6px 10px; font-size:12px">⚙️</button>
-</div>
-<div id="cfgPanel" style="display:none; position:fixed; top:52px; right:12px; z-index:20;
+
+<div id="cfgPanel" style="display:none; position:fixed; bottom:70px; right:12px; z-index:20;
   background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; width:320px; box-shadow:0 4px 18px rgba(0,0,0,0.12)">
   <p class="hint" data-i18n="cfgKeyHint" style="margin:0 0 10px"></p>
   <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
@@ -505,7 +500,12 @@
   </div>
 </section>
 
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px; cursor:default">build 2026-07-11i</p>
+<div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
+  <button id="langKo" class="secondary" style="padding:6px 12px; font-size:12px">KO</button>
+  <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
+  <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
+</div>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11j</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -2088,9 +2088,11 @@ async function updateAccountBar() {
     if (!u) { bar.style.display = 'none'; return; }
     document.getElementById('accountLabel').textContent =
       u.email ? t('accUser', u.email) : t('accGuest');
-    // 게스트에게만 "이메일 연결" 노출 — 연결하면 기록이 계정으로 승격됨
+    // 게스트에게만 "이메일 연결" 노출 — 연결하면 기록이 계정으로 승격됨.
+    // 로그아웃은 이메일 계정에만 — 익명 계정은 로그아웃하면 다시 못 찾는다.
     const linkBtn = document.getElementById('accLinkBtn');
     if (linkBtn) linkBtn.style.display = u.email ? 'none' : '';
+    document.getElementById('logoutBtn').style.display = u.email ? '' : 'none';
     bar.style.display = '';
   } catch (e) { bar.style.display = 'none'; }
 }
