@@ -500,7 +500,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11n</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11p</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -898,6 +898,13 @@ function renderSavedList() {
         if (v.trim()) target.customName = v.trim(); else delete target.customName;
         localStorage.setItem(LS_KEY, JSON.stringify(all));
         resyncBuilding(target); // 이름 변경도 서버 반영
+        // 맵의 매스 카테고리에도 같은 이름이 뜨게 (사용자 확정)
+        try {
+          const names = JSON.parse(localStorage.getItem('lc_mass_names')) || {};
+          const mk = massKeyOf(target);
+          if (v.trim()) names[mk] = v.trim(); else delete names[mk];
+          localStorage.setItem('lc_mass_names', JSON.stringify(names));
+        } catch (e) {}
         renderSavedList();
       }
     });
@@ -3083,11 +3090,11 @@ async function renderMassCats() {
   for (const [key, recs] of groups) {
     const chip = document.createElement('button');
     chip.className = 'mass-cat' + (lcMapSelKey === key ? ' sel' : '');
-    // 이름: 사용자가 정한 이름 우선, 없으면 주소 첫 부분
-    const name = customNames[key] || key.split('|')[0];
     const match = savedThumbs.find(b =>
       isFinite(b.lat) && isFinite(recs[0].lat) &&
       Math.abs(b.lat - recs[0].lat) < 0.001 && Math.abs(b.lon - recs[0].lon) < 0.001);
+    // 이름: 맵에서 지정한 이름 → 검색 기록(아카이브)에서 지정한 이름 → 주소 첫 부분
+    const name = customNames[key] || (match && match.customName) || key.split('|')[0];
     let thumbUrl = match && match.thumb;
     if (!thumbUrl) {
       const b4 = await idbGet(recs[0].savedAt + ':out4');
