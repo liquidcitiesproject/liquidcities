@@ -12,7 +12,13 @@
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-weight: 300; }
   body { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; }
-  .step { display: none; width: 100%; max-width: 560px; padding: 40px 20px 80px; }
+  .step { display: none; width: 100%; max-width: 560px; padding: 40px 20px 80px; margin: 0 auto; }
+  /* 반응형 — 넓은 화면에서는 여유 있게, 중앙 정렬 */
+  @media (min-width: 900px) {
+    .step { max-width: 680px; padding: 56px 24px 100px; }
+    .canvas-wrap { max-width: 420px; }
+    #boardView { height: 640px; }
+  }
   .step.active { display: block; }
   h1 { font-size: 21px; font-weight: 500; margin: 0 0 6px; letter-spacing: -0.01em; }
   p.sub { color: var(--dim); font-size: 13px; margin: 0 0 24px; line-height: 1.5; }
@@ -499,7 +505,7 @@
   </div>
 </section>
 
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px; cursor:default">build 2026-07-11h</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px; cursor:default">build 2026-07-11i</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -2480,8 +2486,8 @@ async function collectSampleFrames() {
     samples.push(state.mediaEl);
   } else {
     const v2 = document.createElement('video');
-    v2.muted = true; v2.src = video.src;
-    await new Promise(ok => { v2.onloadeddata = ok; });
+    v2.muted = true; v2.playsInline = true; v2.src = video.src;
+    await waitVideoReady(v2);
     for (const t of [0.25, 0.5, 0.75]) {
       v2.currentTime = v2.duration * t;
       await new Promise(ok => { v2.onseeked = ok; });
@@ -2656,13 +2662,25 @@ function drawOut4() {
 
 // seek 전용 비디오를 재사용해 임의 시점의 프레임을 추출
 let seekVideo = null;
+// iOS Safari는 재생 전에 loadeddata를 주지 않으므로 metadata 기준 + load() 킥
+function waitVideoReady(v, timeoutMs = 15000) {
+  return new Promise((ok, no) => {
+    if (v.readyState >= 1) return ok();
+    v.onloadedmetadata = ok;
+    v.onloadeddata = ok;
+    v.onerror = () => no(new Error('video load failed'));
+    setTimeout(() => no(new Error('video load timeout')), timeoutMs);
+    try { v.load(); } catch (e) {}
+  });
+}
 async function ensureSeekVideo() {
   if (!seekVideo || seekVideo.dataset.src !== video.src) {
     seekVideo = document.createElement('video');
     seekVideo.muted = true;
     seekVideo.dataset.src = video.src;
+    seekVideo.playsInline = true;
     seekVideo.src = video.src;
-    await new Promise(ok => { seekVideo.onloadeddata = ok; });
+    await waitVideoReady(seekVideo);
   }
   return seekVideo;
 }
@@ -3639,7 +3657,7 @@ async function recordElementAAC(ac, srcUrl, clipStart, durSec) {
   v2.style.cssText = 'position:fixed; width:2px; height:2px; opacity:0.01; pointer-events:none';
   document.body.appendChild(v2); // Safari는 DOM 밖 비디오의 오디오 그래프를 멈출 수 있음
   try {
-    await new Promise((ok, bad) => { v2.onloadeddata = ok; v2.onerror = () => bad(new Error('video load')); });
+    await waitVideoReady(v2);
     const cs = Math.min(clipStart || 0, Math.max(0, v2.duration - 0.1));
     const clipLen = Math.min(v2.duration - cs, durSec);
     const src = ac.createMediaElementSource(v2); // 그래프로만 흐름 (스피커 출력 없음)
