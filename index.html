@@ -499,7 +499,7 @@
   </div>
 </section>
 
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px; cursor:default">build 2026-07-11f</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px; cursor:default">build 2026-07-11g</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -892,6 +892,7 @@ function renderSavedList() {
       if (target) {
         if (v.trim()) target.customName = v.trim(); else delete target.customName;
         localStorage.setItem(LS_KEY, JSON.stringify(all));
+        resyncBuilding(target); // 이름 변경도 서버 반영
         renderSavedList();
       }
     });
@@ -902,6 +903,7 @@ function renderSavedList() {
     delBtn.className = 'secondary';
     delBtn.textContent = t('btnDelete');
     delBtn.addEventListener('click', () => {
+      deleteBuildingFromServer(getSavedBuildings().find(x => x.id === item.id));
       localStorage.setItem(LS_KEY, JSON.stringify(getSavedBuildings().filter(x => x.id !== item.id)));
       renderSavedList();
     });
@@ -928,9 +930,12 @@ function saveCurrentBuilding(view) {
     thumb,
     savedAt: Date.now(),
   };
+  const prev = getSavedBuildings().find(x => x.id === entry.id);
+  if (prev && prev.serverId) deleteBuildingFromServer(prev); // 같은 건물 갱신 — 서버 구본 제거
   const list = getSavedBuildings().filter(x => x.id !== entry.id);
   list.unshift(entry);
   localStorage.setItem(LS_KEY, JSON.stringify(list.slice(0, 10))); // 최근 10개까지
+  syncBuildingToServer(entry);
   renderSavedList();
 }
 function loadSavedBuilding(item) {
@@ -2173,10 +2178,28 @@ async function pullServerRecords() {
     if (!data || !data.length) return;
     const list = getRecords();
     const bySavedAt = new Map(list.map(r => [r.savedAt, r]));
-    let added = 0;
+    const blds = getSavedBuildings();
+    const bldById = new Map(blds.map(b => [b.id, b]));
+    let added = 0, bAdded = 0;
     for (const row of data) {
       const rec = row.payload;
-      if (!rec || !rec.savedAt) continue;
+      if (!rec) continue;
+      if (rec._kind === 'building') {
+        // 건물 아카이브 — id 기준 병합
+        if (!rec.id) continue;
+        const localB = bldById.get(rec.id);
+        if (localB) {
+          if (!localB.serverId) localB.serverId = row.id;
+        } else {
+          delete rec._kind;
+          rec.serverId = row.id;
+          blds.push(rec);
+          bldById.set(rec.id, rec);
+          bAdded++;
+        }
+        continue;
+      }
+      if (!rec.savedAt) continue;
       const local = bySavedAt.get(rec.savedAt);
       if (local) {
         // 이미 있는 기록 — 서버 행 id만 보정 (로컬 편집이 최신일 수 있으니 내용은 유지)
@@ -2192,9 +2215,40 @@ async function pullServerRecords() {
     if (added > 0) {
       list.sort((a, b) => a.savedAt - b.savedAt);
       localStorage.setItem(REC_KEY, JSON.stringify(list));
-      renderSavedList();
     }
+    if (bAdded > 0) {
+      blds.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+      localStorage.setItem(LS_KEY, JSON.stringify(blds.slice(0, 10)));
+    }
+    if (added > 0 || bAdded > 0) renderSavedList();
   } catch (e) { console.warn('pull records failed:', e.message); }
+}
+// 건물 아카이브 동기화 — records 테이블 재사용, payload._kind='building'
+async function syncBuildingToServer(item) {
+  if (!sb) return false;
+  try {
+    const { data, error } = await sb.from('records')
+      .insert({ payload: { ...item, _kind: 'building' } }).select('id').single();
+    if (error) throw error;
+    const all = getSavedBuildings();
+    const target = all.find(x => x.id === item.id);
+    if (target) { target.serverId = data.id; localStorage.setItem(LS_KEY, JSON.stringify(all)); }
+    return true;
+  } catch (e) { console.warn('building sync failed:', e.message); return false; }
+}
+async function resyncBuilding(item) {
+  if (!sb) return;
+  try {
+    if (item.serverId) { await sb.from('records').delete().eq('id', item.serverId); item.serverId = null; }
+    await syncBuildingToServer(item);
+  } catch (e) {}
+}
+async function deleteBuildingFromServer(item) {
+  if (!sb || !item) return;
+  try {
+    if (item.serverId) await sb.from('records').delete().eq('id', item.serverId);
+    else await sb.from('records').delete().eq('payload->>id', String(item.id)).eq('payload->>_kind', 'building');
+  } catch (e) {}
 }
 async function syncRecordToServer(rec) {
   if (!sb) return false;
@@ -2210,7 +2264,17 @@ async function syncRecordToServer(rec) {
   } catch (e) { return false; }
 }
 // 레코드 삭제: 로컬 제거 + 서버 사본도 제거 시도 (RLS로 자기 것만 지워짐)
+async function deleteOutputsFromStorage(savedAt) {
+  if (!sb) return;
+  try {
+    const { data: u } = await sb.auth.getUser();
+    const uid = u && u.user && u.user.id;
+    if (!uid) return;
+    await sb.storage.from('outputs').remove(['out1', 'out2', 'out3', 'out4'].map(k => `${uid}/${savedAt}-${k}`));
+  } catch (e) {}
+}
 async function deleteRecord(savedAt) {
+  deleteOutputsFromStorage(savedAt);
   const list = getRecords();
   const rec = list.find(x => x.savedAt === savedAt);
   localStorage.setItem(REC_KEY, JSON.stringify(list.filter(x => x.savedAt !== savedAt)));
@@ -2224,7 +2288,14 @@ async function deleteRecord(savedAt) {
   renderRecList();
   renderSavedList(); // 내보내기/관리 버튼 표시 갱신
 }
+async function syncPendingBuildings() {
+  if (!sb) return;
+  for (const b of getSavedBuildings()) {
+    if (!b.serverId) await syncBuildingToServer(b);
+  }
+}
 async function syncPendingRecords() {
+  syncPendingBuildings();
   if (!sb) return;
   const list = getRecords();
   let changed = false;
@@ -2777,6 +2848,34 @@ async function idbDelRecord(savedAt) {
 function saveOutputBlob(kind, blob) {
   if (!state._recordSavedAt || !blob) return;
   idbPut(state._recordSavedAt + ':' + kind, blob).catch(() => {});
+  uploadOutputToStorage(state._recordSavedAt, kind, blob); // 기기 간 동기화 (버킷 있으면)
+}
+// 산출물 blob을 Supabase Storage('outputs' 버킷)에 사용자별 경로로 업로드.
+// 버킷이 없거나 권한 문제면 조용히 로컬 전용으로 동작한다.
+async function uploadOutputToStorage(savedAt, kind, blob) {
+  if (!sb) return;
+  try {
+    const { data } = await sb.auth.getUser();
+    const uid = data && data.user && data.user.id;
+    if (!uid) return;
+    await sb.storage.from('outputs').upload(`${uid}/${savedAt}-${kind}`, blob,
+      { upsert: true, contentType: blob.type || 'application/octet-stream' });
+  } catch (e) { /* 버킷 미설정 등 — 로컬 전용 */ }
+}
+// 산출물 로드: 로컬(IndexedDB) 우선, 없으면 Storage에서 내려받아 로컬에 캐시
+async function fetchOutputBlob(savedAt, kind) {
+  const local = await idbGet(savedAt + ':' + kind).catch(() => null);
+  if (local) return local;
+  if (!sb) return null;
+  try {
+    const { data: u } = await sb.auth.getUser();
+    const uid = u && u.user && u.user.id;
+    if (!uid) return null;
+    const { data, error } = await sb.storage.from('outputs').download(`${uid}/${savedAt}-${kind}`);
+    if (error || !data) return null;
+    idbPut(savedAt + ':' + kind, data).catch(() => {});
+    return data;
+  } catch (e) { return null; }
 }
 function buildRecFields() {
   return {
@@ -3141,7 +3240,7 @@ async function renderBoard() {
       || (rec.mediaDate ? fmtDate(new Date(rec.mediaDate)).split(' ')[0] : '');
     let thumbSrc = rec.massThumb || null;
     if (!thumbSrc) {
-      const b4 = await idbGet(rec.savedAt + ':out4');
+      const b4 = await fetchOutputBlob(rec.savedAt, 'out4');
       if (b4) thumbSrc = URL.createObjectURL(b4);
     }
     let node;
@@ -3312,7 +3411,7 @@ async function renderMapMarkers() {
     pts.push([pos.lat, pos.lon]);
     let iconUrl = rec.massThumb || null;
     if (!iconUrl) {
-      const b4 = await idbGet(rec.savedAt + ':out4');
+      const b4 = await fetchOutputBlob(rec.savedAt, 'out4');
       if (b4) iconUrl = URL.createObjectURL(b4);
       else {
         const b2 = await idbGet(rec.savedAt + ':out2');
@@ -3404,7 +3503,7 @@ async function openRecordDetail(rec) {
   ];
   let found = 0;
   for (const { k, name, file } of kinds) {
-    const blob = await idbGet(rec.savedAt + ':' + k);
+    const blob = await fetchOutputBlob(rec.savedAt, k);
     if (!blob) continue;
     found++;
     const h = document.createElement('h2');
