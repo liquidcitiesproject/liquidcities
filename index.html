@@ -500,7 +500,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11p</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11q</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -3108,21 +3108,7 @@ async function renderMassCats() {
     const span = document.createElement('span');
     span.textContent = `${name || '?'} (${recs.length})`;
     chip.appendChild(span);
-    // ✏️ 이름 바꾸기 (사용자 지정 이름은 localStorage lc_mass_names에 보관)
-    const edit = document.createElement('span');
-    edit.textContent = '✏️';
-    edit.style.cssText = 'font-size:11px; opacity:0.65; margin-left:2px';
-    edit.addEventListener('click', ev => {
-      ev.stopPropagation();
-      const cur = customNames[key] || key.split('|')[0];
-      const v = prompt(t('renamePrompt'), cur);
-      if (v === null) return;
-      const names = { ...customNames };
-      if (v.trim()) names[key] = v.trim(); else delete names[key];
-      localStorage.setItem('lc_mass_names', JSON.stringify(names));
-      renderMassCats();
-    });
-    chip.appendChild(edit);
+    // 이름 변경은 검색 기록(아카이브)의 ✏️에서만 — 맵 칩에서는 제거 (사용자 확정)
     chip.addEventListener('click', () => {
       lcMapSelKey = (lcMapSelKey === key) ? null : key; // 재클릭 = 전체 보기
       renderMassCats();
