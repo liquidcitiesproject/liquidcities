@@ -400,6 +400,7 @@
   <h1 data-i18n="s6Title"></h1>
   <div class="row" style="margin-top:0; margin-bottom:14px">
     <button id="back6Btn" class="secondary" data-i18n="btnBack"></button>
+    <button id="home6Btn" class="secondary" data-i18n="btnHome"></button>
   </div>
   <p class="sub" id="detectStatus"></p>
 
@@ -498,7 +499,7 @@
   </div>
 </section>
 
-<p style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px">build 2026-07-11c</p>
+<p style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px">build 2026-07-11d</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -1505,6 +1506,11 @@ document.getElementById('back5Btn').addEventListener('click', () => {
   goto(4);
 });
 document.getElementById('back6Btn').addEventListener('click', () => goto(55));
+document.getElementById('home6Btn').addEventListener('click', () => {
+  // 홈으로 — 미리보기 재생 정지 후 첫 화면으로
+  try { video.pause(); } catch (e) {}
+  goto(1);
+});
 // 확인 = 현재 드래그로 맞춘 뷰를 최종 확정 → 이 프레임이 합성 마스크가 된다
 document.getElementById('confirmMassBtn').addEventListener('click', () => {
   if (massViewer) {
