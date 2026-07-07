@@ -449,7 +449,9 @@
   <div class="row" style="margin-top:0; margin-bottom:8px">
     <button id="viewBoardBtn" class="secondary" style="opacity:1" data-i18n="btnBoard"></button>
     <button id="viewMapBtn" class="secondary" style="opacity:0.5" data-i18n="btnGeoMap"></button>
+    <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
   </div>
+  <div class="status" id="shareStatus" style="margin:0 0 8px; user-select:text; -webkit-user-select:text"></div>
   <div class="status" id="mapStatus" style="margin:0 0 8px"></div>
   <div style="position:relative">
     <div id="mapView" style="width:100%; height:560px; border:1px solid var(--line); border-radius:8px; background:#fff"></div>
@@ -498,7 +500,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11m</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11n</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -544,6 +546,8 @@ const I18N = {
     s2Title: '2. 건물 확인',
     massHint: '드래그해서 보고 싶은 각도로 돌린 뒤, 확인을 누르면 이 뷰로 고정됩니다.',
     btnAgain: '다시 검색', btnConfirm: '확인', btnBack: '← 뒤로', btnHome: '⌂ 홈으로',
+    btnShareBoard: '보드 공유', shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
+    shareFail: '공유 실패', shareNeedServer: '서버 연결 후 사용할 수 있습니다',
     s3Title: '3. 사진 또는 영상 업로드',
     s3Sub: '건물 실루엣 안에 매핑할 사진이나 영상을 올려주세요.',
     s4Title: '4. 위치 조절',
@@ -674,6 +678,8 @@ const I18N = {
     s2Title: '2. Confirm Building',
     massHint: 'Drag to rotate to the angle you like, then press Confirm to lock this view.',
     btnAgain: 'Search again', btnConfirm: 'Confirm', btnBack: '← Back', btnHome: '⌂ Home',
+    btnShareBoard: 'Share board', shareReady: 'Share link:', shareCopied: 'Link copied:',
+    shareFail: 'Share failed', shareNeedServer: 'Connect the server first',
     s3Title: '3. Upload Photo or Video',
     s3Sub: 'Upload the photo or video to map inside the building silhouette.',
     s4Title: '4. Adjust Position',
@@ -3065,7 +3071,7 @@ async function renderMassCats() {
     const allChip = document.createElement('button');
     allChip.className = 'mass-cat' + (lcMapSelKey === null ? ' sel' : '');
     const span = document.createElement('span');
-    span.textContent = `All (${getRecords().length})`;
+    span.textContent = `All (${boardRecords().length})`;
     allChip.appendChild(span);
     allChip.addEventListener('click', () => {
       lcMapSelKey = null;
@@ -3210,7 +3216,7 @@ async function renderMapMarkers() {
     lcMap.removeLayer(lcTileLayer);
   }
   lcMapLayer.clearLayers();
-  const all = getRecords();
+  const all = boardRecords();
   const recs = lcMapSelKey ? all.filter(r => massKeyOf(r) === lcMapSelKey) : all;
   updateGauge(recs);
   if (boardMode === 'map') renderFloatWords(recs);
@@ -3272,6 +3278,59 @@ async function renderMapMarkers() {
   setTimeout(() => lcMap.invalidateSize(), 60);
 }
 
+// ---- 보드 공유 ----
+// 내 보드 스냅샷을 공개 열람 테이블(shared_boards)에 저장하고 고정 링크 발급.
+// 개인 정보(생각·연락처·자동 태그)는 스냅샷에 넣지 않는다.
+let viewerRecords = null; // ?board= 뷰어 모드일 때 이 목록을 데이터 소스로 사용
+function boardRecords() { return viewerRecords || getRecords(); }
+document.getElementById('shareBoardBtn').addEventListener('click', async () => {
+  const st = document.getElementById('shareStatus');
+  if (!sb) { st.textContent = t('shareNeedServer'); return; }
+  try {
+    const { data: u } = await sb.auth.getUser();
+    const uid = u && u.user && u.user.id;
+    if (!uid) { st.textContent = t('shareNeedServer'); return; }
+    const snapshot = getRecords().map(r => ({
+      savedAt: r.savedAt, momentWord: r.momentWord, momentWordEn: r.momentWordEn,
+      momentScale: r.momentScale, mediaDate: r.mediaDate,
+      address: r.address, lat: r.lat, lon: r.lon, mediaGps: r.mediaGps,
+      segments: r.segments, massThumb: r.massThumb, gpsDistM: r.gpsDistM,
+    }));
+    const { error } = await sb.from('shared_boards')
+      .upsert({ user_id: uid, payload: { records: snapshot }, updated_at: new Date().toISOString() });
+    if (error) throw error;
+    const link = location.origin + location.pathname + '?board=' + uid;
+    st.textContent = t('shareReady') + ' ' + link;
+    try { await navigator.clipboard.writeText(link); st.textContent = t('shareCopied') + ' ' + link; } catch (e) {}
+  } catch (e) {
+    st.textContent = t('shareFail') + ' — ' + e.message;
+  }
+});
+// 뷰어 모드: ?board=<uid> 로 열리면 로그인 없이 그 사용자의 보드만 표시
+async function initBoardViewer(uid) {
+  const url = localStorage.getItem('lc_sb_url') || DEFAULT_SB_URL;
+  const key = localStorage.getItem('lc_sb_key') || DEFAULT_SB_KEY;
+  if (!url || !key || !window.supabase) return false;
+  try {
+    const client = window.supabase.createClient(url, key);
+    const { data, error } = await client.from('shared_boards').select('payload').eq('user_id', uid).single();
+    if (error || !data) throw error || new Error('not found');
+    viewerRecords = (data.payload && data.payload.records) || [];
+    // 뷰어에 불필요한 UI 숨김
+    ['shareBoardBtn', 'backMapBtn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+    document.getElementById('accountBar') && (document.getElementById('accountBar').style.display = 'none');
+    goto(97);
+    renderMassCats();
+    setMapMode('board');
+    return true;
+  } catch (e) {
+    console.warn('board viewer failed:', e.message);
+    return false;
+  }
+}
 document.getElementById('mapBtn').addEventListener('click', () => {
   goto(97);
   renderMassCats();
@@ -3857,7 +3916,11 @@ dl1Btn.addEventListener('click', async () => {
 
 // 초기 언어 적용 + 저장 목록 렌더 (모든 선언이 끝난 시점)
 applyLang();
-initSupabase(); // Supabase 설정이 있으면 익명 세션 확보 + 미전송분 재전송
+{
+  const shared = new URLSearchParams(location.search).get('board');
+  if (shared) initBoardViewer(shared).then(ok => { if (!ok) initSupabase(); });
+  else initSupabase(); // Supabase 설정이 있으면 세션 복원/로그인 게이트
+}
 
 // 테스트/디버깅 훅
 window.__lc = { state, goto, proceedWithLocation, enterResults, startMassViewer, drawOut4, saveRecord, idbGet };
