@@ -17,7 +17,7 @@
   @media (min-width: 900px) {
     .step { max-width: 680px; padding: 56px 24px 100px; }
     .canvas-wrap { max-width: 420px; }
-    #boardView { height: 640px; }
+    #mapView { height: 640px !important; }
   }
   .step.active { display: block; }
   h1 { font-size: 21px; font-weight: 500; margin: 0 0 6px; letter-spacing: -0.01em; }
@@ -46,8 +46,8 @@
   .canvas-wrap canvas { width: 100%; display: block; border: 1px solid var(--line);
     border-radius: 6px; background: #000; }
   #editorCanvas { cursor: grab; touch-action: none; }
-  #massCanvas, #boardView { touch-action: none; }
-  #massCanvas, #boardView, #editorCanvas { -webkit-user-select: none; user-select: none; }
+  #massCanvas { touch-action: none; }
+  #massCanvas, #editorCanvas { -webkit-user-select: none; user-select: none; }
   button, .mass-cat { -webkit-tap-highlight-color: transparent; }
   #editorCanvas.dragging { cursor: grabbing; }
   #editorCanvas.locked { cursor: default; }
@@ -90,10 +90,6 @@
     vertical-align: -2px; margin-right: 6px; }
   @keyframes spin { to { transform: rotate(360deg); } }
   /* 노드 보드 (참조 이미지 스타일) */
-  #boardView { position: relative; width: 100%; height: 560px; overflow: hidden;
-    background: #fff; border: 1px solid var(--line); border-radius: 8px; cursor: grab; }
-  #boardView.dragging { cursor: grabbing; }
-  #boardInner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
   #boardSvg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
   .board-card { position: absolute; width: 96px; background: #fff; border: 1px solid #d7d7da;
     border-radius: 2px; padding: 4px; cursor: pointer; }
@@ -104,6 +100,11 @@
   .board-mass { position: absolute; width: 120px; cursor: pointer; text-align: center; }
   .board-mass img { width: 100%; display: block; background: transparent; }
   .board-mass .bm-label { font-size: 10px; color: #444; margin-bottom: 2px; }
+  .lc-node { background: none; border: none; cursor: pointer; text-align: center; }
+  .lc-node .bm-label { font-size: 11px; color: #444; margin-bottom: 2px; white-space: nowrap; }
+  .lc-edge-label { font-size: 10px; color: #a5a8ad; background: rgba(255,255,255,0.85);
+    padding: 0 4px; border-radius: 2px; white-space: nowrap; }
+  .leaflet-container { background: #fff; font-family: inherit; }
   .board-edge-label { font-size: 9px; fill: #8a8f95; }
 
   /* ---- 폰 최적화 ---- */
@@ -113,8 +114,7 @@
     .row { flex-wrap: wrap; }
     .row button { flex: 1 1 45%; min-height: 44px; } /* 터치 타깃 44px */
     .canvas-wrap { max-width: 100% !important; }
-    #boardView { height: min(560px, 62vh); }
-    #boardZoomIn, #boardZoomOut { width: 44px; height: 44px; font-size: 20px; }
+    #mapView { height: min(560px, 62vh) !important; }
     .saved-item { flex-wrap: wrap; }
     .saved-item span { flex: 1 1 100%; }
   }
@@ -452,14 +452,7 @@
   </div>
   <div class="status" id="mapStatus" style="margin:0 0 8px"></div>
   <div style="position:relative">
-    <div id="boardView">
-      <div id="boardInner"><svg id="boardSvg"></svg></div>
-      <div style="position:absolute; top:10px; left:10px; z-index:520; display:flex; flex-direction:column; gap:4px">
-        <button id="boardZoomIn" class="secondary" style="width:34px; height:34px; padding:0; font-size:18px; line-height:1">+</button>
-        <button id="boardZoomOut" class="secondary" style="width:34px; height:34px; padding:0; font-size:18px; line-height:1">−</button>
-      </div>
-    </div>
-    <div id="mapView" style="display:none; width:100%; height:480px; border:1px solid var(--line); border-radius:8px; background:#eee"></div>
+    <div id="mapView" style="width:100%; height:560px; border:1px solid var(--line); border-radius:8px; background:#fff"></div>
     <!-- 평균 스케일 세로 게이지 (스케치의 우측 scale 바) -->
     <div id="scaleGauge" style="position:absolute; top:50%; right:10px; transform:translateY(-50%);
       width:34px; height:260px; background:rgba(255,255,255,0.94); border:1px solid var(--line); box-shadow:0 2px 8px rgba(0,0,0,0.15);
@@ -505,7 +498,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11j</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11k</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -3077,7 +3070,7 @@ async function renderMassCats() {
     allChip.addEventListener('click', () => {
       lcMapSelKey = null;
       renderMassCats();
-      if (boardMode === 'board') renderBoard(); else renderMapMarkers();
+      renderMapMarkers();
     });
     box.appendChild(allChip);
   }
@@ -3120,7 +3113,7 @@ async function renderMassCats() {
     chip.addEventListener('click', () => {
       lcMapSelKey = (lcMapSelKey === key) ? null : key; // 재클릭 = 전체 보기
       renderMassCats();
-      if (boardMode === 'board') renderBoard(); else renderMapMarkers();
+      renderMapMarkers();
     });
     box.appendChild(chip);
   }
@@ -3156,7 +3149,6 @@ function renderFloatWords(recs) {
    관계선(같은 매스 / 공유 단어·물체 / 비슷한 스케일) + 라벨
    ============================================================ */
 let boardMode = 'board'; // 'board' | 'map'
-let boardZoom = 1, boardPanX = 0, boardPanY = 0;
 
 function boardRelations(recs) {
   // 노드당 최대 3연결로 과밀 방지
@@ -3186,281 +3178,96 @@ function boardRelations(recs) {
   return edges;
 }
 
-async function renderBoard() {
-  const inner = document.getElementById('boardInner');
-  const svg = document.getElementById('boardSvg');
-  inner.querySelectorAll('.board-card, .board-mass').forEach(el => el.remove());
-  svg.innerHTML = '';
-  const all = getRecords();
-  const recs = lcMapSelKey ? all.filter(r => massKeyOf(r) === lcMapSelKey) : all;
-  updateGauge(recs);
-  document.getElementById('wordFloat').innerHTML = ''; // 보드에는 떠다니는 단어 없음 (노드 라벨과 중복 — 사용자 확정)
-  document.getElementById('mapStatus').textContent = '';
-
-  // 배치 = 실제 지리 좌표 투영 — "지도 타일만 안 보이는 지도" (사용자 확정)
-  // 미디어 GPS 우선, 없으면 주소 좌표. 둘 다 없으면 하단에 일렬.
-  const W = document.getElementById('boardView').clientWidth || 520;
-  const H = 560;
-  const PAD = 70, NODE_W = 120, NODE_H = 110;
-  const geo = r => r.mediaGps || (isFinite(r.lat) && isFinite(r.lon) ? { lat: r.lat, lon: r.lon } : null);
-  const withGeo = recs.filter(r => geo(r));
-  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
-  withGeo.forEach(r => {
-    const g = geo(r);
-    minLat = Math.min(minLat, g.lat); maxLat = Math.max(maxLat, g.lat);
-    minLon = Math.min(minLon, g.lon); maxLon = Math.max(maxLon, g.lon);
-  });
-  const spanLat = Math.max(maxLat - minLat, 1e-5);
-  const spanLon = Math.max(maxLon - minLon, 1e-5);
-  const pos = new Map();
-  const used = [];
-  withGeo.forEach(rec => {
-    const g = geo(rec);
-    let x = withGeo.length === 1 ? W / 2 - NODE_W / 2
-      : PAD + ((g.lon - minLon) / spanLon) * (W - PAD * 2 - NODE_W);
-    let y = withGeo.length === 1 ? H / 2 - NODE_H / 2
-      : PAD + ((maxLat - g.lat) / spanLat) * (H - PAD * 2 - NODE_H); // 북쪽이 위
-    // 같은 자리 겹침 회피: 살짝 나선 오프셋
-    let k = 0;
-    while (used.some(u => Math.abs(u.x - x) < 46 && Math.abs(u.y - y) < 46) && k < 12) {
-      k++;
-      x += 40 * Math.cos(k * 2.1);
-      y += 40 * Math.sin(k * 2.1);
-    }
-    x = Math.max(6, Math.min(W - NODE_W - 6, x));
-    y = Math.max(6, Math.min(H - NODE_H - 6, y));
-    used.push({ x, y });
-    pos.set(rec.savedAt, { x, y });
-  });
-  // 좌표 없는 기록: 하단 일렬
-  recs.filter(r => !geo(r)).forEach((rec, i) => {
-    pos.set(rec.savedAt, { x: 10 + i * (NODE_W + 14), y: H - NODE_H - 8 });
-  });
-
-  // 연결선 먼저 (카드 아래) — 기준 좌표만 기록, 화면 좌표는 layoutBoard가 계산
-  svg.setAttribute('width', W); svg.setAttribute('height', H);
-  for (const e of boardRelations(recs)) {
-    const pa = pos.get(e.a), pb = pos.get(e.b);
-    if (!pa || !pb) continue;
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.dataset.x1 = pa.x; line.dataset.y1 = pa.y;
-    line.dataset.x2 = pb.x; line.dataset.y2 = pb.y;
-    line.setAttribute('stroke', '#c9c9cd'); line.setAttribute('stroke-width', '1');
-    svg.appendChild(line);
-    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    txt.dataset.x1 = pa.x; txt.dataset.y1 = pa.y;
-    txt.dataset.x2 = pb.x; txt.dataset.y2 = pb.y;
-    txt.setAttribute('class', 'board-edge-label');
-    txt.setAttribute('text-anchor', 'middle');
-    txt.textContent = e.label;
-    svg.appendChild(txt);
-  }
-
-  // 노드: 산출물 4(매핑된 매스 실루엣)를 프레임 없이 그대로 배치
-  for (const rec of recs) {
-    const pnt = pos.get(rec.savedAt);
-    // 보드 라벨은 영어로 통일 — 영문 변환본 우선, 원문이 비영어면 백그라운드 번역
-    let labelText = rec.momentWordEn || rec.momentWord
-      || (rec.mediaDate ? fmtDate(new Date(rec.mediaDate)).split(' ')[0] : '');
-    let thumbSrc = rec.massThumb || null;
-    if (!thumbSrc) {
-      const b4 = await fetchOutputBlob(rec.savedAt, 'out4');
-      if (b4) thumbSrc = URL.createObjectURL(b4);
-    }
-    let node;
-    if (thumbSrc) {
-      node = document.createElement('div');
-      node.className = 'board-mass';
-      const label = document.createElement('div');
-      label.className = 'bm-label';
-      label.textContent = labelText;
-      // 원문이 영어가 아니고 영문본이 없으면 번역해서 라벨·레코드 갱신
-      if (!rec.momentWordEn && rec.momentWord && /[^\x00-\x7F]/.test(rec.momentWord)) {
-        translateToEn(rec.momentWord).then(en => {
-          if (!en) return;
-          label.textContent = en;
-          const l = getRecords();
-          const r2 = l.find(x => x.savedAt === rec.savedAt);
-          if (r2) { r2.momentWordEn = en; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
-        }).catch(() => {});
-      }
-      node.appendChild(label);
-      const img = document.createElement('img');
-      img.src = thumbSrc;
-      node.appendChild(img);
-    } else {
-      // 산출물 4가 없는 옛 기록: 프레임 없이 단어 텍스트만 (네모 박스 금지)
-      node = document.createElement('div');
-      node.className = 'board-mass';
-      const label = document.createElement('div');
-      label.className = 'bm-label';
-      label.style.fontSize = '14px';
-      label.textContent = labelText || (rec.address ? rec.address.split(',')[0] : '');
-      node.appendChild(label);
-    }
-    node.dataset.x0 = pnt.x;
-    node.dataset.y0 = pnt.y;
-    node.addEventListener('click', () => openRecordDetail(rec));
-    inner.appendChild(node);
-  }
-  layoutBoard(); // 현재 줌·팬 기준으로 화면 좌표 계산
-}
-
-// 보드 팬/줌
-const boardView = document.getElementById('boardView');
-const boardInner = document.getElementById('boardInner');
-// 지도처럼 줌: 노드(마커)와 글자 크기는 그대로 두고, 노드 사이 공간만
-// 늘어난다 — 이미지 확대(CSS scale)가 아니라 위치 재계산 (사용자 확정)
-function layoutBoard() {
-  boardInner.style.transform = ''; // CSS 스케일 사용 안 함
-  boardInner.querySelectorAll('.board-mass, .board-card').forEach(el => {
-    const x0 = parseFloat(el.dataset.x0), y0 = parseFloat(el.dataset.y0);
-    if (isNaN(x0)) return;
-    el.style.left = (boardPanX + x0 * boardZoom) + 'px';
-    el.style.top = (boardPanY + y0 * boardZoom) + 'px';
-  });
-  document.querySelectorAll('#boardSvg line, #boardSvg text').forEach(el => {
-    const d = el.dataset;
-    if (d.x1 === undefined) return;
-    // 노드 크기가 고정이므로 중심 오프셋(+48, +60)은 줌과 무관하게 더한다
-    const x1 = boardPanX + parseFloat(d.x1) * boardZoom + 48;
-    const y1 = boardPanY + parseFloat(d.y1) * boardZoom + 60;
-    const x2 = boardPanX + parseFloat(d.x2) * boardZoom + 48;
-    const y2 = boardPanY + parseFloat(d.y2) * boardZoom + 60;
-    if (el.tagName === 'line') {
-      el.setAttribute('x1', x1); el.setAttribute('y1', y1);
-      el.setAttribute('x2', x2); el.setAttribute('y2', y2);
-    } else {
-      el.setAttribute('x', (x1 + x2) / 2);
-      el.setAttribute('y', (y1 + y2) / 2 - 3);
-    }
-  });
-}
-const applyBoardTransform = layoutBoard;
-let bDrag = false, bLX = 0, bLY = 0;
-const bdPointers = new Map();
-let bdPinchDist = 0;
-boardView.addEventListener('pointerdown', e => {
-  if (e.target.closest('button')) return;
-  bdPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (bdPointers.size === 2) {
-    const [a, b] = [...bdPointers.values()];
-    bdPinchDist = Math.hypot(a.x - b.x, a.y - b.y);
-    bDrag = false;
-    try { boardView.setPointerCapture(e.pointerId) } catch (err) {};
-    return;
-  }
-  if (e.target.closest('.board-card, .board-mass')) return; // 1손가락은 노드 클릭 우선
-  bDrag = true; bLX = e.clientX; bLY = e.clientY;
-  boardView.classList.add('dragging');
-  try { boardView.setPointerCapture(e.pointerId) } catch (err) {};
-});
-boardView.addEventListener('pointermove', e => {
-  if (bdPointers.has(e.pointerId)) bdPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (bdPointers.size === 2) {
-    const [a, b] = [...bdPointers.values()];
-    const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (bdPinchDist > 0) {
-      const r = boardView.getBoundingClientRect();
-      zoomBoardAt(d / bdPinchDist, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
-    }
-    bdPinchDist = d;
-    return;
-  }
-  if (!bDrag) return;
-  boardPanX += e.clientX - bLX; boardPanY += e.clientY - bLY;
-  bLX = e.clientX; bLY = e.clientY;
-  applyBoardTransform();
-});
-const bdEnd = e => {
-  bdPointers.delete(e.pointerId);
-  bdPinchDist = 0;
-  if (bdPointers.size === 0) { bDrag = false; boardView.classList.remove('dragging'); }
-};
-boardView.addEventListener('pointerup', bdEnd);
-boardView.addEventListener('pointercancel', bdEnd);
-// 지정한 화면 지점(cx, cy)을 고정한 채 줌 — 지도처럼 확대한 곳이 그 자리에 남는다
-function zoomBoardAt(factor, cx, cy) {
-  const newZoom = Math.min(4, Math.max(0.3, boardZoom * factor));
-  const k = newZoom / boardZoom;
-  boardPanX = cx - (cx - boardPanX) * k;
-  boardPanY = cy - (cy - boardPanY) * k;
-  boardZoom = newZoom;
-  applyBoardTransform();
-}
-boardView.addEventListener('wheel', e => {
-  e.preventDefault();
-  const r = boardView.getBoundingClientRect();
-  zoomBoardAt(1 - e.deltaY * 0.0012, e.clientX - r.left, e.clientY - r.top);
-}, { passive: false });
-document.getElementById('boardZoomIn').addEventListener('click', () => {
-  zoomBoardAt(1.35, boardView.clientWidth / 2, boardView.clientHeight / 2);
-});
-document.getElementById('boardZoomOut').addEventListener('click', () => {
-  zoomBoardAt(1 / 1.35, boardView.clientWidth / 2, boardView.clientHeight / 2);
-});
-
+// 보드 = 지도와 완전히 같은 인터랙션(팬·줌·핀치), 타일만 숨긴 흰 지도.
+// 지도 = 같은 화면에 타일을 켠 것. 노드·연결선은 두 모드 공통.
 function setMapMode(mode) {
   boardMode = mode;
-  document.getElementById('boardView').style.display = mode === 'board' ? '' : 'none';
-  document.getElementById('mapView').style.display = mode === 'map' ? '' : 'none';
   document.getElementById('viewBoardBtn').style.opacity = mode === 'board' ? '1' : '0.5';
   document.getElementById('viewMapBtn').style.opacity = mode === 'map' ? '1' : '0.5';
-  if (mode === 'board') renderBoard();
-  else renderMapMarkers();
+  renderMapMarkers();
 }
 document.getElementById('viewBoardBtn').addEventListener('click', () => setMapMode('board'));
 document.getElementById('viewMapBtn').addEventListener('click', () => setMapMode('map'));
 
+let lcTileLayer = null;
+let lcFitted = false; // 모드 전환마다 뷰를 리셋하지 않도록 1회만 fit
+const escHtml = str => String(str).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 async function renderMapMarkers() {
   if (!window.L) return;
   if (!lcMap) {
     lcMap = L.map('mapView', { zoomControl: true });
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    lcTileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(lcMap);
+    });
     lcMapLayer = L.layerGroup().addTo(lcMap);
+  }
+  // 보드 = 타일 없는 흰 지도 / 지도 = 타일 표시 (인터랙션은 동일)
+  if (boardMode === 'map') {
+    if (!lcMap.hasLayer(lcTileLayer)) lcMap.addLayer(lcTileLayer);
+  } else if (lcMap.hasLayer(lcTileLayer)) {
+    lcMap.removeLayer(lcTileLayer);
   }
   lcMapLayer.clearLayers();
   const all = getRecords();
   const recs = lcMapSelKey ? all.filter(r => massKeyOf(r) === lcMapSelKey) : all;
   updateGauge(recs);
-  renderFloatWords(recs);
+  if (boardMode === 'map') renderFloatWords(recs);
+  else document.getElementById('wordFloat').innerHTML = '';
   const pts = [];
+  const posOf = new Map(); // savedAt → LatLng (연결선용)
+  const used = [];
   for (const rec of recs) {
-    // 마커 위치 = 미디어가 촬영된 GPS만 사용 (주소 폴백 없음 — 사용자 확정)
-    if (!rec.mediaGps) continue;
-    const pos = rec.mediaGps;
-    pts.push([pos.lat, pos.lon]);
+    // 위치 = 미디어 GPS 우선, 없으면 매스 주소 좌표
+    const g = rec.mediaGps || (isFinite(rec.lat) && isFinite(rec.lon) ? { lat: rec.lat, lon: rec.lon } : null);
+    if (!g) continue;
+    // 같은 좌표에 여러 기록이 겹치면 살짝 벌린다
+    let la = g.lat, lo = g.lon, k = 0;
+    while (used.some(u => Math.abs(u[0] - la) < 1e-5 && Math.abs(u[1] - lo) < 1e-5) && k < 10) {
+      k++;
+      la = g.lat + 0.00012 * k * Math.cos(k * 2.1);
+      lo = g.lon + 0.00012 * k * Math.sin(k * 2.1);
+    }
+    used.push([la, lo]);
+    pts.push([la, lo]);
+    posOf.set(rec.savedAt, [la, lo]);
+    const labelText = rec.momentWordEn || rec.momentWord
+      || (rec.mediaDate ? fmtDate(new Date(rec.mediaDate)).split(' ')[0] : '');
     let iconUrl = rec.massThumb || null;
     if (!iconUrl) {
       const b4 = await fetchOutputBlob(rec.savedAt, 'out4');
       if (b4) iconUrl = URL.createObjectURL(b4);
-      else {
-        const b2 = await idbGet(rec.savedAt + ':out2');
-        if (b2) iconUrl = URL.createObjectURL(b2);
-      }
     }
-    const marker = iconUrl
-      ? L.marker([pos.lat, pos.lon], { icon: L.icon({ iconUrl, iconSize: [72, 72], iconAnchor: [36, 36] }) })
-      : L.marker([pos.lat, pos.lon]);
+    // 매스 실루엣 노드 (프레임 없음) — 이미지가 없는 옛 기록은 단어 텍스트만
+    const html = iconUrl
+      ? `<div class="bm-label">${escHtml(labelText)}</div><img src="${iconUrl}" style="width:110px; display:block">`
+      : `<div class="bm-label" style="font-size:14px">${escHtml(labelText)}</div>`;
+    const marker = L.marker([la, lo], {
+      icon: L.divIcon({ html, className: 'lc-node', iconSize: [110, iconUrl ? 120 : 20], iconAnchor: [55, iconUrl ? 60 : 10] }),
+    });
     const when = rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '';
     marker.bindTooltip(`${when}${rec.momentWord ? ' · ' + rec.momentWord : ''}`);
     marker.on('click', () => openRecordDetail(rec));
     marker.addTo(lcMapLayer);
   }
+  // 연결선 + 관계 라벨 (보드의 콘텐츠 그대로 — 두 모드 공통)
+  for (const e of boardRelations(recs)) {
+    const pa = posOf.get(e.a), pb = posOf.get(e.b);
+    if (!pa || !pb) continue;
+    L.polyline([pa, pb], { color: '#c9c9cd', weight: 1, interactive: false }).addTo(lcMapLayer);
+    L.marker([(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2], {
+      icon: L.divIcon({ html: `<span class="lc-edge-label">${escHtml(e.label)}</span>`,
+        className: 'lc-node', iconSize: [120, 14], iconAnchor: [60, 7] }),
+      interactive: false,
+    }).addTo(lcMapLayer);
+  }
   const noGps = recs.length - pts.length;
   document.getElementById('mapStatus').textContent = noGps > 0 ? t('mapNoGps', noGps) : '';
-  if (pts.length) {
-    lcMap.fitBounds(pts, { padding: [70, 70], maxZoom: 17 });
-  } else {
-    // 미디어 GPS가 하나도 없으면 최소한 그 매스(주소) 지역으로 이동
-    const addrPts = recs
-      .filter(r => isFinite(r.lat) && isFinite(r.lon))
-      .map(r => [r.lat, r.lon]);
-    if (addrPts.length) lcMap.fitBounds(addrPts, { padding: [70, 70], maxZoom: 15 });
+  if (!lcFitted) {
+    if (pts.length) lcMap.fitBounds(pts, { padding: [80, 80], maxZoom: 17 });
     else lcMap.setView([37.5665, 126.978], 11);
+    lcFitted = pts.length > 0;
   }
   setTimeout(() => lcMap.invalidateSize(), 60);
 }
