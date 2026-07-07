@@ -1,0 +1,3828 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Liquidcities — Building Identity</title>
+<style>
+  :root { --bg: #ffffff; --panel: #f4f4f5; --line: #e2e2e4; --ink: #111;
+    --dim: #6b7076; --accent: #111; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-weight: 300; }
+  body { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; }
+  .step { display: none; width: 100%; max-width: 560px; padding: 40px 20px 80px; }
+  .step.active { display: block; }
+  h1 { font-size: 21px; font-weight: 500; margin: 0 0 6px; letter-spacing: -0.01em; }
+  p.sub { color: var(--dim); font-size: 13px; margin: 0 0 24px; line-height: 1.5; }
+  input[type=text], input[type=number], input[type=email], input[type=password], textarea {
+    width: 100%; background: #fff; border: 1px solid var(--line); color: var(--ink);
+    padding: 12px 14px; border-radius: 3px; font-size: 16px; font-family: inherit; /* 16px 미만이면 iOS가 포커스 시 강제 줌 */
+  }
+  input:focus, textarea:focus { outline: none; border-color: var(--ink); }
+  textarea { min-height: 110px; resize: vertical; }
+  input::placeholder, textarea::placeholder { color: #9aa0a6; }
+  button {
+    background: #fff; color: var(--ink); border: 1px solid var(--ink); padding: 11px 20px;
+    border-radius: 3px; font-size: 14px; font-weight: 300; cursor: pointer;
+    font-family: inherit;
+  }
+  button:hover:not(:disabled) { background: var(--ink); color: #fff; }
+  button.secondary { background: #fff; color: var(--dim); border: 1px solid var(--line); }
+  button.secondary:hover:not(:disabled) { background: var(--panel); color: var(--ink); }
+  button:disabled { opacity: 0.35; cursor: default; }
+  .row { display: flex; gap: 10px; margin-top: 14px; }
+  .row > * { flex: 1; }
+  .err { color: #c62828; font-size: 13px; margin-top: 12px; display: none; line-height: 1.5; }
+  .hint { color: var(--dim); font-size: 12px; margin-top: 10px; line-height: 1.5; }
+  .canvas-wrap { margin: 18px auto 0; width: 100%; max-width: 360px; position: relative; }
+  .canvas-wrap canvas { width: 100%; display: block; border: 1px solid var(--line);
+    border-radius: 6px; background: #000; }
+  #editorCanvas { cursor: grab; touch-action: none; }
+  #massCanvas, #boardView { touch-action: none; }
+  #massCanvas, #boardView, #editorCanvas { -webkit-user-select: none; user-select: none; }
+  button, .mass-cat { -webkit-tap-highlight-color: transparent; }
+  #editorCanvas.dragging { cursor: grabbing; }
+  #editorCanvas.locked { cursor: default; }
+  .status { font-size: 13px; color: var(--dim); margin-top: 12px; min-height: 18px; }
+  .manual-box { display: none; margin-top: 18px; padding: 16px; border: 1px dashed var(--line);
+    border-radius: 8px; background: var(--panel); }
+  .manual-box.show { display: block; }
+  .saved-item { display: flex; gap: 8px; align-items: center; padding: 8px 0;
+    border-bottom: 1px solid var(--line); }
+  .saved-item span { flex: 1; font-size: 13px; color: var(--ink); overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .saved-item button { flex: none; padding: 8px 14px; font-size: 12px; }
+  .saved-item img { width: 36px; height: 64px; object-fit: cover; flex: none;
+    border-radius: 4px; border: 1px solid var(--line); background: #000; }
+  #recOutputs img, #recOutputs video { width: 100%; max-width: 300px; display: block;
+    border: 1px solid var(--line); border-radius: 6px; background: #000; margin-top: 16px; }
+  .mass-cat { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    background: #fff; border: 1px solid var(--line); border-radius: 3px; color: var(--ink);
+    font-size: 12px; cursor: pointer; }
+  .mass-cat img { width: 28px; height: 50px; object-fit: cover; border-radius: 4px; background: #000; }
+  .mass-cat.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .ai-chip { background: #fff; color: var(--ink); border: 1px solid var(--line);
+    padding: 8px 14px; border-radius: 3px; font-size: 13px; font-weight: 400; }
+  .ai-chip:hover { border-color: #999; }
+  .ai-chip.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .float-word { position: absolute; color: rgba(17,17,17,0.85); font-size: 15px;
+    text-shadow: 0 1px 6px rgba(255,255,255,0.9); animation: floatDrift 14s ease-in-out infinite alternate; }
+  @keyframes floatDrift {
+    0% { transform: translate(0, 0); opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { transform: translate(26px, -34px); opacity: 0.6; }
+  }
+  .out-block { margin: 26px 0; }
+  .out-block h2 { font-size: 15px; margin: 0 0 4px; }
+  .out-block p { font-size: 12px; color: var(--dim); margin: 0 0 12px; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border: 1px solid var(--line);
+    border-radius: 2px; color: var(--dim); margin-left: 6px; vertical-align: middle; background: #fff; }
+  .spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line);
+    border-top-color: var(--ink); border-radius: 50%; animation: spin 0.8s linear infinite;
+    vertical-align: -2px; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* 노드 보드 (참조 이미지 스타일) */
+  #boardView { position: relative; width: 100%; height: 560px; overflow: hidden;
+    background: #fff; border: 1px solid var(--line); border-radius: 8px; cursor: grab; }
+  #boardView.dragging { cursor: grabbing; }
+  #boardInner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  #boardSvg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+  .board-card { position: absolute; width: 96px; background: #fff; border: 1px solid #d7d7da;
+    border-radius: 2px; padding: 4px; cursor: pointer; }
+  .board-card .bc-label { font-size: 9px; color: #555; padding: 1px 2px 3px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .board-card img { width: 100%; display: block; border-radius: 2px; background: #000; }
+  /* 매스 실루엣 노드 — 프레임 없이 산출물 4(투명 PNG) 그대로 */
+  .board-mass { position: absolute; width: 120px; cursor: pointer; text-align: center; }
+  .board-mass img { width: 100%; display: block; background: transparent; }
+  .board-mass .bm-label { font-size: 10px; color: #444; margin-bottom: 2px; }
+  .board-edge-label { font-size: 9px; fill: #8a8f95; }
+
+  /* ---- 폰 최적화 ---- */
+  @media (max-width: 600px) {
+    body { padding: 14px 12px 40px; }
+    h1 { font-size: 19px; }
+    .row { flex-wrap: wrap; }
+    .row button { flex: 1 1 45%; min-height: 44px; } /* 터치 타깃 44px */
+    .canvas-wrap { max-width: 100% !important; }
+    #boardView { height: min(560px, 62vh); }
+    #boardZoomIn, #boardZoomOut { width: 44px; height: 44px; font-size: 20px; }
+    #langBar { top: 8px; right: 8px; }
+    .saved-item { flex-wrap: wrap; }
+    .saved-item span { flex: 1 1 100%; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- TensorFlow.js + COCO-SSD (객체 인식용, UMD 빌드) -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<!-- 언어 전환 (향후 언어 추가는 I18N 딕셔너리에 항목만 추가하면 됨) -->
+<div id="langBar" style="position:fixed; top:12px; right:12px; z-index:20; display:flex; gap:6px">
+  <button id="langKo" class="secondary" style="padding:6px 10px; font-size:12px">한국어</button>
+  <button id="langEn" class="secondary" style="padding:6px 10px; font-size:12px; opacity:0.5">EN</button>
+  <button id="cfgBtn" class="secondary" style="padding:6px 10px; font-size:12px">⚙️</button>
+</div>
+<div id="cfgPanel" style="display:none; position:fixed; top:52px; right:12px; z-index:20;
+  background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; width:320px; box-shadow:0 4px 18px rgba(0,0,0,0.12)">
+  <p class="hint" data-i18n="cfgKeyHint" style="margin:0 0 10px"></p>
+  <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+  <div class="row">
+    <button id="apiKeySave" data-i18n="btnSave" style="padding:8px 14px; font-size:12px"></button>
+    <button id="apiKeyClear" class="secondary" data-i18n="btnDelete" style="padding:8px 14px; font-size:12px"></button>
+  </div>
+  <div class="status" id="apiKeyStatus" style="margin-top:8px"></div>
+
+  <hr style="border:none; border-top:1px solid var(--line); margin:14px 0">
+  <p class="hint" data-i18n="cfgSbHint" style="margin:0 0 10px"></p>
+  <input type="text" id="sbUrlInput" placeholder="https://xxxx.supabase.co">
+  <div class="row"><input type="password" id="sbKeyInput" placeholder="anon key (eyJ...)"></div>
+  <div class="row">
+    <button id="sbSave" data-i18n="btnSave" style="padding:8px 14px; font-size:12px"></button>
+    <button id="sbClear" class="secondary" data-i18n="btnDelete" style="padding:8px 14px; font-size:12px"></button>
+  </div>
+  <div class="status" id="sbStatus" style="margin-top:8px"></div>
+  <div id="sbLinkBox" style="display:none; margin-top:10px">
+    <input type="text" inputmode="email" id="sbEmailInput" data-ph="phCEmail" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <div class="row">
+      <button id="sbLinkBtn" class="secondary" data-i18n="btnLinkEmail" style="padding:8px 14px; font-size:12px"></button>
+      <button id="sbLoginBtn" class="secondary" data-i18n="btnMagicLogin" style="padding:8px 14px; font-size:12px"></button>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 0: 로그인 (Supabase 설정 시에만 표시) -->
+<section class="step" id="step0">
+  <h1 style="font-size:26px; margin-top:40px">Liquidcities</h1>
+  <p class="sub" data-i18n="s0Sub"></p>
+  <input type="text" inputmode="email" id="loginEmail" data-ph="phCEmail"
+    autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <div class="row">
+    <button id="magicBtn" data-i18n="btnMagic"></button>
+  </div>
+  <div class="status" id="loginStatus"></div>
+  <hr style="border:none; border-top:1px solid var(--line); margin:22px 0">
+  <div class="row" style="margin-top:0">
+    <button id="guestBtn" class="secondary" data-i18n="btnGuest"></button>
+  </div>
+  <p class="hint" data-i18n="s0GuestHint"></p>
+</section>
+
+<!-- STEP 1: 주소 검색 -->
+<section class="step active" id="step1">
+  <div id="accountBar" style="display:none; margin-bottom:14px; font-size:12px; color:var(--dim)">
+    <span id="accountLabel"></span>
+    <button id="logoutBtn" class="secondary" data-i18n="btnLogout"
+      style="padding:4px 10px; font-size:11px; margin-left:8px"></button>
+  </div>
+  <h1 data-i18n="s1Title"></h1>
+  <p class="sub" data-i18n="s1Sub"></p>
+
+  <!-- 검색 기록 (확정된 매스 아카이브, localStorage) — 버튼으로 펼침 -->
+  <div class="row" id="historyRow" style="display:none; margin-top:0; margin-bottom:18px">
+    <button id="historyBtn" class="secondary" data-i18n="btnHistory"></button>
+    <button id="myDataBtn" class="secondary" style="display:none" data-i18n="btnMyData"></button>
+    <button id="mapBtn" class="secondary" style="display:none" data-i18n="btnMap"></button>
+    <button id="exportBtn" class="secondary" style="display:none" data-i18n="btnExport"></button>
+  </div>
+  <div id="savedBox" style="display:none; margin-bottom:22px">
+    <p class="hint" data-i18n="savedTitle" style="margin:0 0 8px"></p>
+    <div id="savedList"></div>
+  </div>
+
+  <div class="row" style="margin-top:0">
+    <button id="tabStruct" class="secondary" style="opacity:1" data-i18n="tabStruct"></button>
+    <button id="tabSimple" class="secondary" style="opacity:0.5" data-i18n="tabSimple"></button>
+  </div>
+
+  <!-- 구조화 검색 (기본): 나라 / 우편번호 / 도로명·건물명(선택) / 동·호수(표시용) -->
+  <div id="structForm" style="margin-top:14px">
+    <input type="text" id="countryInput" list="countryList" data-ph="phCountry">
+    <datalist id="countryList">
+      <option value="South Korea">한국</option>
+      <option value="United Kingdom">영국</option>
+      <option value="Singapore">싱가포르</option>
+      <option value="United States">미국</option>
+      <option value="Japan">일본</option>
+      <option value="France">프랑스</option>
+      <option value="Germany">독일</option>
+    </datalist>
+    <div class="row">
+      <input type="text" id="postcodeInput" data-ph="phPostcode">
+    </div>
+    <div class="row">
+      <input type="text" id="streetInput" data-ph="phStreet">
+    </div>
+    <div class="row">
+      <input type="text" id="unitInput" data-ph="phUnit">
+    </div>
+    <div class="row">
+      <button id="structSearchBtn" data-i18n="btnFind"></button>
+    </div>
+  </div>
+
+  <!-- 간편 검색 (자유형식 한 줄) -->
+  <div id="simpleForm" style="display:none; margin-top:14px">
+    <input type="text" id="addrInput" data-ph="phAddr">
+    <div class="row">
+      <button id="searchBtn" data-i18n="btnSearch"></button>
+    </div>
+  </div>
+
+  <div class="err" id="searchErr"></div>
+  <div class="manual-box" id="manualBox">
+    <p class="sub" style="margin-bottom:12px" data-i18n="manualMsg"></p>
+    <div class="row" style="margin-top:0">
+      <input type="number" id="manualLat" step="any" data-ph="phLat">
+      <input type="number" id="manualLon" step="any" data-ph="phLon">
+    </div>
+    <div class="row">
+      <button id="manualBtn" class="secondary" data-i18n="btnUseLoc"></button>
+    </div>
+  </div>
+  <div class="status" id="searchStatus"></div>
+</section>
+
+<!-- STEP 2: 건물 매스 확인 (드래그로 뷰 회전 → 확인으로 고정) -->
+<section class="step" id="step2">
+  <h1 data-i18n="s2Title"></h1>
+  <p class="sub" id="buildingInfo"></p>
+  <p class="hint" data-i18n="massHint"></p>
+  <div class="canvas-wrap"><canvas id="massCanvas" width="1080" height="1920" style="cursor:grab"></canvas></div>
+  <div class="row">
+    <button id="backToSearchBtn" class="secondary" data-i18n="btnAgain"></button>
+    <button id="confirmMassBtn" data-i18n="btnConfirm"></button>
+  </div>
+</section>
+
+<!-- STEP 3: 미디어 업로드 -->
+<section class="step" id="step3">
+  <h1 data-i18n="s3Title"></h1>
+  <p class="sub" data-i18n="s3Sub"></p>
+  <input type="file" id="mediaInput" accept="image/*,video/*">
+  <div class="err" id="mediaErr"></div>
+  <div class="row">
+    <button id="back3Btn" class="secondary" data-i18n="btnBack"></button>
+  </div>
+</section>
+
+<!-- STEP 4: 위치/크기 조절 -->
+<section class="step" id="step4">
+  <h1 data-i18n="s4Title"></h1>
+  <p class="sub" data-i18n="s4Sub"></p>
+  <div class="canvas-wrap"><canvas id="editorCanvas" width="1080" height="1920"></canvas></div>
+  <p class="hint" id="captureInfo" style="margin-top:10px"></p>
+  <div id="clipRow" style="display:none; margin-top:12px">
+    <p class="hint" data-i18n="clipHint" style="margin:0 0 6px"></p>
+    <input type="range" id="clipSlider" min="0" max="0" step="0.1" value="0" style="width:100%">
+    <div class="status" id="clipLabel"></div>
+  </div>
+  <div id="frameRow" style="display:none; margin-top:12px">
+    <p class="hint" data-i18n="frameHint" style="margin:0 0 6px"></p>
+    <input type="range" id="frameSlider" min="0" max="1000" value="500" style="width:100%">
+  </div>
+  <div class="status" id="soundHint"></div>
+  <div class="row">
+    <button id="back4Btn" class="secondary" data-i18n="btnBack"></button>
+    <button id="soundBtn" class="secondary" style="display:none"></button>
+    <button id="pauseBtn" class="secondary" style="display:none"></button>
+    <button id="resetBtn" class="secondary" data-i18n="btnReset"></button>
+    <button id="confirmPosBtn" data-i18n="btnConfirm"></button>
+  </div>
+</section>
+
+<!-- STEP 5: 스케일 평가 + 순간에 대한 생각(데이터 전용) + 한 단어(이미지 노출) -->
+<section class="step" id="step5">
+  <h1><span data-i18n="s5Title"></span></h1>
+
+  <p class="sub" data-i18n="scaleSub" style="margin-bottom:10px"></p>
+  <div style="text-align:center; font-size:44px; font-weight:200; margin:6px 0" id="scaleValue">0</div>
+  <input type="range" id="scaleSlider" min="-10" max="10" step="1" value="0" style="width:100%">
+  <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--dim); margin-top:4px">
+    <span data-i18n="scaleBad"></span><span>0</span><span data-i18n="scaleGood"></span>
+  </div>
+
+  <h1 style="margin-top:30px; font-size:16px"><span data-i18n="thoughtTitle"></span> <span class="badge" data-i18n="badgeOpt"></span></h1>
+  <p class="sub" data-i18n="thoughtSub"></p>
+  <textarea id="momentThought" data-ph="phThought"></textarea>
+
+  <h1 style="margin-top:30px; font-size:16px"><span data-i18n="wordTitle"></span></h1>
+  <p class="sub" data-i18n="wordSub"></p>
+  <input type="text" id="momentWord" data-ph="phWord" maxlength="20">
+  <div class="row" id="translateRow">
+    <button id="translateBtn" class="secondary" data-i18n="btnTranslate"></button>
+  </div>
+  <div id="translateResult" style="display:none; margin-top:12px; padding:14px; border:1px dashed var(--line); border-radius:8px">
+    <p class="hint" id="translatedLines" style="margin:0 0 10px; color:var(--ink); line-height:1.7"></p>
+    <div class="row" style="margin-top:0">
+      <label style="flex:1; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer">
+        <input type="radio" name="reasonLang" value="original" checked style="width:auto">
+        <span data-i18n="lblUseOriginal"></span>
+      </label>
+      <label style="flex:1; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer">
+        <input type="radio" name="reasonLang" value="en" style="width:auto">
+        <span data-i18n="lblUseEnglish"></span>
+      </label>
+    </div>
+  </div>
+  <div class="status" id="translateStatus"></div>
+
+  <div class="row">
+    <button id="back5Btn" class="secondary" data-i18n="btnBack"></button>
+    <button id="skip5Btn" class="secondary" data-i18n="btnSkip"></button>
+    <button id="next5Btn" data-i18n="btnNext"></button>
+  </div>
+</section>
+
+<!-- STEP 5.5: 인상적이었던 세 가지 (별도 페이지) + 연락처 -->
+<section class="step" id="step55">
+  <h1><span data-i18n="s5cTitle"></span> <span class="badge" data-i18n="badgeOpt"></span></h1>
+  <p class="sub" data-i18n="s5cSub"></p>
+  <input type="text" id="seg1" data-ph="phSeg1" maxlength="30">
+  <div class="row"><input type="text" id="seg2" data-ph="phSeg2" maxlength="30"></div>
+  <div class="row"><input type="text" id="seg3" data-ph="phSeg3" maxlength="30"></div>
+  <div class="row">
+    <button id="segTranslateBtn" class="secondary" data-i18n="btnTranslate"></button>
+  </div>
+  <div id="segTranslateResult" style="display:none; margin-top:12px; padding:14px; border:1px dashed var(--line); border-radius:8px">
+    <p class="hint" id="segTranslatedLines" style="margin:0 0 10px; color:var(--ink); line-height:1.7"></p>
+    <div class="row" style="margin-top:0">
+      <label style="flex:1; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer">
+        <input type="radio" name="segLang" value="original" checked style="width:auto">
+        <span data-i18n="lblUseOriginal"></span>
+      </label>
+      <label style="flex:1; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer">
+        <input type="radio" name="segLang" value="en" style="width:auto">
+        <span data-i18n="lblUseEnglish"></span>
+      </label>
+    </div>
+  </div>
+  <div class="status" id="segTranslateStatus"></div>
+
+  <div id="contactBox">
+    <h1 style="margin-top:32px; font-size:16px"><span data-i18n="s5ContactTitle"></span> <span class="badge" data-i18n="badgeOpt"></span></h1>
+    <p class="sub" data-i18n="s5ContactSub"></p>
+    <input type="text" id="cName" data-ph="phCName" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <div class="row"><input type="text" id="cInsta" data-ph="phCInsta" maxlength="40" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
+    <div class="row"><input type="text" inputmode="email" id="cEmail" data-ph="phCEmail" maxlength="60" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
+    <div class="row"><input type="text" inputmode="url" id="cSite" data-ph="phCSite" maxlength="80" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
+    <div class="row">
+      <button id="anonBtn" class="secondary" data-i18n="btnAnon"></button>
+    </div>
+    <div class="status" id="anonStatus"></div>
+  </div>
+  <div class="row">
+    <button id="back55Btn" class="secondary" data-i18n="btnBack"></button>
+    <button id="skipTextBtn" class="secondary" data-i18n="btnSkip"></button>
+    <button id="nextTextBtn" data-i18n="btnNext"></button>
+  </div>
+</section>
+
+<!-- STEP 6: 결과 페이지 -->
+<section class="step" id="step6">
+  <h1 data-i18n="s6Title"></h1>
+  <div class="row" style="margin-top:0; margin-bottom:14px">
+    <button id="back6Btn" class="secondary" data-i18n="btnBack"></button>
+  </div>
+  <p class="sub" id="detectStatus"></p>
+
+  <!-- 매핑한 매스 -->
+  <div class="canvas-wrap" style="max-width:280px">
+    <canvas id="out4Canvas" width="960" height="960" style="background:#fff; border:1px solid var(--line)"></canvas>
+  </div>
+
+  <!-- 도시 정보 (반경 데이터) -->
+  <div id="cityInfo" style="margin:18px 0 6px"></div>
+
+  <!-- 릴스 미리보기 -->
+  <div class="out-block">
+    <h2><span data-i18n="outReels"></span> <span class="badge" id="out1Badge"></span></h2>
+    <div class="canvas-wrap"><canvas id="out1Canvas" width="1080" height="1920"></canvas></div>
+    <div class="row">
+      <button id="soundBtn6" class="secondary" style="display:none"></button>
+    </div>
+  </div>
+
+  <!-- 릴스 썸네일 미리보기 (장면은 4단계에서 선택) -->
+  <div class="canvas-wrap" style="max-width:220px"><canvas id="out3Canvas" width="1080" height="1920"></canvas></div>
+
+  <!-- 숨김: 내부 렌더용 (구 산출물 2 캔버스 — 레코드/렌더 파이프라인 호환) -->
+  <canvas id="out2Canvas" width="1080" height="1920" style="display:none"></canvas>
+
+  <!-- 다운로드 버튼들 -->
+  <div class="row" style="margin-top:22px">
+    <button id="dl4Btn" disabled data-i18n="btnDlPng"></button>
+    <button id="dl3Btn" disabled data-i18n="btnDlThumb"></button>
+    <button id="dl1Btn" disabled data-i18n="btnDlReels"></button>
+  </div>
+  <div class="status" id="dl1Status"></div>
+  <div class="status" id="dl3Status"></div>
+  <div class="status" id="dl4Status"></div>
+  <div class="status" id="dl2Status" style="display:none"></div>
+  <button id="dl2Btn" style="display:none" disabled></button>
+</section>
+
+<!-- 맵: 매스별 카테고리 → 미디어(GPS) 위치 마커 + 평균 스케일 게이지 + 떠다니는 단어 -->
+<section class="step" id="step97">
+  <h1 data-i18n="mapTitle"></h1>
+  <p class="sub" data-i18n="mapSub"></p>
+  <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:6px"></div>
+  <div class="row" style="margin-top:0; margin-bottom:8px">
+    <button id="viewBoardBtn" class="secondary" style="opacity:1" data-i18n="btnBoard"></button>
+    <button id="viewMapBtn" class="secondary" style="opacity:0.5" data-i18n="btnGeoMap"></button>
+  </div>
+  <div class="status" id="mapStatus" style="margin:0 0 8px"></div>
+  <div style="position:relative">
+    <div id="boardView">
+      <div id="boardInner"><svg id="boardSvg"></svg></div>
+      <div style="position:absolute; top:10px; left:10px; z-index:520; display:flex; flex-direction:column; gap:4px">
+        <button id="boardZoomIn" class="secondary" style="width:34px; height:34px; padding:0; font-size:18px; line-height:1">+</button>
+        <button id="boardZoomOut" class="secondary" style="width:34px; height:34px; padding:0; font-size:18px; line-height:1">−</button>
+      </div>
+    </div>
+    <div id="mapView" style="display:none; width:100%; height:480px; border:1px solid var(--line); border-radius:8px; background:#eee"></div>
+    <!-- 평균 스케일 세로 게이지 (스케치의 우측 scale 바) -->
+    <div id="scaleGauge" style="position:absolute; top:50%; right:10px; transform:translateY(-50%);
+      width:34px; height:260px; background:rgba(255,255,255,0.94); border:1px solid var(--line); box-shadow:0 2px 8px rgba(0,0,0,0.15);
+      border-radius:17px; z-index:500; pointer-events:none">
+      <div style="position:absolute; top:6px; width:100%; text-align:center; font-size:9px; color:var(--dim)">+10</div>
+      <div style="position:absolute; top:50%; width:100%; border-top:1px dashed #bbb"></div>
+      <div style="position:absolute; bottom:6px; width:100%; text-align:center; font-size:9px; color:var(--dim)">-10</div>
+      <div id="gaugeDot" style="position:absolute; left:50%; transform:translate(-50%,-50%); top:50%;
+        width:22px; height:22px; border-radius:50%; background:#111; color:#fff;
+        font-size:10px; font-weight:600; display:flex; align-items:center; justify-content:center">0</div>
+    </div>
+    <!-- 떠다니는 단어 오버레이 -->
+    <div id="wordFloat" style="position:absolute; inset:0; overflow:hidden; z-index:499; pointer-events:none"></div>
+  </div>
+  <div class="row">
+    <button id="backMapBtn" class="secondary" data-i18n="btnBack"></button>
+  </div>
+</section>
+
+<!-- 기록 상세: 저장된 산출물 미리보기 + 다운로드 -->
+<section class="step" id="step98">
+  <h1 data-i18n="recDetailTitle"></h1>
+  <p class="sub" id="recDetailInfo"></p>
+  <div id="recOutputs"></div>
+  <div class="row">
+    <button id="backRecBtn" class="secondary" data-i18n="btnBack"></button>
+  </div>
+</section>
+
+<!-- 내 기록 관리 페이지 -->
+<section class="step" id="step99">
+  <h1 data-i18n="dataTitle"></h1>
+  <p class="sub" data-i18n="dataSub"></p>
+  <div id="recList"></div>
+  <div class="row">
+    <button id="backDataBtn" class="secondary" data-i18n="btnBack"></button>
+    <button id="clearAllBtn" class="secondary" data-i18n="btnDeleteAll"></button>
+  </div>
+</section>
+
+<p style="text-align:center; color:#b6b6ba; font-size:11px; margin:30px 0 20px">build 2026-07-11a</p>
+<!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
+<!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
+     뷰포트 안 실크기로 두되 투명 처리한다 -->
+<video id="srcVideo" muted playsinline
+  style="position:fixed; right:0; bottom:0; width:180px; height:320px; opacity:0.01; pointer-events:none; z-index:-1"></video>
+
+<script type="module">
+import * as THREE from 'three';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+
+/* ============================================================
+   레이아웃 상수 (handoff-prompt.md 실측 확정값)
+   - 캔버스 1080×1920, 이미지(매스) 영역 960×960 정중앙
+   - 폰트 Helvetica 36px, 상단 텍스트는 위로/하단은 아래로 확장
+   ============================================================ */
+const CANVAS_W = 1080, CANVAS_H = 1920;
+const AREA = 960;                      // 건물 매스가 들어갈 최대 크기
+const AREA_X = (CANVAS_W - AREA) / 2;  // 60
+const AREA_Y = (CANVAS_H - AREA) / 2;  // 480
+// Apple iOS 시스템 폰트(SF Pro 계열) 34px — 사용자 확정 (이전: Helvetica 36px)
+const FONT = '300 34px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif'; // Light(300) — 사용자 확정
+const LINE_H = 44;
+const TEXT_X = AREA_X + 10;            // 텍스트 좌측 = 이미지 영역 +10px 여백 (사용자 확정)
+const TARGET_DURATION = 5;             // 영상 산출물 길이(초) — 10초에서 단축(사용자 확정)
+
+/* ============================================================
+   i18n — 한국어/영어. 언어 추가 시 이 딕셔너리에 항목만 추가하면 됨.
+   정적 텍스트는 data-i18n / data-ph 속성으로, 동적 텍스트는 t()로 처리.
+   ============================================================ */
+const I18N = {
+  ko: {
+    s1Title: '1. 주소 검색',
+    s1Sub: '건물 위치를 입력하면 실제 건물 형태를 가져옵니다.',
+    tabStruct: '주소로 검색', tabSimple: '간편 검색',
+    phCountry: '나라 (예: South Korea)', phPostcode: '우편번호 (예: 11111)',
+    phStreet: '도로명·건물명 (선택)', phUnit: '동·호수 (선택, 표기에만 사용)',
+    phAddr: '주소 (예: 11111)', phLat: '위도 (예: 11.1111)', phLon: '경도 (예: 111.1111)',
+    phUserText: '이메일 / 이름 / @인스타그램',
+    btnSearch: '검색', btnFind: '찾기', btnUseLoc: '이 위치로 진행',
+    manualMsg: '주소를 찾지 못했습니다. 위치(위도/경도)를 직접 입력해주세요.',
+    s2Title: '2. 건물 확인',
+    massHint: '드래그해서 보고 싶은 각도로 돌린 뒤, 확인을 누르면 이 뷰로 고정됩니다.',
+    btnAgain: '다시 검색', btnConfirm: '확인', btnBack: '← 뒤로',
+    s3Title: '3. 사진 또는 영상 업로드',
+    s3Sub: '건물 실루엣 안에 매핑할 사진이나 영상을 올려주세요.',
+    s4Title: '4. 위치 조절',
+    s4Sub: '드래그로 이동, 휠/핀치로 확대·축소한 뒤 확인을 눌러주세요.',
+    btnReset: '위치 초기화', soundOn: '🔇 소리 켜기', soundOff: '🔊 소리 끄기',
+    s5Title: '5. 이 순간', badgeOpt: '선택',
+    scaleSub: '이 순간이 얼마나 좋았나요? 0을 기준으로 움직여주세요.',
+    scaleBad: '-10 나쁨', scaleGood: '좋음 +10',
+    thoughtTitle: '이 순간에 대한 생각',
+    thoughtSub: '자유롭게 적어주세요 — 이미지에는 표시되지 않고 기록에만 남습니다.',
+    phThought: '떠오르는 대로...',
+    wordTitle: '이 순간을 한 단어로',
+    wordSub: '이 단어만 이미지에 새겨집니다.',
+    phWord: '예: 환호',
+    s5cTitle: '눈에 들어온 가장 인상적인 물체',
+    s5cSub: '최대 세 가지, 자유롭게 적어주세요 — 이미지에는 표시되지 않고 기록에만 남습니다.',
+    phSeg1: '예: 가로등', phSeg2: '예: 강물', phSeg3: '예: 자전거',
+    btnAiSuggest: '✨ AI 제안',
+    stAnalyzing: '영상을 분석하는 중...',
+    aiSuggestHint: '탭하면 입력칸에 들어갑니다',
+    btnReroll: '🔄 다른 제안',
+    btnSave: '저장',
+    cfgKeyHint: 'Claude API 키 — AI 제안이 장면을 실제로 해석하는 데 사용됩니다. 이 브라우저에만 저장되며 Anthropic API 호출에만 쓰입니다.',
+    keySet: '키 저장됨 — 장면 해석 활성', keyUnset: '키 없음 — 기본 제안 사용',
+    cfgSbHint: 'Supabase 동기화 — URL과 anon key를 넣으면 접속 시 익명 계정이 자동 생성되고 기록이 사용자별로 서버에 쌓입니다. 비워두면 이 브라우저에만 저장됩니다.',
+    sbOff: '동기화 꺼짐 — 이 브라우저에만 저장 중',
+    sbAnon: id => `동기화 켜짐 — 익명 계정 …${id}`,
+    sbLinked: e => `동기화 켜짐 — 연결됨: ${e}`,
+    sbFail: '연결 실패 — URL/키를 확인하세요',
+    btnLinkEmail: '이 이메일로 계정 연결',
+    btnMagicLogin: '매직링크 로그인',
+    sbMailSent: '확인 메일을 보냈습니다 — 받은 편지함을 확인하세요',
+    s0Sub: '도시의 순간을 기록합니다. 이메일로 로그인하면 어느 기기에서든 기록이 이어집니다.',
+    btnMagic: '이메일로 로그인 링크 받기',
+    btnGuest: '게스트로 시작',
+    s0GuestHint: '게스트로 시작해도 기록은 이 브라우저의 익명 계정에 저장되며, 나중에 설정(⚙️)에서 이메일을 연결할 수 있습니다.',
+    stMagicSent: '로그인 링크를 보냈습니다 — 메일함에서 링크를 눌러주세요',
+    btnLogout: '로그아웃',
+    accGuest: '게스트(익명 계정)', accUser: e => e,
+    stReading: '장면을 읽는 중...',
+    sndOnHint: '소리 켜짐 — 안 들리면 기기 볼륨과 무음 설정을 확인하세요',
+    sndNoTrack: '이 영상 파일에는 오디오 트랙이 없습니다 — 원본 자체가 무음입니다',
+    sndBlocked: '브라우저가 소리 재생을 차단한 것 같습니다. Safari 메뉴 › "이 웹사이트에 대한 설정" › 자동 재생을 "모든 자동 재생 허용"으로 바꿔보세요',
+    clipHint: '영상이 5초보다 깁니다 — 사용할 구간의 시작 지점을 고르세요',
+    clipUse: (a, b) => `${a} → ${b} 구간 사용`,
+    btnTranslate: '영어로 변환하기',
+    lblUseOriginal: '입력한 그대로 사용', lblUseEnglish: '영어로 사용',
+    stTranslating: '변환 중...',
+    errTranslate: '변환에 실패했습니다 — 잠시 후 다시 시도해주세요.',
+    s5ContactTitle: '연락처 남기기',
+    s5ContactSub: '적은 항목만 결과물 하단에 표시됩니다. 익명을 선택하면 "anonymous"로 표기돼요.',
+    phCName: '이름', phCInsta: '인스타그램', phCEmail: '이메일', phCSite: '홈페이지 등 기타',
+    btnAnon: '익명으로 남기기', anonOn: '익명으로 표기됩니다 — "anonymous"',
+    btnSkip: '건너뛰기', btnNext: '다음',
+    s6Title: '6. 결과', btnDownload: '다운로드',
+    outReels: '릴스',
+    btnDlReels: '릴스 다운', btnDlThumb: '릴스 썸네일 다운', btnDlPng: 'PNG 다운',
+    out1Title: '산출물 1', 
+    out3Title: '산출물 3', out3Desc: '흰 배경 · 텍스트 없음',
+    out4Title: '산출물 4', out4Desc: '960×960 정방형 · 건물 매핑만 · 배경 투명 PNG',
+    btnExport: '기록 내보내기 (JSON)',
+    btnMyData: '내 기록 관리',
+    btnMap: '맵',
+    mapTitle: '맵',
+    renamePrompt: '이 매스의 이름을 정해주세요',
+    btnBoard: '보드', btnGeoMap: '지도',
+    edgeSameMass: '같은 매스', edgeScale: '비슷한 스케일',
+    mapNoGps: n => `${n}건은 미디어에 위치 정보가 없어 지도에 표시되지 않습니다`,
+    mapSub: '미디어가 촬영된 위치에 매스가 놓입니다. 위(카테고리)에서 매스를 고르면 그 매스로 만든 미디어만 보이고, 우측 게이지는 평균 스케일입니다.',
+    dataTitle: '내 기록',
+    dataSub: '이 브라우저에서 만든 기록입니다. 삭제하면 서버에 동기화된 사본도 함께 삭제를 시도합니다.',
+    btnDeleteAll: '전체 삭제',
+    confirmDeleteAll: '모든 기록을 삭제할까요? 되돌릴 수 없습니다.',
+    recSynced: '동기화됨', recLocal: '이 브라우저에만',
+    noRecords: '아직 기록이 없습니다.',
+    btnView: '보기',
+    recDetailTitle: '기록 상세',
+    noOutputs: '저장된 산출물이 없습니다 — 이 기능이 추가되기 전에 만든 기록입니다. 다운로드한 시점의 산출물만 보관됩니다.',
+    outName1: '릴스', outName2: '도시 데이터 (구버전)', outName3: '릴스 썸네일', outName4: 'PNG (매스)',
+    detecting: '이미지 내용 분석 중...',
+    detected: objs => `인식된 사물: <b>${objs}</b>`,
+    stSearching: '주소 검색 중...',
+    stRetry: q => `다시 검색 중: "${q}"`,
+    stSearchN: (i, n) => `검색 중 (${i}/${n})...`,
+    stOverpass: '건물 데이터 조회 중... (Overpass)',
+    stRender: '건물 렌더링 중...',
+    postcodeLoc: '우편번호 기준 위치', approxLoc: '근사 위치', manualLoc: '직접 입력',
+    infoLevels: n => `${n}층 추정`, unnamedBuilding: '이름 없는 건물',
+    errSearch: m => '검색 중 오류가 발생했습니다: ' + m,
+    errBuilding: m => '건물 조회 실패: ' + m,
+    errNoBuilding: '이 위치 주변에서 건물 폴리곤을 찾지 못했습니다. 좌표를 조금 옮겨보세요.',
+    errPlay: '이 영상을 재생할 수 없습니다 (코덱 미지원 가능).',
+    errRes: '영상 해상도를 읽지 못했습니다. 다른 파일을 시도해주세요.',
+    errImg: '이미지를 열 수 없습니다.',
+    errType: '이미지 또는 영상 파일만 지원합니다.',
+    badgeVideo: 'MP4 · 5초 · 소리 포함', badgeImage: 'JPG',
+    dlRecording: s => `녹화 중... (${s}초)`, dlPreparing: '녹화 준비 중...',
+    dlRendering: pct => `렌더링 중... ${pct}%`,
+    distFromAddr: d => `주소에서 ${d}`,
+    capExif: '촬영 시각', capVideoMeta: '촬영 시각(영상 메타)',
+    capFile: '파일 시각 — 원본 촬영 정보가 없는 파일입니다 (편집·전송 과정에서 제거됐을 수 있어요)',
+    capNow: '현재 시각 — 파일에서 시간 정보를 읽지 못했습니다',
+    gpsFound: (la, lo, d) => `촬영 위치 ${la}, ${lo} — 주소에서 ${d}`,
+    gpsNone: '위치 정보 없음 — 이 파일에는 GPS가 없어 거리 표시가 생략됩니다 (편집·전송 시 제거될 수 있어요)',
+    dlAudioPrep: '소리 준비 중… (약 5초)',
+    dlDone: '완료', dlDoneRT: '완료 (호환 모드로 저장됨)', dlDoneWebm: '완료 (이 브라우저는 MP4 녹화를 지원하지 않아 WebM으로 저장했습니다)',
+    dlFail: m => '실패: ' + m,
+    errNoRecorder: '이 브라우저는 화면 녹화를 지원하지 않습니다.',
+    errEmptyRec: '녹화 데이터가 비어있습니다.',
+    errLatLon: '위도/경도를 숫자로 입력해주세요.',
+    savedTitle: '확정한 건물 매스가 여기에 아카이빙됩니다 (2단계에서 확인 시 자동 저장)',
+    btnHistory: '검색 기록 보기', btnHistoryHide: '검색 기록 접기',
+    btnLoad: '불러오기', btnDelete: '삭제', renameBuilding: '건물 이름을 정해주세요',
+    btnPause: '⏸ 일시정지', btnPlay: '▶ 재생',
+    frameHint: '릴스 썸네일이 될 장면을 슬라이더로 선택하세요',
+  },
+  en: {
+    s1Title: '1. Address Search',
+    s1Sub: 'Enter a building location to fetch its real shape.',
+    tabStruct: 'Search by address', tabSimple: 'Quick search',
+    phCountry: 'Country (e.g. South Korea)', phPostcode: 'Postcode (e.g. 11111)',
+    phStreet: 'Street / building name (optional)', phUnit: 'Unit no. (optional, display only)',
+    phAddr: 'Address (e.g. 11111)', phLat: 'Latitude (e.g. 11.1111)', phLon: 'Longitude (e.g. 111.1111)',
+    phUserText: 'email / name / @instagram',
+    btnSearch: 'Search', btnFind: 'Find', btnUseLoc: 'Use this location',
+    manualMsg: 'Address not found. Please enter the location (lat/lon) directly.',
+    s2Title: '2. Confirm Building',
+    massHint: 'Drag to rotate to the angle you like, then press Confirm to lock this view.',
+    btnAgain: 'Search again', btnConfirm: 'Confirm', btnBack: '← Back',
+    s3Title: '3. Upload Photo or Video',
+    s3Sub: 'Upload the photo or video to map inside the building silhouette.',
+    s4Title: '4. Adjust Position',
+    s4Sub: 'Drag to move, wheel/pinch to zoom, then press Confirm.',
+    btnReset: 'Reset position', soundOn: '🔇 Sound on', soundOff: '🔊 Sound off',
+    s5Title: '5. This moment', badgeOpt: 'optional',
+    scaleSub: 'How good was this moment? Move from 0.',
+    scaleBad: '-10 bad', scaleGood: 'good +10',
+    thoughtTitle: 'Your thoughts on this moment',
+    thoughtSub: 'Write freely — kept in the record only, not shown on the image.',
+    phThought: 'Whatever comes to mind...',
+    wordTitle: 'This moment in one word',
+    wordSub: 'Only this word appears on the image.',
+    phWord: 'e.g. cheering',
+    s5cTitle: 'The most striking things that caught your eye',
+    s5cSub: 'Up to three, in your own words — kept in the record only, not shown on the image.',
+    phSeg1: 'e.g. a streetlamp', phSeg2: 'e.g. the river', phSeg3: 'e.g. a bicycle',
+    btnAiSuggest: '✨ AI suggestions',
+    stAnalyzing: 'Analyzing your media...',
+    aiSuggestHint: 'Tap to fill an empty field',
+    btnReroll: '🔄 More ideas',
+    btnSave: 'Save',
+    cfgKeyHint: 'Claude API key — used so AI suggestions can actually read the scene. Stored only in this browser, sent only to the Anthropic API.',
+    keySet: 'Key saved — scene reading on', keyUnset: 'No key — basic suggestions',
+    cfgSbHint: 'Supabase sync — with URL and anon key, an anonymous account is created on visit and records accumulate per user. Leave empty to keep data in this browser only.',
+    sbOff: 'Sync off — saving to this browser only',
+    sbAnon: id => `Sync on — anonymous account …${id}`,
+    sbLinked: e => `Sync on — linked: ${e}`,
+    sbFail: 'Connection failed — check URL/key',
+    btnLinkEmail: 'Link account to this email',
+    btnMagicLogin: 'Magic-link sign in',
+    sbMailSent: 'Confirmation email sent — check your inbox',
+    s0Sub: 'Recording moments of the city. Sign in with email to continue across devices.',
+    btnMagic: 'Email me a sign-in link',
+    btnGuest: 'Continue as guest',
+    s0GuestHint: 'As a guest, records are saved to an anonymous account in this browser — you can link an email later in Settings (⚙️).',
+    stMagicSent: 'Sign-in link sent — tap the link in your inbox',
+    btnLogout: 'Sign out',
+    accGuest: 'Guest (anonymous)', accUser: e => e,
+    stReading: 'Reading the scene...',
+    sndOnHint: 'Sound on — if silent, check device volume and mute switch',
+    sndNoTrack: 'This video file has no audio track — the source itself is silent',
+    sndBlocked: 'The browser seems to block audible playback. In Safari: Settings for This Website › Auto-Play › Allow All Auto-Play',
+    clipHint: 'Video is longer than 5s — choose where the 5s clip starts',
+    clipUse: (a, b) => `Using ${a} → ${b}`,
+    btnTranslate: 'Translate to English',
+    lblUseOriginal: 'Use as written', lblUseEnglish: 'Use English',
+    stTranslating: 'Translating...',
+    errTranslate: 'Translation failed — please try again shortly.',
+    s5ContactTitle: 'Leave your contact',
+    s5ContactSub: 'Only filled fields appear at the bottom. Choose anonymous to sign as "anonymous".',
+    phCName: 'Name', phCInsta: 'Instagram', phCEmail: 'Email', phCSite: 'Website / other',
+    btnAnon: 'Sign as anonymous', anonOn: 'Will be signed as "anonymous"',
+    btnSkip: 'Skip', btnNext: 'Next',
+    s6Title: '6. Result', btnDownload: 'Download',
+    outReels: 'Reels',
+    btnDlReels: 'Download reels', btnDlThumb: 'Download thumbnail', btnDlPng: 'Download PNG',
+    out1Title: 'Output 1', 
+    out3Title: 'Output 3', out3Desc: 'White background · no text',
+    out4Title: 'Output 4', out4Desc: '960×960 square · building mapping only · transparent PNG',
+    btnExport: 'Export records (JSON)',
+    btnMyData: 'Manage my records',
+    btnMap: 'Map',
+    mapTitle: 'Map',
+    renamePrompt: 'Name this mass',
+    btnBoard: 'Board', btnGeoMap: 'Map',
+    edgeSameMass: 'same mass', edgeScale: 'similar scale',
+    mapNoGps: n => `${n} record(s) have no media location and are not shown on the map`,
+    mapSub: 'Masses sit where the media was captured. Pick a mass above to filter its media; the gauge shows the average scale.',
+    dataTitle: 'My records',
+    dataSub: 'Records made in this browser. Deleting also attempts to remove the synced copy on the server.',
+    btnDeleteAll: 'Delete all',
+    confirmDeleteAll: 'Delete all records? This cannot be undone.',
+    recSynced: 'synced', recLocal: 'this browser only',
+    noRecords: 'No records yet.',
+    btnView: 'View',
+    recDetailTitle: 'Record',
+    noOutputs: 'No saved outputs — this record was made before this feature. Outputs are kept from the moment you download them.',
+    outName1: 'Reels', outName2: 'City data (legacy)', outName3: 'Reels thumbnail', outName4: 'PNG (mass)',
+    detecting: 'Analyzing content...',
+    detected: objs => `Detected: <b>${objs}</b>`,
+    stSearching: 'Searching address...',
+    stRetry: q => `Retrying: "${q}"`,
+    stSearchN: (i, n) => `Searching (${i}/${n})...`,
+    stOverpass: 'Fetching building data... (Overpass)',
+    stRender: 'Rendering building...',
+    postcodeLoc: 'postcode-based location', approxLoc: 'approximate location', manualLoc: 'manual input',
+    infoLevels: n => `est. ${n} floors`, unnamedBuilding: 'Unnamed building',
+    errSearch: m => 'Search error: ' + m,
+    errBuilding: m => 'Building lookup failed: ' + m,
+    errNoBuilding: 'No building polygon found near this point. Try moving the coordinates slightly.',
+    errPlay: 'Cannot play this video (codec may be unsupported).',
+    errRes: 'Could not read video resolution. Try another file.',
+    errImg: 'Cannot open this image.',
+    errType: 'Only image or video files are supported.',
+    badgeVideo: 'MP4 · 5s · with sound', badgeImage: 'JPG',
+    dlRecording: s => `Recording... (${s}s)`, dlPreparing: 'Preparing...',
+    dlRendering: pct => `Rendering... ${pct}%`,
+    distFromAddr: d => `${d} from address`,
+    capExif: 'Captured', capVideoMeta: 'Captured (video metadata)',
+    capFile: 'File time — this file has no original capture info (may have been stripped in editing/transfer)',
+    capNow: 'Current time — could not read time info from the file',
+    gpsFound: (la, lo, d) => `Captured at ${la}, ${lo} — ${d} from address`,
+    gpsNone: 'No location info — this file has no GPS, so distance is omitted (often stripped by editing/transfer)',
+    dlAudioPrep: 'Preparing sound… (~5s)',
+    dlDone: 'Done', dlDoneRT: 'Done (saved via compatibility mode)', dlDoneWebm: 'Done (this browser cannot record MP4, saved as WebM)',
+    dlFail: m => 'Failed: ' + m,
+    errNoRecorder: 'This browser does not support canvas recording.',
+    errEmptyRec: 'Recording produced no data.',
+    errLatLon: 'Please enter latitude/longitude as numbers.',
+    savedTitle: 'Confirmed building masses are archived here (auto-saved on confirm in step 2)',
+    btnHistory: 'View search history', btnHistoryHide: 'Hide search history',
+    btnLoad: 'Load', btnDelete: 'Delete', renameBuilding: 'Name this building',
+    btnPause: '⏸ Pause', btnPlay: '▶ Play',
+    frameHint: 'Pick the scene for the reels thumbnail',
+  },
+};
+let lang = 'ko';
+function t(key, ...args) {
+  const v = (I18N[lang] && I18N[lang][key]) ?? I18N.ko[key] ?? key;
+  return typeof v === 'function' ? v(...args) : v;
+}
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-ph]').forEach(el => { el.placeholder = t(el.dataset.ph); });
+  const sb = document.getElementById('soundBtn');
+  const v = document.getElementById('srcVideo');
+  sb.textContent = v.muted ? t('soundOn') : t('soundOff');
+  const sb6 = document.getElementById('soundBtn6');
+  if (sb6) sb6.textContent = sb.textContent;
+  document.getElementById('langKo').style.opacity = lang === 'ko' ? '1' : '0.5';
+  document.getElementById('langEn').style.opacity = lang === 'en' ? '1' : '0.5';
+  renderSavedList(); // 저장 목록 버튼 라벨도 언어 반영 (함수 선언은 호이스팅됨)
+}
+document.getElementById('langKo').addEventListener('click', () => { lang = 'ko'; applyLang(); });
+document.getElementById('langEn').addEventListener('click', () => { lang = 'en'; applyLang(); });
+// 주의: 초기 applyLang()은 모든 const(LS_KEY 등)가 초기화된 뒤인
+// 스크립트 맨 끝에서 호출한다 (TDZ 회피)
+
+/* ============ 전역 상태 ============ */
+const state = {
+  lat: null, lon: null, address: '',
+  building: null,        // { coords:[[x,z]...](로컬 미터), levels, height, name, osmId }
+  amenities: null,       // { transitDistM, restaurants, cafes, parks }
+  countryCode: null,
+  maskCanvas: null,      // 1080×1920 luminance→alpha 마스크
+  massPngCanvas: null,   // 흰 매스 + 외곽선 원본 (합성 배경으로도 사용)
+  mediaType: null,       // 'image' | 'video'
+  mediaEl: null,         // HTMLImageElement | HTMLVideoElement
+  mediaDate: null,       // Date (파일 lastModified 기준 — 기준 시점은 문서상 미확정, 임시로 파일 수정시각 사용)
+  pan: { x: 0, y: 0 }, userScale: 1, baseScale: 1,
+  locked: false,
+  userText: '',
+  objects: null,         // ['tree','person',...] 최소 3개 목표
+  audioCtx: null, recordableAudioStream: null,
+};
+
+/* ============ 화면 전환 ============ */
+const steps = [...document.querySelectorAll('.step')];
+function goto(n) {
+  steps.forEach(s => s.classList.toggle('active', s.id === 'step' + n));
+  window.scrollTo(0, 0);
+}
+
+/* ============================================================
+   저장된 건물 매스 (localStorage) — 2단계 확인 시 자동 저장,
+   첫 화면에서 불러오기/삭제. 매스 PNG 대신 건물 데이터+뷰 각도만
+   저장해서 용량을 아끼고, 불러올 때 뷰어를 재구성한다.
+   ============================================================ */
+const LS_KEY = 'lc_saved_buildings';
+function getSavedBuildings() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; } catch (e) { return []; }
+}
+let historyOpen = false;
+function renderSavedList() {
+  const list = getSavedBuildings();
+  const box = document.getElementById('savedBox');
+  const wrap = document.getElementById('savedList');
+  const histRow = document.getElementById('historyRow');
+  const histBtn = document.getElementById('historyBtn');
+  const expBtn = document.getElementById('exportBtn');
+  let recCount = 0;
+  try { recCount = (JSON.parse(localStorage.getItem('lc_records')) || []).length; } catch (e) {}
+  histRow.style.display = (list.length || recCount) ? '' : 'none';
+  histBtn.style.display = list.length ? '' : 'none';
+  expBtn.style.display = recCount ? '' : 'none';
+  expBtn.textContent = t('btnExport') + ` (${recCount})`;
+  const mdBtn = document.getElementById('myDataBtn');
+  mdBtn.style.display = recCount ? '' : 'none';
+  document.getElementById('mapBtn').style.display = recCount ? '' : 'none';
+  box.style.display = (list.length && historyOpen) ? '' : 'none';
+  histBtn.textContent = historyOpen ? t('btnHistoryHide') : t('btnHistory');
+  wrap.innerHTML = '';
+  list.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'saved-item';
+    if (item.thumb) {                                  // 확정 시점의 매스 뷰 썸네일
+      const img = document.createElement('img');
+      img.src = item.thumb;
+      row.appendChild(img);
+    }
+    const label = document.createElement('span');
+    label.textContent = (item.customName || item.building.name || t('unnamedBuilding')) + ' · ' + (item.address || '');
+    // ✏️ 건물 이름 수정 (아카이브 항목에 저장)
+    const editBtn = document.createElement('button');
+    editBtn.className = 'secondary';
+    editBtn.textContent = '✏️';
+    editBtn.addEventListener('click', () => {
+      const cur = item.customName || item.building.name || '';
+      const v = prompt(t('renameBuilding'), cur);
+      if (v === null) return;
+      const all = getSavedBuildings();
+      const target = all.find(x => x.id === item.id);
+      if (target) {
+        if (v.trim()) target.customName = v.trim(); else delete target.customName;
+        localStorage.setItem(LS_KEY, JSON.stringify(all));
+        renderSavedList();
+      }
+    });
+    const loadBtn = document.createElement('button');
+    loadBtn.textContent = t('btnLoad');
+    loadBtn.addEventListener('click', () => loadSavedBuilding(item));
+    const delBtn = document.createElement('button');
+    delBtn.className = 'secondary';
+    delBtn.textContent = t('btnDelete');
+    delBtn.addEventListener('click', () => {
+      localStorage.setItem(LS_KEY, JSON.stringify(getSavedBuildings().filter(x => x.id !== item.id)));
+      renderSavedList();
+    });
+    row.append(label, editBtn, loadBtn, delBtn);
+    wrap.appendChild(row);
+  });
+}
+function saveCurrentBuilding(view) {
+  if (!state.building) return;
+  // 확정(픽스)된 매스 뷰를 작은 썸네일로 아카이브 (108×192 JPEG, 항목당 수 KB)
+  let thumb = null;
+  if (state.massPngCanvas) {
+    const tc = document.createElement('canvas');
+    tc.width = 108; tc.height = 192;
+    tc.getContext('2d').drawImage(state.massPngCanvas, 0, 0, 108, 192);
+    thumb = tc.toDataURL('image/jpeg', 0.7);
+  }
+  const entry = {
+    id: state.building.osmId || Date.now(),
+    lat: state.lat, lon: state.lon,
+    address: state.address, countryCode: state.countryCode,
+    building: state.building,
+    view: { yaw: view.yaw, pitch: view.pitch },
+    thumb,
+    savedAt: Date.now(),
+  };
+  const list = getSavedBuildings().filter(x => x.id !== entry.id);
+  list.unshift(entry);
+  localStorage.setItem(LS_KEY, JSON.stringify(list.slice(0, 10))); // 최근 10개까지
+  renderSavedList();
+}
+function loadSavedBuilding(item) {
+  state.lat = item.lat; state.lon = item.lon;
+  state.address = item.address;
+  state.countryCode = item.countryCode || null;
+  state.building = item.building;
+  state.amenitiesPromise = fetchAmenities(item.lat, item.lon)
+    .then(a => { state.amenities = a; return a; }).catch(() => null);
+  startMassViewer(item.building);
+  if (item.view && massViewer) {
+    massViewer.view.yaw = item.view.yaw;
+    massViewer.view.pitch = item.view.pitch;
+  }
+  document.getElementById('buildingInfo').textContent =
+    `${item.customName || item.building.name || t('unnamedBuilding')} · ${t('infoLevels', item.building.levels)} · ${item.address}`;
+  goto(2);
+}
+document.getElementById('historyBtn').addEventListener('click', () => {
+  historyOpen = !historyOpen;
+  renderSavedList();
+});
+
+/* ============================================================
+   STEP 1 — 주소 검색 (Nominatim) + 실패 시 직접 입력 폴백
+   ============================================================ */
+const searchBtn = document.getElementById('searchBtn');
+const searchErr = document.getElementById('searchErr');
+const searchStatus = document.getElementById('searchStatus');
+const manualBox = document.getElementById('manualBox');
+
+// Nominatim 1회 조회 (limit=3, 첫 결과 사용)
+async function nominatim(q) {
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=3&q=' + encodeURIComponent(q);
+  const res = await fetch(url, { headers: { 'Accept-Language': 'ko,en' } });
+  if (!res.ok) throw new Error('Nominatim ' + res.status);
+  const list = await res.json();
+  return list.length ? list[0] : null;
+}
+// Nominatim 구조화 검색 — country/postalcode/street 파라미터는 자유형식 q=보다
+// 훨씬 안정적으로 매칭된다 (예: postalcode=SW11 3PL & country=United Kingdom)
+async function nominatimStruct(params) {
+  const usp = new URLSearchParams({ format: 'json', addressdetails: '1', limit: '3', ...params });
+  const res = await fetch('https://nominatim.openstreetmap.org/search?' + usp.toString(),
+    { headers: { 'Accept-Language': 'ko,en' } });
+  if (!res.ok) throw new Error('Nominatim ' + res.status);
+  const list = await res.json();
+  return list.length ? list[0] : null;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// 검색 성공 공통 처리: 동·호수는 검색에 쓰지 않고 주소 표기에만 접두
+async function finishSearch(hit, usedLabel) {
+  const unit = (document.getElementById('unitInput').value || '').trim();
+  state.address = (unit ? unit + ' · ' : '') + hit.display_name + (usedLabel ? ` (${t(usedLabel)})` : '');
+  state.countryCode = (hit.address && hit.address.country_code) || null;
+  await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon));
+}
+
+// 탭 전환 (주소로 검색 ↔ 간편 검색)
+const tabStruct = document.getElementById('tabStruct');
+const tabSimple = document.getElementById('tabSimple');
+const structForm = document.getElementById('structForm');
+const simpleForm = document.getElementById('simpleForm');
+function setTab(struct) {
+  structForm.style.display = struct ? '' : 'none';
+  simpleForm.style.display = struct ? 'none' : '';
+  tabStruct.style.opacity = struct ? '1' : '0.5';
+  tabSimple.style.opacity = struct ? '0.5' : '1';
+}
+tabStruct.addEventListener('click', () => setTab(true));
+tabSimple.addEventListener('click', () => setTab(false));
+
+// 구조화 검색: ①나라+우편번호+도로명 → ②나라+우편번호 → ③자유형식 폴백 → ④수동 좌표
+const structSearchBtn = document.getElementById('structSearchBtn');
+structSearchBtn.addEventListener('click', async () => {
+  const country = document.getElementById('countryInput').value.trim();
+  const postcode = document.getElementById('postcodeInput').value.trim();
+  const street = document.getElementById('streetInput').value.trim();
+  if (!country && !postcode && !street) return;
+  searchErr.style.display = 'none';
+  manualBox.classList.remove('show');
+  structSearchBtn.disabled = true;
+  try {
+    const attempts = [];
+    if (street) {
+      const p = { street };
+      if (country) p.country = country;
+      if (postcode) p.postalcode = postcode;
+      attempts.push({ params: p, label: '' });
+    }
+    if (postcode) {
+      const p = { postalcode: postcode };
+      if (country) p.country = country;
+      attempts.push({ params: p, label: 'postcodeLoc' });
+    }
+    let hit = null, usedLabel = '';
+    for (let i = 0; i < attempts.length; i++) {
+      searchStatus.textContent = t('stSearchN', i + 1, attempts.length);
+      try { hit = await nominatimStruct(attempts[i].params); } catch (e) { hit = null; }
+      if (hit) { usedLabel = attempts[i].label; break; }
+      if (i < attempts.length - 1) await sleep(1100);
+    }
+    // 구조화 실패 → 입력을 이어붙여 자유형식 다단계 폴백 재사용
+    if (!hit) {
+      const joined = [street, postcode, country].filter(Boolean).join(' ');
+      const cands = buildQueryCandidates(joined);
+      for (let i = 0; i < cands.length; i++) {
+        searchStatus.textContent = t('stRetry', cands[i].q);
+        await sleep(1100);
+        try { hit = await nominatim(cands[i].q); } catch (e) { hit = null; }
+        if (hit) { usedLabel = cands[i].label; break; }
+      }
+    }
+    if (!hit) {
+      searchStatus.textContent = '';
+      manualBox.classList.add('show');
+      return;
+    }
+    await finishSearch(hit, usedLabel);
+  } catch (e) {
+    searchErr.textContent = t('errSearch', e.message);
+    searchErr.style.display = 'block';
+    manualBox.classList.add('show');
+    searchStatus.textContent = '';
+  } finally {
+    structSearchBtn.disabled = false;
+  }
+});
+
+// 입력 문자열에서 검색 후보들을 단계별로 생성:
+// 1차 원문 → 2차 우편번호만 → 3차 호수/동호수 제거·토큰 축약
+function buildQueryCandidates(q) {
+  const cands = [{ q, label: '' }];
+
+  // 우편번호 추출: 영국식(SW11 3PL) 또는 숫자형 5~6자리(한국/싱가포르)
+  const ukPost = q.match(/\b[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}\b/);
+  const numPost = q.match(/\b\d{5,6}\b/);
+  if (ukPost) cands.push({ q: ukPost[0].toUpperCase(), label: 'postcodeLoc' });
+  else if (numPost) cands.push({ q: numPost[0], label: 'postcodeLoc' });
+
+  // 호수/유닛 표기 제거: "Flat 19", "#04-22", "1201호", "107동 302호", "Apt 3B" 등
+  let stripped = q
+    .replace(/\b(flat|apt|apartment|unit|suite|ste|room)\s*[#]?\s*[\w-]+\b/gi, '')
+    .replace(/#\s*[\d-]+/g, '')
+    .replace(/\b\d+\s*동\s*\d+\s*호\b/g, '')
+    .replace(/\b\d+\s*호\b/g, '')
+    .replace(/\s{2,}/g, ' ').trim();
+  if (stripped && stripped.toLowerCase() !== q.toLowerCase()) {
+    cands.push({ q: stripped, label: 'approxLoc' });
+  }
+
+  // 토큰 축약: 앞쪽 상세 토큰을 덜어내고 뒤쪽(도시/국가) 위주로
+  const tokens = stripped.split(/\s+/);
+  if (tokens.length > 3) {
+    cands.push({ q: tokens.slice(-3).join(' '), label: 'approxLoc' });
+  }
+  // 숫자 토큰(번지수 등) 제거 버전 — "모란로 65 삼부아파트" → "모란로 삼부아파트"
+  const noNums = tokens.filter(t => !/^\d+$/.test(t));
+  if (noNums.length && noNums.length !== tokens.length) {
+    cands.push({ q: noNums.join(' '), label: 'approxLoc' });
+  }
+  // 마지막 수단: 가장 구체적인 이름 하나만 (한국식 "삼부아파트" 등, 마지막 토큰)
+  if (tokens.length > 1) {
+    const last = tokens[tokens.length - 1];
+    if (!/^\d+$/.test(last)) cands.push({ q: last, label: 'approxLoc' });
+  }
+  // 중복 제거 + 최대 5개 (Nominatim 레이트리밋 고려)
+  const seen = new Set();
+  return cands.filter(c => {
+    const k = c.q.toLowerCase();
+    if (seen.has(k) || !c.q) return false;
+    seen.add(k);
+    return true;
+  }).slice(0, 5);
+}
+
+searchBtn.addEventListener('click', async () => {
+  const q = document.getElementById('addrInput').value.trim();
+  if (!q) return;
+  searchErr.style.display = 'none';
+  manualBox.classList.remove('show');
+  searchBtn.disabled = true;
+  try {
+    const cands = buildQueryCandidates(q);
+    let hit = null, usedLabel = '';
+    for (let i = 0; i < cands.length; i++) {
+      searchStatus.textContent = i === 0 ? t('stSearching') : t('stRetry', cands[i].q);
+      try { hit = await nominatim(cands[i].q); } catch (e) { hit = null; }
+      if (hit) { usedLabel = cands[i].label; break; }
+      if (i < cands.length - 1) await sleep(1100); // Nominatim 레이트리밋 (1 req/s)
+    }
+    if (!hit) {
+      // 모든 단계 실패 → 직접 입력 폴백 노출
+      searchStatus.textContent = '';
+      manualBox.classList.add('show');
+      return;
+    }
+    await finishSearch(hit, usedLabel);
+  } catch (e) {
+    searchErr.textContent = t('errSearch', e.message);
+    searchErr.style.display = 'block';
+    manualBox.classList.add('show');
+    searchStatus.textContent = '';
+  } finally {
+    searchBtn.disabled = false;
+  }
+});
+
+document.getElementById('manualBtn').addEventListener('click', async () => {
+  const lat = parseFloat(document.getElementById('manualLat').value);
+  const lon = parseFloat(document.getElementById('manualLon').value);
+  if (isNaN(lat) || isNaN(lon)) {
+    searchErr.textContent = t('errLatLon');
+    searchErr.style.display = 'block';
+    return;
+  }
+  state.address = `${lat.toFixed(5)}, ${lon.toFixed(5)} (${t('manualLoc')})`;
+  await proceedWithLocation(lat, lon);
+});
+
+async function proceedWithLocation(lat, lon) {
+  state.lat = lat; state.lon = lon;
+  searchStatus.textContent = t('stOverpass');
+  try {
+    const building = await fetchBuilding(lat, lon);
+    if (!building) {
+      searchErr.textContent = t('errNoBuilding');
+      searchErr.style.display = 'block';
+      manualBox.classList.add('show');
+      searchStatus.textContent = '';
+      return;
+    }
+    state.building = building;
+    // 반경 데이터는 백그라운드로 조회 시작하되 promise를 보관 —
+    // 산출물 화면 진입 시 (타임아웃 한도 내에서) 완료를 기다린다
+    state.amenitiesPromise = fetchAmenities(lat, lon)
+      .then(a => { state.amenities = a; return a; })
+      .catch(() => null);
+
+    searchStatus.textContent = t('stRender');
+    startMassViewer(building);
+    document.getElementById('buildingInfo').textContent =
+      `${building.name || t('unnamedBuilding')} · ${t('infoLevels', building.levels)} · ${state.address}`;
+    searchStatus.textContent = '';
+    goto(2);
+  } catch (e) {
+    searchErr.textContent = t('errBuilding', e.message);
+    searchErr.style.display = 'block';
+    searchStatus.textContent = '';
+  }
+}
+
+/* ============================================================
+   Overpass — 건물 폴리곤 + 주변 어메니티
+   ============================================================ */
+// 공개 Overpass 서버는 종종 504를 반환하므로 미러 순차 폴백 + 1회 재시도
+const OVERPASS_URLS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+];
+async function overpass(query) {
+  let lastErr = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const url of OVERPASS_URLS) {
+      // 응답 없는 미러가 전체를 막지 않도록 요청별 12초 타임아웃 필수
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 12000);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          body: 'data=' + encodeURIComponent(query),
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          signal: ac.signal,
+        });
+        if (!res.ok) throw new Error('Overpass ' + res.status);
+        return await res.json();
+      } catch (e) { lastErr = e; }
+      finally { clearTimeout(timer); }
+    }
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  throw lastErr || new Error('Overpass unreachable');
+}
+
+async function fetchBuilding(lat, lon) {
+  // 본체(building)와 부분(building:part — 굴뚝·타워 등 높이가 다른 구조)을 함께 조회
+  const q = `[out:json][timeout:25];
+    (
+      way["building"](around:80,${lat},${lon});
+      way["building:part"](around:80,${lat},${lon});
+    );
+    out geom tags;`;
+  const data = await overpass(q);
+  const allWays = data.elements.filter(e => e.type === 'way' && e.geometry && e.geometry.length >= 4);
+  const partWays = allWays.filter(e => e.tags && e.tags['building:part']);
+  const ways = allWays.filter(e => e.tags && e.tags.building);
+  if (!ways.length) return null;
+
+  // 포인트를 포함하는 폴리곤 우선, 없으면 중심점이 가장 가까운 것
+  const inside = ways.find(w => pointInPolygon(lat, lon, w.geometry));
+  const pick = inside || ways.reduce((best, w) => {
+    const c = centroidLatLon(w.geometry);
+    const d = haversine(lat, lon, c.lat, c.lon);
+    return (!best || d < best.d) ? { w, d } : best;
+  }, null).w;
+
+  const tags = pick.tags || {};
+  let levels = parseInt(tags['building:levels']) || null;
+  let height = parseFloat(tags['height'] || tags['building:height']) || null;
+  if (!levels && height) levels = Math.max(1, Math.round(height / 3.5));
+  if (!levels) levels = 3;             // 태그가 전혀 없으면 3층 가정
+  if (!height) height = levels * 3.5;
+
+  // 로컬 미터 좌표 변환 (centroid 기준 equirectangular 근사)
+  const c = centroidLatLon(pick.geometry);
+  const R = 6378137;
+  const toLocal = g => [
+    (g.lon - c.lon) * Math.PI / 180 * R * Math.cos(c.lat * Math.PI / 180),
+    (g.lat - c.lat) * Math.PI / 180 * R,
+  ];
+  const closeTrim = arr => {
+    const [fx, fy] = arr[0], [lx2, ly2] = arr[arr.length - 1];
+    if (Math.abs(fx - lx2) < 0.01 && Math.abs(fy - ly2) < 0.01) arr.pop();
+    return arr;
+  };
+  const coords = closeTrim(pick.geometry.map(toLocal));
+
+  // 본체 폴리곤 내부(중심점 기준)의 building:part들 — 굴뚝처럼 높이가 다른
+  // 구조를 개별 압출하기 위해 파트별 {coords, height} 수집
+  const parts = [];
+  for (const pw of partWays) {
+    const pc = centroidLatLon(pw.geometry);
+    if (!pointInPolygon(pc.lat, pc.lon, pick.geometry)) continue;
+    const pt = pw.tags || {};
+    let ph = parseFloat(pt.height || pt['building:height']) || null;
+    if (!ph) {
+      const pl = parseInt(pt['building:levels']);
+      ph = pl ? pl * 3.5 : height;
+    }
+    parts.push({ coords: closeTrim(pw.geometry.map(toLocal)), height: ph });
+  }
+
+  return { coords, levels, height, name: tags.name || null, osmId: pick.id,
+           parts: parts.length >= 2 ? parts : null }; // 파트가 2개 이상일 때만 사용
+}
+
+async function fetchAmenities(lat, lon) {
+  const q = `[out:json][timeout:25];
+    ( node["highway"="bus_stop"](around:1000,${lat},${lon});
+      node["railway"~"station|subway_entrance"](around:1000,${lat},${lon});
+      node["amenity"~"^(restaurant|cafe)$"](around:1000,${lat},${lon}); );
+    out body;
+    ( way["leisure"="park"](around:5000,${lat},${lon});
+      way["landuse"~"^(forest|grass|recreation_ground)$"](around:5000,${lat},${lon}); );
+    out ids;`;
+  const data = await overpass(q);
+  let transitDistM = null, restaurants = 0, cafes = 0, parks = 0;
+  for (const e of data.elements) {
+    if (e.type === 'way') { parks++; continue; }
+    const t = e.tags || {};
+    if (t.amenity === 'restaurant') restaurants++;
+    else if (t.amenity === 'cafe') cafes++;
+    else {
+      const d = haversine(lat, lon, e.lat, e.lon);
+      if (transitDistM === null || d < transitDistM) transitDistM = d;
+    }
+  }
+  return { transitDistM: transitDistM && Math.round(transitDistM), restaurants, cafes, parks };
+}
+
+function pointInPolygon(lat, lon, geom) {
+  let inside = false;
+  for (let i = 0, j = geom.length - 1; i < geom.length; j = i++) {
+    const yi = geom[i].lat, xi = geom[i].lon, yj = geom[j].lat, xj = geom[j].lon;
+    if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function centroidLatLon(geom) {
+  let lat = 0, lon = 0;
+  geom.forEach(g => { lat += g.lat; lon += g.lon; });
+  return { lat: lat / geom.length, lon: lon / geom.length };
+}
+function haversine(la1, lo1, la2, lo2) {
+  const R = 6371000, r = Math.PI / 180;
+  const a = Math.sin((la2 - la1) * r / 2) ** 2 +
+    Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin((lo2 - lo1) * r / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+/* ============================================================
+   STEP 2 — Three.js 매스 뷰어 (인터랙티브)
+   순수 매스만 (창문/문 없음), 검은 배경 + 흰 매스 + 1.5px 검은 외곽선(Line2)
+   사용자가 드래그로 yaw/pitch를 돌려 원하는 각도를 고르고, 확인을 누르면
+   그 시점의 뷰가 고정되어 마스크로 사용된다.
+   건물은 어느 각도에서든 960×960 중앙 영역에 크롭 없이 자동 핏.
+   ============================================================ */
+const massCanvas = document.getElementById('massCanvas');
+const massCanvasCtx = massCanvas.getContext('2d');
+let massViewer = null;
+
+function startMassViewer(building) {
+  stopMassViewer();
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x000000);
+  // alpha:true — 확정 시 "외곽선만 있는 투명 레이어"(흰 배경 산출물용) 캡처에 필요
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
+  renderer.setSize(CANVAS_W, CANVAS_H);
+  renderer.setPixelRatio(1);
+
+  // 압출 지오메트리 — building:part가 있으면(굴뚝 등 높이가 다른 구조)
+  // 파트별로 개별 높이 압출, 없으면 본체 폴리곤 하나를 균일 압출
+  const pieces = (building.parts && building.parts.length)
+    ? building.parts
+    : [{ coords: building.coords, height: building.height }];
+  const meshes = [];
+  const geometries = [];
+  const group = new THREE.Group();
+  const lineMat = new LineMaterial({ color: 0x000000, linewidth: 1.5, worldUnits: false });
+  lineMat.resolution.set(CANVAS_W, CANVAS_H);
+  // 매스를 전부 먼저 추가하고 선을 나중에 추가 — 렌더 순서가 곧 depth 기록
+  // 순서라서, 섞어 추가하면 나중 매스가 앞선 선을 가리지 못해 내부 선이 비친다
+  const lineObjs = [];
+  for (const piece of pieces) {
+    if (!piece.coords || piece.coords.length < 3) continue;
+    const shape = new THREE.Shape();
+    piece.coords.forEach(([x, y], i) => i === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y));
+    shape.closePath();
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth: piece.height, bevelEnabled: false });
+    geometry.rotateX(-Math.PI / 2); // 높이를 Y축으로
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    group.add(mesh);
+    meshes.push(mesh);
+    geometries.push(geometry);
+    // 1.5px 외곽선 — LineBasicMaterial의 linewidth는 브라우저에서 무시되므로 Line2 사용
+    const edges = new THREE.EdgesGeometry(geometry, 12); // 12도 미만 꺾임(공면 삼각분할)은 제외
+    const lineGeo = new LineSegmentsGeometry().fromEdgesGeometry(edges);
+    const line = new LineSegments2(lineGeo, lineMat);
+    line.renderOrder = 1; // 항상 매스들 다음에 렌더
+    lineObjs.push(line);
+  }
+  lineObjs.forEach(l => group.add(l));
+  scene.add(group);
+  const mesh = meshes[0]; // 하위 호환 참조
+
+  const bbox = new THREE.Box3().setFromObject(group);
+  const center = bbox.getCenter(new THREE.Vector3());
+  const dist = Math.max(1, bbox.getSize(new THREE.Vector3()).length() * 3);
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, dist * 4);
+
+  // 초기 각도 = 검증된 등각 방향 (0.25, 0.62, -0.65)
+  const d0 = new THREE.Vector3(0.25, 0.62, -0.65).normalize();
+  const view = { yaw: Math.atan2(d0.x, d0.z), pitch: Math.asin(d0.y) };
+
+  const vtmp = new THREE.Vector3();
+
+  function renderFrame() {
+    const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+    const dir = new THREE.Vector3(Math.sin(view.yaw) * cp, sp, Math.cos(view.yaw) * cp);
+    camera.position.copy(center).addScaledVector(dir, dist);
+    camera.lookAt(center);
+    camera.updateMatrixWorld(true);
+
+    // 뷰 공간 정점 범위 측정 → 화면 중앙 정렬 + 960×960 핏 (모든 파트 포함)
+    const inv = camera.matrixWorldInverse;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const g of geometries) {
+      const pos = g.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        vtmp.fromBufferAttribute(pos, i).applyMatrix4(inv);
+        if (vtmp.x < minX) minX = vtmp.x; if (vtmp.x > maxX) maxX = vtmp.x;
+        if (vtmp.y < minY) minY = vtmp.y; if (vtmp.y > maxY) maxY = vtmp.y;
+      }
+    }
+    // 카메라를 뷰 평면상에서 평행이동(회전 없음)해 건물을 화면 중앙에
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    camera.position.addScaledVector(right, cx).addScaledVector(up, cy);
+    camera.updateMatrixWorld(true);
+
+    // NDC 한계: x ±(960/1080)=±0.888, y ±(960/1920)=±0.5 → HW ≥ 1.125·halfExtent
+    const HW = 1.125 * Math.max((maxX - minX) / 2, (maxY - minY) / 2) * 1.02;
+    camera.left = -HW; camera.right = HW;
+    camera.top = HW * CANVAS_H / CANVAS_W; camera.bottom = -HW * CANVAS_H / CANVAS_W;
+    camera.updateProjectionMatrix();
+
+    renderer.render(scene, camera);
+    massCanvasCtx.drawImage(renderer.domElement, 0, 0);
+  }
+
+  massViewer = { renderer, view, renderFrame, running: true, scene, mesh, meshes };
+  (function loop() {
+    if (!massViewer || !massViewer.running) return;
+    renderFrame();
+    requestAnimationFrame(loop);
+  })();
+}
+
+function stopMassViewer() {
+  if (massViewer) {
+    massViewer.running = false;
+    massViewer.renderer.dispose();
+    massViewer = null;
+  }
+}
+
+// 매스 뷰 드래그 회전 (yaw 자유, pitch는 지평선 위~거의 수직 사이로 제한)
+let massDragging = false, massLastX = 0, massLastY = 0;
+massCanvas.addEventListener('pointerdown', e => {
+  if (!massViewer) return;
+  massDragging = true;
+  massCanvas.style.cursor = 'grabbing';
+  massLastX = e.clientX; massLastY = e.clientY;
+  try { massCanvas.setPointerCapture(e.pointerId) } catch (err) {};
+});
+massCanvas.addEventListener('pointermove', e => {
+  if (!massDragging || !massViewer) return;
+  massViewer.view.yaw -= (e.clientX - massLastX) * 0.006;
+  massViewer.view.pitch = Math.min(1.35, Math.max(0.12,
+    massViewer.view.pitch + (e.clientY - massLastY) * 0.004));
+  massLastX = e.clientX; massLastY = e.clientY;
+});
+const endMassDrag = () => { massDragging = false; massCanvas.style.cursor = 'grab'; };
+massCanvas.addEventListener('pointerup', endMassDrag);
+massCanvas.addEventListener('pointercancel', endMassDrag);
+
+// 검증된 로직: 흰색(매스)→불투명, 검은색(배경)→투명 알파 마스크
+function buildAlphaMask(srcCanvas) {
+  const c = document.createElement('canvas');
+  c.width = srcCanvas.width; c.height = srcCanvas.height;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(srcCanvas, 0, 0);
+  const img = ctx.getImageData(0, 0, c.width, c.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i + 3] = (d[i] + d[i + 1] + d[i + 2]) / 3;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c;
+}
+
+document.getElementById('backToSearchBtn').addEventListener('click', () => {
+  stopMassViewer();
+  goto(1);
+});
+// 각 단계 뒤로가기
+document.getElementById('back3Btn').addEventListener('click', () => {
+  // 건물 확인으로 복귀 — 뷰어 재시작 + 확정했던 각도 복원
+  if (state.building) {
+    startMassViewer(state.building);
+    if (state._lastView && massViewer) {
+      massViewer.view.yaw = state._lastView.yaw;
+      massViewer.view.pitch = state._lastView.pitch;
+    }
+  }
+  goto(2);
+});
+document.getElementById('back4Btn').addEventListener('click', () => {
+  if (state.mediaType === 'video') video.pause();
+  editorRunning = false;
+  goto(3);
+});
+document.getElementById('back5Btn').addEventListener('click', () => {
+  // 위치 조절 재개 (잠금 해제 + 루프 재시작)
+  state.locked = false;
+  editorCanvas.classList.remove('locked');
+  startEditorLoop();
+  if (state.mediaType === 'video' && video.paused) video.play().catch(() => {});
+  goto(4);
+});
+document.getElementById('back6Btn').addEventListener('click', () => goto(55));
+// 확인 = 현재 드래그로 맞춘 뷰를 최종 확정 → 이 프레임이 합성 마스크가 된다
+document.getElementById('confirmMassBtn').addEventListener('click', () => {
+  if (massViewer) {
+    massViewer.renderFrame(); // 마지막 상태를 확실히 반영
+    const src = document.createElement('canvas');
+    src.width = CANVAS_W; src.height = CANVAS_H;
+    src.getContext('2d').drawImage(massViewer.renderer.domElement, 0, 0);
+    state.massPngCanvas = src;
+    state.maskCanvas = buildAlphaMask(src);
+    // 흰 배경 산출물용 외곽선 레이어: 매스를 depth 전용(colorWrite=false)으로
+    // 바꿔 가려짐은 유지한 채 검은 라인만 투명 배경 위에 렌더해서 캡처
+    massViewer.scene.background = null;
+    (massViewer.meshes || [massViewer.mesh]).forEach(m => { m.material.colorWrite = false; });
+    massViewer.renderFrame();
+    const edge = document.createElement('canvas');
+    edge.width = CANVAS_W; edge.height = CANVAS_H;
+    edge.getContext('2d').drawImage(massViewer.renderer.domElement, 0, 0);
+    state.edgeLayer = edge;
+    state._lastView = { yaw: massViewer.view.yaw, pitch: massViewer.view.pitch };
+    saveCurrentBuilding(massViewer.view); // 확정된 건물+뷰 각도를 자동 저장
+    stopMassViewer();
+  }
+  goto(3);
+});
+
+/* ============================================================
+   STEP 3 — 미디어 업로드
+   ============================================================ */
+const video = document.getElementById('srcVideo');
+
+/* ============================================================
+   촬영 시각 추출 — 파일 수정시각(lastModified)은 복사/전송 때마다 바뀌므로
+   사진은 EXIF DateTimeOriginal, 영상은 MP4/MOV mvhd의 creation time을 읽는다.
+   실패 시에만 파일 시각 → 현재 시각 순 폴백. 사용한 소스는 레코드에 기록.
+   ============================================================ */
+async function readMp4CreationDate(file) {
+  const buf = new Uint8Array(await file.slice(0, 4 * 1024 * 1024).arrayBuffer());
+  for (let i = 4; i < buf.length - 20; i++) {
+    if (buf[i] === 0x6d && buf[i + 1] === 0x76 && buf[i + 2] === 0x68 && buf[i + 3] === 0x64) { // 'mvhd'
+      const ver = buf[i + 4];
+      let secs = 0;
+      if (ver === 1) { for (let k = 0; k < 8; k++) secs = secs * 256 + buf[i + 8 + k]; }
+      else { secs = buf[i + 8] * 16777216 + buf[i + 9] * 65536 + buf[i + 10] * 256 + buf[i + 11]; }
+      const d = new Date((secs - 2082844800) * 1000); // 1904 epoch → unix
+      const y = d.getFullYear();
+      return (y >= 1990 && y <= new Date().getFullYear() + 1) ? d : null;
+    }
+  }
+  return null;
+}
+// 미디어의 촬영 GPS — 사진은 EXIF, 영상은 QuickTime ©xyz(ISO6709) 패턴 검색
+async function readMediaGps(file) {
+  try {
+    if (file.type.startsWith('image/') && window.exifr) {
+      const g = await exifr.gps(file);
+      if (g && isFinite(g.latitude) && isFinite(g.longitude)) {
+        return { lat: g.latitude, lon: g.longitude };
+      }
+    } else if (file.type.startsWith('video/')) {
+      // 아이폰 MOV/MP4의 위치(©xyz, ISO6709)는 대개 moov atom(파일 끝)에
+      // 있으므로 앞뿐 아니라 끝 4MB도 검색해야 한다
+      const dec = new TextDecoder('latin1');
+      const CHUNK = 4 * 1024 * 1024;
+      const parts = [file.slice(0, CHUNK)];
+      if (file.size > CHUNK) parts.push(file.slice(Math.max(0, file.size - CHUNK)));
+      for (const part of parts) {
+        const txt = dec.decode(new Uint8Array(await part.arrayBuffer()));
+        const m = txt.match(/([+-]\d{1,2}\.\d+)([+-]\d{1,3}\.\d+)/);
+        if (m) {
+          const lat = parseFloat(m[1]), lon = parseFloat(m[2]);
+          if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) return { lat, lon };
+        }
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function readCaptureDate(file) {
+  try {
+    if (file.type.startsWith('image/') && window.exifr) {
+      const ex = await exifr.parse(file, { pick: ['DateTimeOriginal', 'CreateDate'] });
+      const d = ex && (ex.DateTimeOriginal || ex.CreateDate);
+      if (d instanceof Date && !isNaN(d)) return { date: d, source: 'exif' };
+    } else if (file.type.startsWith('video/')) {
+      const d = await readMp4CreationDate(file);
+      if (d) return { date: d, source: 'video-meta' };
+    }
+  } catch (e) { /* 폴백으로 */ }
+  if (file.lastModified) return { date: new Date(file.lastModified), source: 'file' };
+  return { date: new Date(), source: 'now' };
+}
+
+document.getElementById('mediaInput').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const err = document.getElementById('mediaErr');
+  err.style.display = 'none';
+  // 새 미디어 = 새 기록 세션 (이걸 리셋하지 않으면 두 번째 작품이 저장되지 않음)
+  state._recordSaved = false;
+  state._recordSavedAt = null;
+  const cap = await readCaptureDate(file);
+  state.mediaDate = cap.date;
+  state.mediaDateSource = cap.source; // 'exif' | 'video-meta' | 'file' | 'now'
+  state.mediaGps = await readMediaGps(file); // {lat, lon} 또는 null
+  const url = URL.createObjectURL(file);
+
+  if (file.type.startsWith('video/')) {
+    state.mediaType = 'video';
+    video.src = url;
+    await new Promise((ok, no) => {
+      video.onloadeddata = ok;
+      video.onerror = () => no(new Error(t('errPlay')));
+    }).catch(ex => { err.textContent = ex.message; err.style.display = 'block'; });
+    if (!video.videoWidth) { err.textContent = t('errRes'); err.style.display = 'block'; return; }
+    state.mediaEl = video;
+    // 소리 있는 재생을 먼저 시도 — 파일 선택도 사용자 제스처라 대부분 허용됨.
+    // (muted로 시작한 재생 세션은 Safari에서 나중에 소리를 풀기 어렵다)
+    video.removeAttribute('muted');
+    video.muted = false;
+    video.defaultMuted = false;
+    video.volume = 1;
+    try {
+      await video.play(); // 소리 포함 재생 성공
+    } catch (err) {
+      // 자동재생 정책에 막힘 → muted로 폴백, 사용자가 버튼으로 켬
+      video.muted = true;
+      video.play().catch(() => {});
+    }
+    document.getElementById('soundBtn').style.display = '';
+    pauseBtn.style.display = '';
+    pauseBtn.textContent = t('btnPause');
+    setTimeout(() => {
+      soundBtn.textContent = video.muted ? t('soundOn') : t('soundOff');
+      const h = document.getElementById('soundHint');
+      if (h && !video.muted) h.textContent = t('sndOnHint');
+    }, 100);
+    // 썸네일 장면 선택 (영상 전체 범위, 기본 중간)
+    state.thumbFrac = 0.5;
+    document.getElementById('frameSlider').value = 500;
+    document.getElementById('frameRow').style.display = '';
+    // 10초 초과 영상: 사용할 10초 구간의 시작 지점 선택 UI
+    state.clipStart = 0;
+    const over = video.duration > TARGET_DURATION + 0.05;
+    document.getElementById('clipRow').style.display = over ? '' : 'none';
+    if (over) {
+      const sl = document.getElementById('clipSlider');
+      sl.max = (video.duration - TARGET_DURATION).toFixed(1);
+      sl.value = 0;
+      updateClipLabel();
+    }
+  } else if (file.type.startsWith('image/')) {
+    state.mediaType = 'image';
+    const img = new Image();
+    await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = url; })
+      .catch(() => { err.textContent = t('errImg'); err.style.display = 'block'; });
+    if (!img.naturalWidth) return;
+    state.mediaEl = img;
+    document.getElementById('soundBtn').style.display = 'none';
+    pauseBtn.style.display = 'none';
+    state.clipStart = 0;
+    document.getElementById('clipRow').style.display = 'none';
+    document.getElementById('frameRow').style.display = 'none';
+  } else {
+    err.textContent = t('errType');
+    err.style.display = 'block';
+    return;
+  }
+
+  // 촬영 시각·위치와 출처를 화면에 표시 — 시간/거리가 이상하면 원인을 바로 알 수 있게
+  {
+    const srcKey = { exif: 'capExif', 'video-meta': 'capVideoMeta', file: 'capFile', now: 'capNow' }[state.mediaDateSource] || 'capFile';
+    const label = t(srcKey);
+    let line = (srcKey === 'capExif' || srcKey === 'capVideoMeta')
+      ? `${label}: ${fmtDate(state.mediaDate)}`
+      : `${fmtDate(state.mediaDate)} · ${label}`;
+    if (state.mediaGps && isFinite(state.lat) && isFinite(state.lon)) {
+      const d = Math.round(haversine(state.lat, state.lon, state.mediaGps.lat, state.mediaGps.lon));
+      const dTxt = d >= 1000 ? (d / 1000).toFixed(1) + 'km' : d + 'm';
+      line += '\n' + t('gpsFound', state.mediaGps.lat.toFixed(4), state.mediaGps.lon.toFixed(4), dTxt);
+    } else {
+      line += '\n' + t('gpsNone');
+    }
+    const ci = document.getElementById('captureInfo');
+    ci.style.whiteSpace = 'pre-line';
+    ci.textContent = line;
+  }
+  resetTransform();
+  state.locked = false;
+  document.getElementById('editorCanvas').classList.remove('locked');
+  startEditorLoop();
+  detectObjects();     // 백그라운드로 객체 인식 시작
+  goto(4);
+});
+
+/* ============================================================
+   STEP 4 — 합성 에디터 (검증된 destination-in 마스크 + 팬/줌)
+   ============================================================ */
+const editorCanvas = document.getElementById('editorCanvas');
+const editorCtx = editorCanvas.getContext('2d');
+const frameBuf = document.createElement('canvas');
+frameBuf.width = CANVAS_W; frameBuf.height = CANVAS_H;
+const frameCtx = frameBuf.getContext('2d');
+
+const MIN_USER_SCALE = 0.5; // 영역보다 작게 축소 허용 (빈 부분은 검은 배경)
+const MAX_USER_SCALE = 4;
+
+function mediaSize() {
+  const m = state.mediaEl;
+  return state.mediaType === 'video'
+    ? { w: m.videoWidth, h: m.videoHeight }
+    : { w: m.naturalWidth, h: m.naturalHeight };
+}
+
+function resetTransform() {
+  const { w, h } = mediaSize();
+  // 기준을 캔버스 전체가 아니라 마스크 영역(960×960)으로 — 이렇게 해야
+  // 미디어를 상하좌우로 실제로 움직일 여지가 생기고, 축소도 자연스럽다.
+  // (마스크 밖은 어차피 destination-in으로 잘려나가므로 영역만 덮으면 됨)
+  state.baseScale = Math.max(AREA / w, AREA / h);
+  state.userScale = 1;
+  state.pan = { x: 0, y: 0 };
+}
+
+// 합성 한 프레임을 대상 컨텍스트에 그림 (미디어 → 마스크 → 검은 배경 위)
+function drawComposite(ctx, mediaSource, bg = '#000', edgeOverlay = null) {
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+  const { w, h } = mediaSize();
+  const scale = state.baseScale * state.userScale;
+  const dw = w * scale, dh = h * scale;
+  // 팬은 자유 (클램프 없음) — 가로 미디어도 위아래로 자유롭게 이동 가능.
+  // 미디어가 마스크를 다 덮지 않으면 그 부분은 검은 배경이 보인다 (사용자가
+  // 미리보기를 보면서 스스로 조절)
+  const dx = (CANVAS_W - dw) / 2 + state.pan.x;
+  const dy = (CANVAS_H - dh) / 2 + state.pan.y;
+
+  frameCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+  frameCtx.drawImage(mediaSource, dx, dy, dw, dh);
+  frameCtx.globalCompositeOperation = 'destination-in';
+  frameCtx.drawImage(state.maskCanvas, 0, 0);
+  frameCtx.globalCompositeOperation = 'source-over';
+
+  ctx.drawImage(frameBuf, 0, 0);
+  if (edgeOverlay) ctx.drawImage(edgeOverlay, 0, 0); // 흰 배경용 검은 외곽선
+}
+
+let editorRunning = false;
+function startEditorLoop() {
+  if (editorRunning) return;
+  editorRunning = true;
+  // 1080×1920 전체 합성은 프레임당 비용이 크므로 30fps로 제한
+  let last = 0;
+  (function loop(ts) {
+    if (!editorRunning) return;
+    if (ts - last >= 33) {
+      last = ts;
+      if (state.mediaEl) drawComposite(editorCtx, state.mediaEl);
+    }
+    requestAnimationFrame(loop);
+  })(0);
+}
+
+// 팬(드래그) + 핀치 줌(터치 2손가락 — 폰에는 휠이 없다)
+let dragging = false, lastPX = 0, lastPY = 0;
+const edPointers = new Map(); // pointerId → {x, y}
+let edPinchDist = 0;
+const displayScale = () => editorCanvas.clientWidth / CANVAS_W;
+editorCanvas.addEventListener('pointerdown', e => {
+  if (state.locked) return;
+  edPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (edPointers.size === 2) {
+    const [a, b] = [...edPointers.values()];
+    edPinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+    dragging = false; // 핀치 중에는 팬 정지
+  } else {
+    dragging = true;
+    editorCanvas.classList.add('dragging');
+    lastPX = e.clientX; lastPY = e.clientY;
+  }
+  try { editorCanvas.setPointerCapture(e.pointerId) } catch (err) {};
+});
+editorCanvas.addEventListener('pointermove', e => {
+  if (state.locked) return;
+  if (edPointers.has(e.pointerId)) edPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (edPointers.size === 2) {
+    const [a, b] = [...edPointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (edPinchDist > 0) {
+      state.userScale = Math.min(MAX_USER_SCALE, Math.max(MIN_USER_SCALE, state.userScale * (d / edPinchDist)));
+    }
+    edPinchDist = d;
+    return;
+  }
+  if (!dragging) return;
+  state.pan.x += (e.clientX - lastPX) / displayScale();
+  state.pan.y += (e.clientY - lastPY) / displayScale();
+  lastPX = e.clientX; lastPY = e.clientY;
+});
+const endDrag = e => {
+  edPointers.delete(e.pointerId);
+  edPinchDist = 0;
+  if (edPointers.size === 0) { dragging = false; editorCanvas.classList.remove('dragging'); }
+};
+editorCanvas.addEventListener('pointerup', endDrag);
+editorCanvas.addEventListener('pointercancel', endDrag);
+
+// 줌(휠) — cover-fit 미만 축소 금지 (빈 공간 방지)
+editorCanvas.addEventListener('wheel', e => {
+  if (state.locked) return;
+  e.preventDefault();
+  state.userScale = Math.min(MAX_USER_SCALE, Math.max(MIN_USER_SCALE, state.userScale * (1 - e.deltaY * 0.0015)));
+}, { passive: false });
+
+document.getElementById('resetBtn').addEventListener('click', () => { if (!state.locked) resetTransform(); });
+
+// 10초 초과 영상의 구간 선택: 시작점 이동 + 미리보기도 그 구간만 반복
+const fmtClock = sec => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+function updateClipLabel() {
+  const cs = state.clipStart || 0;
+  document.getElementById('clipLabel').textContent =
+    t('clipUse', fmtClock(cs), fmtClock(cs + TARGET_DURATION));
+}
+document.getElementById('clipSlider').addEventListener('input', e => {
+  state.clipStart = parseFloat(e.target.value) || 0;
+  video.currentTime = state.clipStart;
+  if (video.paused) video.play().catch(() => {});
+  updateClipLabel();
+});
+// 미리보기 재생이 선택 구간 [clipStart, clipStart+10] 안에서만 돌게 가드
+// + 반복 경계 갭 최소화: ended를 기다리지 않고 끝 직전에 선제 되감기
+video.addEventListener('timeupdate', () => {
+  if (state.mediaType !== 'video' || state._thumbScrub) return;
+  const cs = state.clipStart || 0;
+  const clipEnd = Math.min(video.duration || 0, cs + TARGET_DURATION);
+  if (video.duration > TARGET_DURATION + 0.05 &&
+      (video.currentTime < cs - 0.3 || video.currentTime > clipEnd)) {
+    video.currentTime = cs;
+    return;
+  }
+  // 짧은 영상 반복: 끝 0.12초 전에 미리 되감아 멈칫거림을 줄인다
+  if (video.duration && video.currentTime >= video.duration - 0.12) {
+    video.currentTime = cs;
+    if (video.paused) video.play().catch(() => {});
+  }
+});
+// 수동 루프 — loop 속성은 Safari에서 되감김 후 오디오가 끊기는 사례가 있어
+// ended 이벤트로 직접 되감는다 (짧은 영상 반복 재생도 이 경로)
+video.addEventListener('ended', () => {
+  if (state.mediaType !== 'video') return;
+  video.currentTime = state.clipStart || 0;
+  video.play().catch(() => {});
+});
+
+// 영상 일시정지/재생 토글 — 멈춘 프레임을 보면서 위치를 잡을 수 있게
+const pauseBtn = document.getElementById('pauseBtn');
+pauseBtn.addEventListener('click', () => {
+  if (state.mediaType !== 'video') return;
+  if (video.paused) {
+    video.play().catch(() => {});
+    pauseBtn.textContent = t('btnPause');
+  } else {
+    video.pause();
+    pauseBtn.textContent = t('btnPlay');
+  }
+});
+
+// 소리 켜기 (AudioContext resume — 검증된 함정 대응)
+// 4단계와 6단계(산출물 미리보기) 양쪽에서 같은 토글을 공유
+const soundBtn = document.getElementById('soundBtn');
+const soundBtn6 = document.getElementById('soundBtn6');
+function toggleSound() {
+  // AudioContext 그래프를 만들지 않는다 — 그래프 라우팅은 소리가 그래프
+  // 상태에 종속되는 원인이었고, 내보내기(WebCodecs)에는 그래프가 필요 없다.
+  const turnOn = video.muted;
+  if (turnOn) {
+    // Safari/WebKit: muted "HTML 속성"으로 시작한 비디오는 property 해제만으론
+    // 소리가 안 풀림 — 속성 제거 + 같은 제스처 안에서 pause→unmute→play
+    video.pause();
+    video.removeAttribute('muted');
+    video.muted = false;
+    video.defaultMuted = false;
+    video.volume = 1;
+    video.play().catch(() => {});
+  } else {
+    video.muted = true;
+  }
+  const label = video.muted ? t('soundOn') : t('soundOff');
+  soundBtn.textContent = label;
+  soundBtn6.textContent = label;
+  const hint = document.getElementById('soundHint');
+  if (hint) hint.textContent = video.muted ? '' : t('sndOnHint');
+  // 켠 뒤 잠시 후 자체진단: 오디오 트랙 존재 / 브라우저 차단 여부를 화면에 표시
+  if (!video.muted) {
+    setTimeout(() => {
+      if (video.muted || !hint) return;
+      const tracks = video.audioTracks;
+      if (video.muted) {
+        hint.textContent = t('sndBlocked');       // 브라우저가 unmute를 조용히 되돌림
+      } else if (tracks && typeof tracks.length === 'number' && tracks.length === 0) {
+        hint.textContent = t('sndNoTrack');       // 원본 영상 자체가 무음 (Safari 경로)
+      } else if (typeof video.webkitAudioDecodedByteCount === 'number' &&
+                 video.webkitAudioDecodedByteCount === 0 && !video.paused) {
+        hint.textContent = t('sndNoTrack');       // 재생 중인데 오디오 디코딩 0 = 무음 (Chrome 경로)
+      } else if (video.paused) {
+        hint.textContent = t('sndBlocked');       // 자동재생 정책이 강제 정지한 경우
+      }
+    }, 900);
+  }
+}
+soundBtn.addEventListener('click', toggleSound);
+soundBtn6.addEventListener('click', toggleSound);
+
+document.getElementById('confirmPosBtn').addEventListener('click', () => {
+  state.locked = true;
+  editorCanvas.classList.add('locked');
+  editorRunning = false; // 이후 화면에서 불필요한 이중 합성 방지 (끊김 원인)
+  if (state.mediaType === 'video' && video.paused) video.play().catch(() => {});
+  goto(5);
+});
+
+/* ============================================================
+   STEP 5 — 텍스트 입력 (스킵 가능)
+   ============================================================ */
+/* ============================================================
+   이유 3칸 영어 변환 — 어떤 언어로 적었든 무료 번역 API로 영문 버전 생성,
+   사용자가 "입력한 그대로 / 영어로" 중 선택 (기본: 그대로).
+   연락처(이메일/아이디)는 번역 대상이 아님. 레코드에는 원문·영문 모두 저장.
+   ============================================================ */
+async function translateToEn(text) {
+  try {
+    const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=' + encodeURIComponent(text);
+    const j = await (await fetch(url)).json();
+    return j[0].map(seg => seg[0]).join('').trim();
+  } catch (e) {
+    // 폴백: MyMemory (무료, 키 불필요)
+    const url = 'https://api.mymemory.translated.net/get?q=' + encodeURIComponent(text) + '&langpair=autodetect|en';
+    const j = await (await fetch(url)).json();
+    if (!j.responseData || !j.responseData.translatedText) throw new Error('translate failed');
+    return j.responseData.translatedText.trim();
+  }
+}
+const translateBtn = document.getElementById('translateBtn');
+translateBtn.addEventListener('click', async () => {
+  // 이미지에 새겨질 한 단어를 번역
+  const final = document.getElementById('momentWord').value.trim();
+  if (!final) return;
+  const tStatus = document.getElementById('translateStatus');
+  translateBtn.disabled = true;
+  tStatus.textContent = t('stTranslating');
+  try {
+    state._finalEn = await translateToEn(final);
+    document.getElementById('translatedLines').textContent = state._finalEn;
+    document.getElementById('translateResult').style.display = '';
+    tStatus.textContent = '';
+  } catch (e) {
+    tStatus.textContent = t('errTranslate');
+  } finally {
+    translateBtn.disabled = false;
+  }
+});
+
+/* ============================================================
+   5b. 되물음 — 첫 답을 한 번 더 깊게. Claude 키 있으면 맞춤 질문,
+   없으면 핵심 명사를 되짚는 로컬 템플릿 ("어떤 환호였나요?")
+   ============================================================ */
+// 입력 단어를 질문에 끼워넣지 않는다 — 고유명사("Proms")에서 어색해지는
+// 원인이었음. 대신 입력의 성격(감정/사람/일반)을 감지해 그에 맞는 질문
+// 은행에서 뽑는다. 목표는 표면적 답 뒤의 솔직한 이유를 끌어내는 것.
+const DEEPEN_BANK = {
+  emotion: {
+    ko: ['그 기분이 가장 크게 차오른 순간은 언제였나요?',
+         '그 감정을 몸 어디에서 느꼈나요? 그때 주변에는 무엇이 있었나요?',
+         '비슷한 기분을 느꼈던 다른 기억이 함께 떠오르나요?'],
+    en: ['When did that feeling rise the most?',
+         'Where in your body did you feel it — and what was around you?',
+         'Does it remind you of another time you felt this way?'],
+  },
+  people: {
+    ko: ['그때 곁에 있던 사람들의 어떤 모습이 기억에 남나요?',
+         '그 사람들과 무엇을 주고받았나요 — 말이든, 눈빛이든.'],
+    en: ['What do you remember about the people who were there?',
+         'What passed between you and them — words, or just a look?'],
+  },
+  general: {
+    ko: ['그 순간을 사진처럼 떠올리면, 무엇이 가장 먼저 보이나요?',
+         '무엇이 그렇게 만들었나요? 처음 떠오르는 장면을 적어주세요.',
+         '그 순간이 특별했던 진짜 이유는 무엇이었을까요?',
+         '그 자리에서 시간이 멈췄다면, 어떤 소리와 냄새가 남아 있을까요?'],
+    en: ['If you recall that moment like a photograph, what do you see first?',
+         'What made it feel that way? Write the first scene that comes to mind.',
+         'What was the real reason that moment mattered?',
+         'If time had stopped there, what sounds and smells would remain?'],
+  },
+};
+function localDeepen(ans) {
+  const emo = /(좋|행복|설레|평화|즐거|감동|환호|웃|편안|그리|벅차|뭉클|시원|따뜻|joy|happy|peace|excit|love|warm|calm)/i;
+  const ppl = /(사람|친구|가족|엄마|아빠|아이|연인|우리|관객|people|friend|family|crowd|together)/i;
+  const pool = emo.test(ans) ? DEEPEN_BANK.emotion[lang]
+    : ppl.test(ans) ? DEEPEN_BANK.people[lang]
+    : DEEPEN_BANK.general[lang];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+/* ============================================================
+   설정(⚙️) 패널 — Claude API 키 (AI 제안 제거 리팩터 때 실수로 삭제됐던
+   로직 복구) + Supabase 동기화 설정
+   ============================================================ */
+const cfgPanel = document.getElementById('cfgPanel');
+function updateKeyStatus() {
+  document.getElementById('apiKeyStatus').textContent =
+    localStorage.getItem('lc_api_key') ? t('keySet') : t('keyUnset');
+}
+document.getElementById('cfgBtn').addEventListener('click', () => {
+  const open = cfgPanel.style.display !== 'none';
+  cfgPanel.style.display = open ? 'none' : '';
+  if (!open) {
+    document.getElementById('apiKeyInput').value = localStorage.getItem('lc_api_key') || '';
+    document.getElementById('sbUrlInput').value = localStorage.getItem('lc_sb_url') || '';
+    document.getElementById('sbKeyInput').value = localStorage.getItem('lc_sb_key') || '';
+    updateKeyStatus();
+    updateSbStatus();
+  }
+});
+document.getElementById('apiKeySave').addEventListener('click', () => {
+  const v = document.getElementById('apiKeyInput').value.trim();
+  if (v) localStorage.setItem('lc_api_key', v);
+  updateKeyStatus();
+});
+document.getElementById('apiKeyClear').addEventListener('click', () => {
+  localStorage.removeItem('lc_api_key');
+  document.getElementById('apiKeyInput').value = '';
+  updateKeyStatus();
+});
+
+/* ============================================================
+   Supabase 동기화 — 익명 자동 계정 + (선택) 이메일 매직링크 연결.
+   URL/키가 없으면 완전히 비활성 (localStorage 전용, 기존과 동일).
+   ============================================================ */
+let sb = null;
+async function updateSbStatus() {
+  const el = document.getElementById('sbStatus');
+  const linkBox = document.getElementById('sbLinkBox');
+  if (!sb) { el.textContent = t('sbOff'); linkBox.style.display = 'none'; return; }
+  try {
+    const { data } = await sb.auth.getUser();
+    const u = data && data.user;
+    if (u && u.email) el.textContent = t('sbLinked', u.email);
+    else if (u) el.textContent = t('sbAnon', u.id.slice(0, 8));
+    else el.textContent = t('sbFail');
+    linkBox.style.display = u ? '' : 'none';
+  } catch (e) { el.textContent = t('sbFail'); }
+}
+async function updateAccountBar() {
+  const bar = document.getElementById('accountBar');
+  bar.style.display = 'none'; // 로그인 페이지 중단에 따라 배지 비표시
+  if (!sb) { return; }
+  return; /* 재개 시 아래 로직 복원 */
+  try {
+    const { data } = await sb.auth.getUser();
+    const u = data && data.user;
+    if (!u) { bar.style.display = 'none'; return; }
+    document.getElementById('accountLabel').textContent =
+      u.email ? t('accUser', u.email) : t('accGuest');
+    bar.style.display = '';
+  } catch (e) { bar.style.display = 'none'; }
+}
+async function initSupabase() {
+  const url = localStorage.getItem('lc_sb_url');
+  const key = localStorage.getItem('lc_sb_key');
+  if (!url || !key || !window.supabase) { sb = null; return; }
+  try {
+    sb = window.supabase.createClient(url, key);
+    // 매직링크로 돌아온 경우 세션이 자동 수립됨 — 상태 변화에 맞춰 화면 갱신
+    sb.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN') {
+        updateAccountBar();
+        updateSbStatus();
+        if (document.getElementById('step0').classList.contains('active')) goto(1);
+      }
+    });
+    const { data } = await sb.auth.getSession();
+    if (data && data.session) {
+      syncPendingRecords();
+    } else {
+      // 로그인 페이지 구현 중단(사용자 지시) — 조용히 익명 계정 자동 생성.
+      // step0 마크업은 재개 대비로 남아있으나 진입 경로 없음.
+      const r = await sb.auth.signInAnonymously();
+      if (r.error) throw r.error;
+      syncPendingRecords();
+    }
+  } catch (e) {
+    console.warn('supabase init failed:', e.message);
+    sb = null;
+  }
+  updateSbStatus();
+}
+// 로그인 페이지 동작
+document.getElementById('guestBtn').addEventListener('click', async () => {
+  const st = document.getElementById('loginStatus');
+  if (sb) {
+    try {
+      const r = await sb.auth.signInAnonymously();
+      if (r.error) throw r.error;
+      syncPendingRecords();
+      updateAccountBar();
+    } catch (e) { st.textContent = t('sbFail') + ' — ' + e.message; }
+  }
+  goto(1); // 실패해도 로컬 모드로 진행
+});
+document.getElementById('magicBtn').addEventListener('click', async () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  const st = document.getElementById('loginStatus');
+  if (!sb || !email) return;
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href } });
+  st.textContent = error ? t('sbFail') + ' — ' + error.message : t('stMagicSent');
+});
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  if (sb) await sb.auth.signOut().catch(() => {});
+  updateAccountBar();
+  updateSbStatus();
+  goto(0);
+});
+async function syncRecordToServer(rec) {
+  if (!sb) return false;
+  try {
+    const { data, error } = await sb.from('records').insert({ payload: rec }).select('id').single();
+    if (error) return false;
+    if (data && data.id) {
+      const l = getRecords();
+      const r2 = l.find(x => x.savedAt === rec.savedAt);
+      if (r2) { r2.serverId = data.id; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
+    }
+    return true;
+  } catch (e) { return false; }
+}
+// 레코드 삭제: 로컬 제거 + 서버 사본도 제거 시도 (RLS로 자기 것만 지워짐)
+async function deleteRecord(savedAt) {
+  const list = getRecords();
+  const rec = list.find(x => x.savedAt === savedAt);
+  localStorage.setItem(REC_KEY, JSON.stringify(list.filter(x => x.savedAt !== savedAt)));
+  idbDelRecord(savedAt).catch(() => {});
+  if (sb && rec) {
+    try {
+      if (rec.serverId) await sb.from('records').delete().eq('id', rec.serverId);
+      else await sb.from('records').delete().eq('payload->>savedAt', String(savedAt));
+    } catch (e) { /* 오프라인 등 — 로컬 삭제는 이미 완료 */ }
+  }
+  renderRecList();
+  renderSavedList(); // 내보내기/관리 버튼 표시 갱신
+}
+async function syncPendingRecords() {
+  if (!sb) return;
+  const list = getRecords();
+  let changed = false;
+  for (const rec of list) {
+    if (rec.synced) continue;
+    if (await syncRecordToServer(rec)) { rec.synced = true; changed = true; }
+  }
+  if (changed) localStorage.setItem(REC_KEY, JSON.stringify(list));
+}
+document.getElementById('sbSave').addEventListener('click', () => {
+  const url = document.getElementById('sbUrlInput').value.trim();
+  const key = document.getElementById('sbKeyInput').value.trim();
+  if (url) localStorage.setItem('lc_sb_url', url);
+  if (key) localStorage.setItem('lc_sb_key', key);
+  initSupabase();
+});
+document.getElementById('sbClear').addEventListener('click', () => {
+  localStorage.removeItem('lc_sb_url');
+  localStorage.removeItem('lc_sb_key');
+  document.getElementById('sbUrlInput').value = '';
+  document.getElementById('sbKeyInput').value = '';
+  sb = null;
+  updateSbStatus();
+});
+// 익명 계정 → 이메일 연결 (확인 메일, 승인되면 같은 계정이 이메일 계정으로 승격)
+document.getElementById('sbLinkBtn').addEventListener('click', async () => {
+  const email = document.getElementById('sbEmailInput').value.trim();
+  if (!sb || !email) return;
+  const el = document.getElementById('sbStatus');
+  const { error } = await sb.auth.updateUser({ email });
+  el.textContent = error ? t('sbFail') + ' — ' + error.message : t('sbMailSent');
+});
+// 연결된 이메일로 다른 기기에서 로그인 (매직링크)
+document.getElementById('sbLoginBtn').addEventListener('click', async () => {
+  const email = document.getElementById('sbEmailInput').value.trim();
+  if (!sb || !email) return;
+  const el = document.getElementById('sbStatus');
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href } });
+  el.textContent = error ? t('sbFail') + ' — ' + error.message : t('sbMailSent');
+});
+
+async function claudeDeepen(ans) {
+  const key = localStorage.getItem('lc_api_key');
+  if (!key) return null;
+  const prompt = lang === 'ko'
+    ? `사용자가 도시의 한 순간이 좋았던 이유를 "${ans}"라고 적었다. 표면적인 답 뒤에 있는 솔직한 이유(구체적 장면, 감정, 개인적 의미)를 스스로 발견하게 돕는 되물음 한 문장을 한국어로 만들어라. 규칙: 입력에 나온 단어를 기계적으로 반복하지 말 것. "왜"라고 묻지 말고 장면·감각·사람·순간을 구체적으로 물을 것. 심문투가 아니라 친구의 호기심처럼. 질문 문장만 출력.`
+    : `Someone wrote "${ans}" as why a city moment felt good. Write one follow-up question in English that helps them discover the honest reason behind the surface answer (a concrete scene, feeling, or personal meaning). Rules: don't mechanically repeat their words; don't ask "why" — ask about scenes, senses, people, moments; sound like a curious friend, not an interviewer. Output only the question.`;
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': key, 'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 150,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error('Claude ' + res.status);
+  const j = await res.json();
+  const q = (j.content || []).map(b => b.text || '').join('').trim();
+  return q || null;
+}
+
+
+/* ============================================================
+   5c. 인상 세그먼트 — 언어 중립 키로 저장되는 데이터 태그 (최대 3)
+   ============================================================ */
+// 인상 3가지: 제안 없이 자유 입력 3칸 — 앵커링을 피하고 사용자의 순수한 언어를 수집
+
+// 익명 토글: 켜면 4칸 비활성화 + 산출물에 "anonymous"로 서명
+state.anonymous = false;
+const anonBtn = document.getElementById('anonBtn');
+anonBtn.addEventListener('click', () => {
+  state.anonymous = !state.anonymous;
+  ['cName', 'cInsta', 'cEmail', 'cSite'].forEach(id => {
+    document.getElementById(id).disabled = state.anonymous;
+  });
+  anonBtn.style.background = state.anonymous ? '#111' : '';
+  anonBtn.style.color = state.anonymous ? '#fff' : '';
+  document.getElementById('anonStatus').textContent = state.anonymous ? t('anonOn') : '';
+});
+function collectContact() {
+  if (state.anonymous) {
+    state.contact = { anonymous: true };
+    return 'anonymous';
+  }
+  const name = document.getElementById('cName').value.trim();
+  let insta = document.getElementById('cInsta').value.trim();
+  if (insta && !insta.startsWith('@')) insta = '@' + insta;
+  const email = document.getElementById('cEmail').value.trim();
+  const site = document.getElementById('cSite').value.trim();
+  state.contact = { anonymous: false, name, instagram: insta, email, website: site };
+  return [name, insta, email, site].filter(Boolean).join('\n');
+}
+
+// step5: 스케일 슬라이더 + 생각(데이터 전용) + 한 단어(이미지 노출)
+const scaleSlider = document.getElementById('scaleSlider');
+scaleSlider.addEventListener('input', () => {
+  const v = parseInt(scaleSlider.value, 10);
+  document.getElementById('scaleValue').textContent = v > 0 ? '+' + v : String(v);
+});
+function collectMoment() {
+  state.momentScale = parseInt(scaleSlider.value, 10) || 0;
+  state.momentThought = document.getElementById('momentThought').value.trim();
+  const word = document.getElementById('momentWord').value.trim().split(/\s+/)[0] || '';
+  const useEn = document.querySelector('input[name="reasonLang"]:checked')?.value === 'en'
+    && state._finalEn;
+  state.momentWord = word;
+  state.userReasons = word ? [useEn ? state._finalEn : word] : []; // 하위 호환: 상단 렌더가 이 배열 사용
+}
+document.getElementById('skip5Btn').addEventListener('click', () => {
+  state.momentScale = parseInt(scaleSlider.value, 10) || 0;
+  state.momentThought = '';
+  state.momentWord = '';
+  state.userReasons = [];
+  goto(55);
+});
+document.getElementById('next5Btn').addEventListener('click', () => {
+  collectMoment();
+  goto(55);
+});
+
+// step55 (인상 3가지 + 연락처)
+document.getElementById('back55Btn').addEventListener('click', () => goto(5));
+function collectSegments() {
+  const raw = ['seg1', 'seg2', 'seg3']
+    .map(id => document.getElementById(id).value.trim())
+    .filter(Boolean);
+  const useEn = document.querySelector('input[name="segLang"]:checked')?.value === 'en'
+    && state._segsEn && state._segsEn.some(Boolean);
+  state.segmentsRaw = raw;
+  state.segmentsFinal = useEn ? state._segsEn.filter(Boolean) : raw;
+}
+document.getElementById('skipTextBtn').addEventListener('click', () => {
+  state.segmentsRaw = [];
+  state.segmentsFinal = [];
+  state.userText = '';
+  state.contact = null;
+  enterResults();
+});
+document.getElementById('nextTextBtn').addEventListener('click', () => {
+  collectSegments();
+  state.userText = collectContact(); // 4칸 조합 또는 'anonymous'
+  enterResults();
+});
+
+// 인상 3가지 영어 변환
+const segTranslateBtn = document.getElementById('segTranslateBtn');
+segTranslateBtn.addEventListener('click', async () => {
+  const raw = ['seg1', 'seg2', 'seg3'].map(id => document.getElementById(id).value.trim());
+  if (!raw.some(Boolean)) return;
+  const st = document.getElementById('segTranslateStatus');
+  segTranslateBtn.disabled = true;
+  st.textContent = t('stTranslating');
+  try {
+    state._segsEn = await Promise.all(raw.map(r => r ? translateToEn(r) : ''));
+    document.getElementById('segTranslatedLines').textContent =
+      state._segsEn.filter(Boolean).join(' · ');
+    document.getElementById('segTranslateResult').style.display = '';
+    st.textContent = '';
+  } catch (e) {
+    st.textContent = t('errTranslate');
+  } finally {
+    segTranslateBtn.disabled = false;
+  }
+});
+
+/* ============================================================
+   객체 인식 (COCO-SSD) — 신규 기능
+   영상: 25% / 50% / 75% 지점 프레임 샘플링, 이미지: 그대로 1회
+   ============================================================ */
+let detectPromise = null;
+// 대표 프레임 수집 (사진 1장 / 영상 25·50·75% 지점 3장)
+async function collectSampleFrames() {
+  const samples = [];
+  if (state.mediaType === 'image') {
+    samples.push(state.mediaEl);
+  } else {
+    const v2 = document.createElement('video');
+    v2.muted = true; v2.src = video.src;
+    await new Promise(ok => { v2.onloadeddata = ok; });
+    for (const t of [0.25, 0.5, 0.75]) {
+      v2.currentTime = v2.duration * t;
+      await new Promise(ok => { v2.onseeked = ok; });
+      const c = document.createElement('canvas');
+      c.width = v2.videoWidth; c.height = v2.videoHeight;
+      c.getContext('2d').drawImage(v2, 0, 0);
+      samples.push(c);
+    }
+  }
+  return samples;
+}
+// Claude 비전으로 사물 인식 (키 있을 때) — COCO보다 정확, 도시 풍경 인식 가능
+async function claudeAutoTags(samples) {
+  const key = localStorage.getItem('lc_api_key');
+  if (!key) return null;
+  const images = samples.slice(0, 2).map(src => {
+    const w = src.videoWidth || src.naturalWidth || src.width;
+    const h = src.videoHeight || src.naturalHeight || src.height;
+    const k = Math.min(1, 768 / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.round(w * k); c.height = Math.round(h * k);
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.8).split(',')[1];
+  });
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001', max_tokens: 200,
+      messages: [{ role: 'user', content: [
+        ...images.map(b64 => ({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } })),
+        { type: 'text', text: 'List up to 6 clearly visible objects/elements in the scene as short lowercase English nouns. Output only a JSON array of strings. Only include things you are confident about.' },
+      ] }],
+    }),
+  });
+  if (!res.ok) throw new Error('Claude ' + res.status);
+  const j = await res.json();
+  const text = (j.content || []).map(b => b.text || '').join('');
+  const m = text.match(/\[[\s\S]*\]/);
+  const arr = JSON.parse(m ? m[0] : text);
+  return Array.isArray(arr) ? arr.slice(0, 6).map(String) : null;
+}
+function detectObjects() {
+  detectPromise = (async () => {
+    const samples = await collectSampleFrames();
+    // 1순위: Claude 비전 (키 있을 때)
+    try {
+      const tags = await claudeAutoTags(samples);
+      if (tags && tags.length) {
+        state.objects = tags;
+        state.objectScores = null;
+        state.autoTagSource = 'claude';
+        return state.objects;
+      }
+    } catch (e) { /* COCO 폴백 */ }
+    // 2순위: COCO-SSD — 고신뢰(0.5+)만, 채움말 없음. 없으면 빈 배열(가짜 데이터 금지)
+    const model = await cocoSsd.load();
+    const seen = new Map(); // class → max score
+    for (const smp of samples) {
+      const found = await model.detect(smp, 10, 0.5);
+      for (const f of found) {
+        if (!seen.has(f.class) || seen.get(f.class) < f.score) seen.set(f.class, f.score);
+      }
+    }
+    const sorted = [...seen.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+    state.objects = sorted.map(e => e[0]);
+    state.objectScores = sorted.map(e => Math.round(e[1] * 100) / 100);
+    state.autoTagSource = 'coco';
+    return state.objects;
+  })().catch(e => {
+    console.error('detection failed', e);
+    state.objects = []; // 실패 시 빈 배열 — 가짜 태그를 만들지 않는다
+    state.autoTagSource = 'failed';
+    return state.objects;
+  });
+  return detectPromise;
+}
+
+/* ============================================================
+   STEP 6 — 산출물 2종 미리보기 + 다운로드
+   ============================================================ */
+const out1Canvas = document.getElementById('out1Canvas');
+const out2Canvas = document.getElementById('out2Canvas');
+const dl1Btn = document.getElementById('dl1Btn');
+const dl2Btn = document.getElementById('dl2Btn');
+
+function fmtDate(d) {
+  // UTC 기준 표시 (사용자 확정) — 도시가 달라도 단일 기준으로 비교 가능
+  const p = n => String(n).padStart(2, '0');
+  return `${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())}/${d.getUTCFullYear()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} GMT`;
+}
+
+function bottomLines() {
+  const lines = [fmtDate(state.mediaDate || new Date())];
+  if (state.userText) lines.push(...state.userText.split('\n'));
+  return lines;
+}
+
+function radiusLinesFor(a, countryCode) {
+  const t = a && a.transitDistM != null ? `Nearest transit ${a.transitDistM}m` : 'Nearest transit —';
+  const f = a ? `Restaurants ${a.restaurants}, cafes ${a.cafes}` : 'Restaurants —';
+  const p = a ? `Parks & green space: ${a.parks}` : 'Parks —';
+  // City-wide 재생에너지: Ember API 미연동 상태의 국가별 샘플값 (문서에 명시된 한계)
+  const renewMap = { kr: '9.2%', sg: '4.1%', gb: '46%', us: '23%' };
+  const r = renewMap[countryCode] || '—';
+  return [
+    `Immediate (~200m) — ${t}`,
+    `Walkable (~1km) — ${f}`,
+    `Neighborhood (~3-5km) — ${p}`,
+    `City-wide — Renewable energy: ${r}`,
+  ];
+}
+function radiusLines() { return radiusLinesFor(state.amenities, state.countryCode); }
+
+// 어절 단위 줄바꿈 — 단어(어절) 중간에서 절대 끊지 않는다
+function wrapLine(ctx, text, maxW) {
+  const words = String(text).split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const cand = cur ? cur + ' ' + w : w;
+    if (cur && ctx.measureText(cand).width > maxW) { lines.push(cur); cur = w; }
+    else cur = cand;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+// 상단(위로 확장) / 하단(아래로 확장) 텍스트.
+// 좌우 마진은 이미지 영역과 동일한 60px/60px — 최대 텍스트 폭 960px.
+function drawTexts(ctx, topLines, botLines, color = '#fff') {
+  ctx.font = FONT;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'alphabetic';
+  const MAX_W = AREA - 20; // 940 — 좌우 각 70px 여백 (사용자 확정: 기존보다 10px씩 추가)
+  const top = topLines.flatMap(l => wrapLine(ctx, l, MAX_W));
+  const bot = botLines.flatMap(l => wrapLine(ctx, l, MAX_W));
+  // 상단: 마지막 줄 기준선이 이미지 상단 경계 바로 위, 위로 쌓임
+  let y = AREA_Y - 16;
+  for (let i = top.length - 1; i >= 0; i--) {
+    ctx.fillText(top[i], TEXT_X, y);
+    y -= LINE_H;
+  }
+  // 하단: 첫 줄 기준선이 이미지 하단 경계 아래, 아래로 쌓임
+  y = AREA_Y + AREA + LINE_H;
+  for (const line of bot) {
+    ctx.fillText(line, TEXT_X, y);
+    y += LINE_H;
+  }
+}
+
+// 산출물 4: 직전 drawComposite가 frameBuf에 남긴 클리핑 결과의 중앙 960×960을
+// 투명 배경 그대로 잘라내고 외곽선만 얹는다 (배경·텍스트 없음)
+function drawOut4() {
+  const c4 = document.getElementById('out4Canvas');
+  const ctx4 = c4.getContext('2d');
+  ctx4.clearRect(0, 0, AREA, AREA);
+  ctx4.drawImage(frameBuf, AREA_X, AREA_Y, AREA, AREA, 0, 0, AREA, AREA);
+  if (state.edgeLayer) {
+    ctx4.drawImage(state.edgeLayer, AREA_X, AREA_Y, AREA, AREA, 0, 0, AREA, AREA);
+  }
+  // 보드/기록 표시용으로 항상 보관 (다운로드 여부와 무관)
+  c4.toBlob(b => { state._autoOut4 = b; }, 'image/png');
+  // 보드 노드용 축소 썸네일은 레코드에 직접 내장 (IndexedDB 의존 제거 —
+  // Safari 등에서 blob 저장이 실패해도 확실히 표시되고 서버에도 동기화됨)
+  const tc = document.createElement('canvas');
+  tc.width = 240; tc.height = 240;
+  tc.getContext('2d').drawImage(c4, 0, 0, 240, 240);
+  state._massThumb = tc.toDataURL('image/png');
+}
+
+// seek 전용 비디오를 재사용해 임의 시점의 프레임을 추출
+let seekVideo = null;
+async function ensureSeekVideo() {
+  if (!seekVideo || seekVideo.dataset.src !== video.src) {
+    seekVideo = document.createElement('video');
+    seekVideo.muted = true;
+    seekVideo.dataset.src = video.src;
+    seekVideo.src = video.src;
+    await new Promise(ok => { seekVideo.onloadeddata = ok; });
+  }
+  return seekVideo;
+}
+async function seekTo(v, time) {
+  v.currentTime = time;
+  await new Promise(ok => { v.onseeked = ok; });
+}
+async function grabVideoFrameAt(fraction) {
+  const v = await ensureSeekVideo();
+  await seekTo(v, v.duration * Math.min(0.999, Math.max(0, fraction)));
+  const c = document.createElement('canvas');
+  c.width = v.videoWidth; c.height = v.videoHeight;
+  c.getContext('2d').drawImage(v, 0, 0);
+  return c;
+}
+
+let out1PreviewRunning = false;
+
+async function enterResults() {
+  goto(6);
+  // 자동 인식(COCO-SSD)은 화면에 노출하지 않는다 — 검수용 레코드에만 저장됨
+  document.getElementById('detectStatus').style.display = 'none';
+  document.getElementById('out1Badge').textContent = state.mediaType === 'video' ? t('badgeVideo') : t('badgeImage');
+  const sb6 = document.getElementById('soundBtn6');
+  sb6.style.display = state.mediaType === 'video' ? '' : 'none';
+  sb6.textContent = video.muted ? t('soundOn') : t('soundOff');
+
+  // 반경 데이터만 대기 (최대 15초). 자동 인식은 백그라운드로 계속 진행.
+  await Promise.race([
+    state.amenitiesPromise || Promise.resolve(null),
+    new Promise(r => setTimeout(r, 15000)),
+  ]);
+
+  // 상단 텍스트 = 한 단어만 (마침표 없음 — 사용자 확정. 생각/인상은 데이터 전용)
+  const topLines1 = (state.userReasons || []).slice(0, 1);
+  const bot = bottomLines();
+  // 하단 형식(산출물 1·2 공통): 1줄 = "시간 거리"(공백 구분) → 다음 줄부터 사용자 정보
+  state.gpsDistM = null;
+  if (state.mediaGps && isFinite(state.lat) && isFinite(state.lon)) {
+    const d = Math.round(haversine(state.lat, state.lon, state.mediaGps.lat, state.mediaGps.lon));
+    state.gpsDistM = d;
+    const dTxt = d >= 1000 ? (d / 1000).toFixed(1) + 'km' : d + 'm';
+    bot[0] = (bot[0] || '') + ' ' + dTxt; // 거리 숫자만 (라벨 없음 — 사용자 확정)
+  }
+  // 텍스트 레이어(정적)를 먼저 만들어 릴스·썸네일이 함께 사용 — 흰 배경 + 검은 텍스트
+  const textLayer = document.createElement('canvas');
+  textLayer.width = CANVAS_W; textLayer.height = CANVAS_H;
+  drawTexts(textLayer.getContext('2d'), topLines1, bot, '#000');
+  state._out1TextLayer = textLayer;
+
+  // 슬라이더로 프레임을 바꿀 때 재사용할 텍스트 라인 보관
+  state._out2Top = [...radiusLines(), ...topLines1];
+  state._botLines = bot;
+
+  // 산출물 2 (항상 정지 이미지): 영상이면 기본값 중간 프레임, 슬라이더로 변경 가능
+  const stillSource = state.mediaType === 'video'
+    ? await grabVideoFrameAt(state.thumbFrac ?? 0.5)   // 4단계에서 고른 장면
+    : state.mediaEl;
+  const ctx2 = out2Canvas.getContext('2d');
+  drawComposite(ctx2, stillSource);
+  drawTexts(ctx2, state._out2Top, bot);
+  dl2Btn.disabled = false;
+
+  // 도시 정보(반경 데이터)를 결과 페이지에 텍스트로 표시 (구 산출물 2 대체)
+  {
+    const ci = document.getElementById('cityInfo');
+    ci.innerHTML = '';
+    radiusLines().forEach(line => {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; color:var(--ink)';
+      row.textContent = line;
+      ci.appendChild(row);
+    });
+  }
+
+  // 릴스 썸네일: 릴스와 같은 매핑·배치, 텍스트만 없음 (사용자 확정)
+  const ctx3 = document.getElementById('out3Canvas').getContext('2d');
+  drawComposite(ctx3, stillSource, '#fff', state.edgeLayer);
+  document.getElementById('dl3Btn').disabled = false;
+
+  // 산출물 4: 중앙 960×960만 잘라낸 투명 PNG (건물 매핑 + 외곽선만, 배경 없음)
+  drawOut4();
+  document.getElementById('dl4Btn').disabled = false;
+
+  // 릴스: 사진이면 정지 렌더, 영상이면 라이브 미리보기 루프
+  const ctx1 = out1Canvas.getContext('2d');
+  if (state.mediaType === 'image') {
+    drawComposite(ctx1, state.mediaEl, '#fff', state.edgeLayer);
+    ctx1.drawImage(textLayer, 0, 0);
+  } else if (!out1PreviewRunning) {
+    out1PreviewRunning = true;
+    const drawOut1 = () => {
+      drawComposite(ctx1, video, '#fff', state.edgeLayer);
+      ctx1.drawImage(state._out1TextLayer, 0, 0);
+      // 녹화 중이면 이 순간(=원본 영상의 새 프레임)을 정확히 캡처
+      if (state._recTrack && state._recTrack.readyState === 'live') state._recTrack.requestFrame();
+    };
+    state._drawOut1 = drawOut1;
+    if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+      // 영상 프레임이 표시되는 순간에만 그림 — rAF/캡처 샘플링 불일치로 인한
+      // 프레임 중복·누락(끊김의 원인)이 사라지고 원본 프레임 타이밍이 유지된다
+      const step = () => {
+        if (!out1PreviewRunning) return;
+        drawOut1();
+        video.requestVideoFrameCallback(step);
+      };
+      video.requestVideoFrameCallback(step);
+    } else {
+      // 폴백: rvfc 미지원 브라우저는 기존 30fps rAF
+      let last = 0;
+      (function loop(ts) {
+        if (!out1PreviewRunning) return;
+        if (ts - last >= 33) { last = ts; drawOut1(); }
+        requestAnimationFrame(loop);
+      })(0);
+    }
+  }
+  dl1Btn.disabled = false;
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+
+// 썸네일 장면 선택 (4단계) — 슬라이더를 움직이면 비디오가 그 장면으로
+// 일시정지되어 미리보기, 선택값은 결과 페이지의 썸네일·PNG에 사용된다
+const frameSlider = document.getElementById('frameSlider');
+frameSlider.addEventListener('input', () => {
+  if (state.mediaType !== 'video' || !video.duration) return;
+  state.thumbFrac = frameSlider.value / 1000;
+  state._thumbScrub = true; // 구간 가드가 seek를 되돌리지 않게
+  video.pause();
+  video.currentTime = video.duration * Math.min(0.999, state.thumbFrac);
+  pauseBtn.textContent = t('btnPlay');
+});
+frameSlider.addEventListener('change', () => {
+  setTimeout(() => { state._thumbScrub = false; }, 400);
+});
+
+/* ============================================================
+   검수용 레코드 — 객관 태그(자동 인식) × 주관 태그(사용자 이유) × 위치 × 시점.
+   서버 연동 전까지 localStorage에 쌓고 JSON으로 내보내 검수한다.
+   ============================================================ */
+const REC_KEY = 'lc_records';
+function getRecords() {
+  try { return JSON.parse(localStorage.getItem(REC_KEY)) || []; } catch (e) { return []; }
+}
+
+/* ---- 산출물 파일 보관 (IndexedDB — localStorage 용량 한계 회피) ---- */
+function idbOpen() {
+  return new Promise((ok, no) => {
+    const r = indexedDB.open('lc-media', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('outputs');
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => no(r.error);
+  });
+}
+async function idbPut(key, blob) {
+  const db = await idbOpen();
+  return new Promise((ok, no) => {
+    const tx = db.transaction('outputs', 'readwrite');
+    tx.objectStore('outputs').put(blob, key);
+    tx.oncomplete = ok;
+    tx.onerror = () => no(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((ok) => {
+    const rq = db.transaction('outputs').objectStore('outputs').get(key);
+    rq.onsuccess = () => ok(rq.result || null);
+    rq.onerror = () => ok(null);
+  });
+}
+async function idbDelRecord(savedAt) {
+  const db = await idbOpen();
+  const tx = db.transaction('outputs', 'readwrite');
+  ['out1', 'out2', 'out3', 'out4'].forEach(k => tx.objectStore('outputs').delete(savedAt + ':' + k));
+}
+// 다운로드 시점의 산출물을 현재 레코드에 연결해 보관
+function saveOutputBlob(kind, blob) {
+  if (!state._recordSavedAt || !blob) return;
+  idbPut(state._recordSavedAt + ':' + kind, blob).catch(() => {});
+}
+function buildRecFields() {
+  return {
+    address: state.address, lat: state.lat, lon: state.lon,
+    countryCode: state.countryCode,
+    mediaType: state.mediaType,
+    mediaDate: state.mediaDate ? state.mediaDate.toISOString() : null,
+    mediaDateSource: state.mediaDateSource || null,
+    mediaGps: state.mediaGps || null,
+    gpsDistM: state.gpsDistM,
+    userReasons: state.userReasons || [],          // 산출물에 실제 쓰인 버전 (하위 호환)
+    momentScale: (typeof state.momentScale === 'number') ? state.momentScale : null, // -10~+10
+    momentThought: state.momentThought || '',      // 순간에 대한 생각 (데이터 전용)
+    momentWord: state.momentWord || '',            // 이미지에 새겨진 한 단어 (원문)
+    momentWordEn: state._finalEn || '',            // 영문 변환본 (있다면)
+    segments: state.segmentsFinal || [],           // 이미지에 표기된 버전
+    segmentsRaw: state.segmentsRaw || [],          // 입력 원문
+    segmentsEn: (state._segsEn || []).filter(Boolean), // 영문 변환본 (있다면)
+    autoTags: state.objects,            // 아직 분석 중이면 null → 아래에서 갱신
+    autoTagScores: state.objectScores || null, // COCO 신뢰도 (claude면 null)
+    autoTagSource: state.autoTagSource || null, // 'claude' | 'coco' | 'failed'
+    aiSuggestions: state._aiSuggestions || null, // Claude 장면 해석 제안 (사용된 경우)
+    suggestSource: state._suggestSource || null,
+    amenities: state.amenities,
+    userContact: state.userText || '',
+    contact: state.contact || null,     // {name, instagram, email, website} 또는 {anonymous:true}
+    massThumb: state._massThumb || null, // 매핑된 매스 축소 PNG (보드/지도 노드용)
+  };
+}
+async function resyncRecord(rec) {
+  // 갱신된 레코드 서버 재전송: 이전 행 삭제 후 재삽입
+  if (!sb) return;
+  try {
+    if (rec.serverId) { await sb.from('records').delete().eq('id', rec.serverId); rec.serverId = null; }
+    const ok = await syncRecordToServer(rec);
+    if (ok) {
+      const l = getRecords();
+      const r2 = l.find(x => x.savedAt === rec.savedAt);
+      if (r2) { r2.synced = true; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
+    }
+  } catch (e) {}
+}
+function saveRecord() {
+  // 같은 세션에서 재다운로드하면(값을 고친 뒤 포함) 기존 레코드를 최신 값으로 갱신
+  if (state._recordSaved && state._recordSavedAt) {
+    const list = getRecords();
+    const r = list.find(x => x.savedAt === state._recordSavedAt);
+    if (r) {
+      Object.assign(r, buildRecFields(), { savedAt: r.savedAt, serverId: r.serverId });
+      r.synced = false;
+      localStorage.setItem(REC_KEY, JSON.stringify(list));
+      if (state._autoOut4) idbPut(r.savedAt + ':out4', state._autoOut4).catch(() => {});
+      resyncRecord(r);
+      renderSavedList();
+    }
+    return;
+  }
+  state._recordSaved = true;
+  state._recordSavedAt = Date.now(); // 산출물(IndexedDB) 연결 키
+  const rec = { savedAt: state._recordSavedAt, ...buildRecFields() };
+  const list = getRecords();
+  list.push(rec);
+  localStorage.setItem(REC_KEY, JSON.stringify(list));
+  if (state._autoOut4) idbPut(rec.savedAt + ':out4', state._autoOut4).catch(() => {});
+  // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
+  syncRecordToServer(rec).then(ok => {
+    if (!ok) return;
+    const l = getRecords();
+    const r2 = l.find(x => x.savedAt === rec.savedAt);
+    if (r2) { r2.synced = true; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
+  });
+  // 자유 입력 세그먼트를 집계용 카테고리로 백그라운드 분류 (Claude 키 있을 때만, 실패 무시)
+  const segs = rec.segments || [];
+  const key = localStorage.getItem('lc_api_key');
+  if (segs.length && key) {
+    fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001', max_tokens: 100,
+        messages: [{ role: 'user', content:
+          `Classify each item into one of: light,sound,music,people,nature,smell,air,movement,architecture,color,other. Items: ${JSON.stringify(segs)}. Output only a JSON array of category strings, same order.` }],
+      }),
+    }).then(r => r.json()).then(j => {
+      const text = (j.content || []).map(b => b.text || '').join('');
+      const m = text.match(/\[[\s\S]*\]/);
+      const cats = JSON.parse(m ? m[0] : text);
+      if (Array.isArray(cats)) {
+        const l = getRecords();
+        const r2 = l.find(x => x.savedAt === rec.savedAt);
+        if (r2) { r2.segmentsAuto = cats.slice(0, segs.length); localStorage.setItem(REC_KEY, JSON.stringify(l)); }
+      }
+    }).catch(() => {});
+  }
+  // 자동 인식이 늦게 끝나면 해당 레코드에 소급 기록
+  if (!state.objects && detectPromise) {
+    detectPromise.then(() => {
+      const l = getRecords();
+      const r = l.find(x => x.savedAt === rec.savedAt);
+      if (r) { r.autoTags = state.objects; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
+    });
+  }
+  renderSavedList(); // 내보내기 버튼 표시 갱신
+}
+function renderRecList() {
+  const wrap = document.getElementById('recList');
+  const list = getRecords().slice().reverse(); // 최신이 위
+  wrap.innerHTML = '';
+  if (!list.length) {
+    const pEmpty = document.createElement('p');
+    pEmpty.className = 'hint';
+    pEmpty.textContent = t('noRecords');
+    wrap.appendChild(pEmpty);
+    return;
+  }
+  list.forEach(rec => {
+    const row = document.createElement('div');
+    row.className = 'saved-item';
+    const label = document.createElement('span');
+    const when = rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '';
+    const what = rec.momentWord || rec.finalReason || (rec.userReasons || []).join(', ') || '—';
+    const segs = (rec.segments || []).join(', ');
+    const sync = rec.synced ? '☁ ' + t('recSynced') : t('recLocal');
+    label.textContent = `${when} · ${what}${segs ? ' · ' + segs : ''} · ${sync}`;
+    label.title = rec.address || '';
+    const viewBtn = document.createElement('button');
+    viewBtn.textContent = t('btnView');
+    viewBtn.addEventListener('click', () => openRecordDetail(rec));
+    const delBtn = document.createElement('button');
+    delBtn.className = 'secondary';
+    delBtn.textContent = t('btnDelete');
+    delBtn.addEventListener('click', () => deleteRecord(rec.savedAt));
+    row.append(label, viewBtn, delBtn);
+    wrap.appendChild(row);
+  });
+}
+/* ============================================================
+   맵 — 저장된 레코드의 매스(산출물 4, 투명 PNG)를 지도 위에 마커로 배치.
+   위치는 미디어 GPS 우선, 없으면 입력 주소 좌표. 클릭 시 기록 상세로.
+   ============================================================ */
+let lcMap = null, lcMapLayer = null, lcMapSelKey = null;
+
+// 기록을 "매스(건물)" 단위로 그룹화 — 주소+좌표 반올림을 키로
+function massKeyOf(rec) {
+  const la = isFinite(rec.lat) ? rec.lat.toFixed(4) : '?';
+  const lo = isFinite(rec.lon) ? rec.lon.toFixed(4) : '?';
+  return `${(rec.address || '').split(',')[0].trim()}|${la},${lo}`;
+}
+function groupByMass() {
+  const groups = new Map();
+  for (const rec of getRecords()) {
+    const k = massKeyOf(rec);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(rec);
+  }
+  return groups;
+}
+
+async function renderMassCats() {
+  const box = document.getElementById('massCats');
+  box.innerHTML = '';
+  const groups = groupByMass();
+  let savedThumbs = [];
+  try { savedThumbs = JSON.parse(localStorage.getItem('lc_saved_buildings')) || []; } catch (e) {}
+  let customNames = {};
+  try { customNames = JSON.parse(localStorage.getItem('lc_mass_names')) || {}; } catch (e) {}
+  // "All" 칩 — 모든 매스의 기록을 한 번에 (기본 선택 상태)
+  {
+    const allChip = document.createElement('button');
+    allChip.className = 'mass-cat' + (lcMapSelKey === null ? ' sel' : '');
+    const span = document.createElement('span');
+    span.textContent = `All (${getRecords().length})`;
+    allChip.appendChild(span);
+    allChip.addEventListener('click', () => {
+      lcMapSelKey = null;
+      renderMassCats();
+      if (boardMode === 'board') renderBoard(); else renderMapMarkers();
+    });
+    box.appendChild(allChip);
+  }
+  for (const [key, recs] of groups) {
+    const chip = document.createElement('button');
+    chip.className = 'mass-cat' + (lcMapSelKey === key ? ' sel' : '');
+    // 이름: 사용자가 정한 이름 우선, 없으면 주소 첫 부분
+    const name = customNames[key] || key.split('|')[0];
+    const match = savedThumbs.find(b =>
+      isFinite(b.lat) && isFinite(recs[0].lat) &&
+      Math.abs(b.lat - recs[0].lat) < 0.001 && Math.abs(b.lon - recs[0].lon) < 0.001);
+    let thumbUrl = match && match.thumb;
+    if (!thumbUrl) {
+      const b4 = await idbGet(recs[0].savedAt + ':out4');
+      if (b4) thumbUrl = URL.createObjectURL(b4);
+    }
+    if (thumbUrl) {
+      const img = document.createElement('img');
+      img.src = thumbUrl;
+      chip.appendChild(img);
+    }
+    const span = document.createElement('span');
+    span.textContent = `${name || '?'} (${recs.length})`;
+    chip.appendChild(span);
+    // ✏️ 이름 바꾸기 (사용자 지정 이름은 localStorage lc_mass_names에 보관)
+    const edit = document.createElement('span');
+    edit.textContent = '✏️';
+    edit.style.cssText = 'font-size:11px; opacity:0.65; margin-left:2px';
+    edit.addEventListener('click', ev => {
+      ev.stopPropagation();
+      const cur = customNames[key] || key.split('|')[0];
+      const v = prompt(t('renamePrompt'), cur);
+      if (v === null) return;
+      const names = { ...customNames };
+      if (v.trim()) names[key] = v.trim(); else delete names[key];
+      localStorage.setItem('lc_mass_names', JSON.stringify(names));
+      renderMassCats();
+    });
+    chip.appendChild(edit);
+    chip.addEventListener('click', () => {
+      lcMapSelKey = (lcMapSelKey === key) ? null : key; // 재클릭 = 전체 보기
+      renderMassCats();
+      if (boardMode === 'board') renderBoard(); else renderMapMarkers();
+    });
+    box.appendChild(chip);
+  }
+}
+
+function updateGauge(recs) {
+  const scales = recs.map(r => r.momentScale).filter(v => typeof v === 'number');
+  const avg = scales.length ? scales.reduce((a, b) => a + b, 0) / scales.length : 0;
+  const dot = document.getElementById('gaugeDot');
+  // +10=상단(6%), 0=중앙(50%), -10=하단(94%)
+  dot.style.top = (50 - (avg / 10) * 44) + '%';
+  dot.textContent = (avg > 0 ? '+' : '') + (Math.round(avg * 10) / 10);
+}
+
+function renderFloatWords(recs) {
+  const layer = document.getElementById('wordFloat');
+  layer.innerHTML = '';
+  const words = recs.map(r => r.momentWord).filter(Boolean).slice(0, 24);
+  words.forEach((w, i) => {
+    const el = document.createElement('span');
+    el.className = 'float-word';
+    el.textContent = w;
+    el.style.left = (8 + (i * 37) % 70) + '%';
+    el.style.top = (10 + (i * 23) % 72) + '%';
+    el.style.animationDelay = (-(i * 1.7) % 14) + 's';
+    el.style.fontSize = (13 + (i % 4) * 3) + 'px';
+    layer.appendChild(el);
+  });
+}
+
+/* ============================================================
+   노드 보드 — 참조 이미지 스타일: 흰 캔버스에 미디어 카드 산포 +
+   관계선(같은 매스 / 공유 단어·물체 / 비슷한 스케일) + 라벨
+   ============================================================ */
+let boardMode = 'board'; // 'board' | 'map'
+let boardZoom = 1, boardPanX = 0, boardPanY = 0;
+
+function boardRelations(recs) {
+  // 노드당 최대 3연결로 과밀 방지
+  const edges = [];
+  const degree = new Map();
+  const deg = r => degree.get(r.savedAt) || 0;
+  for (let i = 0; i < recs.length; i++) {
+    for (let j = i + 1; j < recs.length; j++) {
+      const a = recs[i], b = recs[j];
+      if (deg(a) >= 3 || deg(b) >= 3) continue;
+      let label = null;
+      const sharedSeg = (a.segments || []).find(x => (b.segments || []).includes(x));
+      const hasScales = typeof a.momentScale === 'number' && typeof b.momentScale === 'number';
+      const gap = hasScales ? Math.abs(a.momentScale - b.momentScale) : null;
+      // 관계 라벨: 스케일 갭을 우선 표기 (사용자 확정 — "같은 매스" 문구 대체)
+      if (massKeyOf(a) === massKeyOf(b)) label = gap !== null ? 'gap ' + gap : t('edgeSameMass');
+      else if (a.momentWord && a.momentWord === b.momentWord) label = rec => a.momentWordEn || a.momentWord;
+      else if (sharedSeg) label = sharedSeg;
+      else if (gap !== null && gap <= 2) label = 'gap ' + gap;
+      if (typeof label === 'function') label = label();
+      if (!label) continue;
+      edges.push({ a: a.savedAt, b: b.savedAt, label });
+      degree.set(a.savedAt, deg(a) + 1);
+      degree.set(b.savedAt, deg(b) + 1);
+    }
+  }
+  return edges;
+}
+
+async function renderBoard() {
+  const inner = document.getElementById('boardInner');
+  const svg = document.getElementById('boardSvg');
+  inner.querySelectorAll('.board-card, .board-mass').forEach(el => el.remove());
+  svg.innerHTML = '';
+  const all = getRecords();
+  const recs = lcMapSelKey ? all.filter(r => massKeyOf(r) === lcMapSelKey) : all;
+  updateGauge(recs);
+  document.getElementById('wordFloat').innerHTML = ''; // 보드에는 떠다니는 단어 없음 (노드 라벨과 중복 — 사용자 확정)
+  document.getElementById('mapStatus').textContent = '';
+
+  // 배치 = 실제 지리 좌표 투영 — "지도 타일만 안 보이는 지도" (사용자 확정)
+  // 미디어 GPS 우선, 없으면 주소 좌표. 둘 다 없으면 하단에 일렬.
+  const W = document.getElementById('boardView').clientWidth || 520;
+  const H = 560;
+  const PAD = 70, NODE_W = 120, NODE_H = 110;
+  const geo = r => r.mediaGps || (isFinite(r.lat) && isFinite(r.lon) ? { lat: r.lat, lon: r.lon } : null);
+  const withGeo = recs.filter(r => geo(r));
+  let minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+  withGeo.forEach(r => {
+    const g = geo(r);
+    minLat = Math.min(minLat, g.lat); maxLat = Math.max(maxLat, g.lat);
+    minLon = Math.min(minLon, g.lon); maxLon = Math.max(maxLon, g.lon);
+  });
+  const spanLat = Math.max(maxLat - minLat, 1e-5);
+  const spanLon = Math.max(maxLon - minLon, 1e-5);
+  const pos = new Map();
+  const used = [];
+  withGeo.forEach(rec => {
+    const g = geo(rec);
+    let x = withGeo.length === 1 ? W / 2 - NODE_W / 2
+      : PAD + ((g.lon - minLon) / spanLon) * (W - PAD * 2 - NODE_W);
+    let y = withGeo.length === 1 ? H / 2 - NODE_H / 2
+      : PAD + ((maxLat - g.lat) / spanLat) * (H - PAD * 2 - NODE_H); // 북쪽이 위
+    // 같은 자리 겹침 회피: 살짝 나선 오프셋
+    let k = 0;
+    while (used.some(u => Math.abs(u.x - x) < 46 && Math.abs(u.y - y) < 46) && k < 12) {
+      k++;
+      x += 40 * Math.cos(k * 2.1);
+      y += 40 * Math.sin(k * 2.1);
+    }
+    x = Math.max(6, Math.min(W - NODE_W - 6, x));
+    y = Math.max(6, Math.min(H - NODE_H - 6, y));
+    used.push({ x, y });
+    pos.set(rec.savedAt, { x, y });
+  });
+  // 좌표 없는 기록: 하단 일렬
+  recs.filter(r => !geo(r)).forEach((rec, i) => {
+    pos.set(rec.savedAt, { x: 10 + i * (NODE_W + 14), y: H - NODE_H - 8 });
+  });
+
+  // 연결선 먼저 (카드 아래) — 기준 좌표만 기록, 화면 좌표는 layoutBoard가 계산
+  svg.setAttribute('width', W); svg.setAttribute('height', H);
+  for (const e of boardRelations(recs)) {
+    const pa = pos.get(e.a), pb = pos.get(e.b);
+    if (!pa || !pb) continue;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.dataset.x1 = pa.x; line.dataset.y1 = pa.y;
+    line.dataset.x2 = pb.x; line.dataset.y2 = pb.y;
+    line.setAttribute('stroke', '#c9c9cd'); line.setAttribute('stroke-width', '1');
+    svg.appendChild(line);
+    const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    txt.dataset.x1 = pa.x; txt.dataset.y1 = pa.y;
+    txt.dataset.x2 = pb.x; txt.dataset.y2 = pb.y;
+    txt.setAttribute('class', 'board-edge-label');
+    txt.setAttribute('text-anchor', 'middle');
+    txt.textContent = e.label;
+    svg.appendChild(txt);
+  }
+
+  // 노드: 산출물 4(매핑된 매스 실루엣)를 프레임 없이 그대로 배치
+  for (const rec of recs) {
+    const pnt = pos.get(rec.savedAt);
+    // 보드 라벨은 영어로 통일 — 영문 변환본 우선, 원문이 비영어면 백그라운드 번역
+    let labelText = rec.momentWordEn || rec.momentWord
+      || (rec.mediaDate ? fmtDate(new Date(rec.mediaDate)).split(' ')[0] : '');
+    let thumbSrc = rec.massThumb || null;
+    if (!thumbSrc) {
+      const b4 = await idbGet(rec.savedAt + ':out4');
+      if (b4) thumbSrc = URL.createObjectURL(b4);
+    }
+    let node;
+    if (thumbSrc) {
+      node = document.createElement('div');
+      node.className = 'board-mass';
+      const label = document.createElement('div');
+      label.className = 'bm-label';
+      label.textContent = labelText;
+      // 원문이 영어가 아니고 영문본이 없으면 번역해서 라벨·레코드 갱신
+      if (!rec.momentWordEn && rec.momentWord && /[^\x00-\x7F]/.test(rec.momentWord)) {
+        translateToEn(rec.momentWord).then(en => {
+          if (!en) return;
+          label.textContent = en;
+          const l = getRecords();
+          const r2 = l.find(x => x.savedAt === rec.savedAt);
+          if (r2) { r2.momentWordEn = en; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
+        }).catch(() => {});
+      }
+      node.appendChild(label);
+      const img = document.createElement('img');
+      img.src = thumbSrc;
+      node.appendChild(img);
+    } else {
+      // 산출물 4가 없는 옛 기록: 프레임 없이 단어 텍스트만 (네모 박스 금지)
+      node = document.createElement('div');
+      node.className = 'board-mass';
+      const label = document.createElement('div');
+      label.className = 'bm-label';
+      label.style.fontSize = '14px';
+      label.textContent = labelText || (rec.address ? rec.address.split(',')[0] : '');
+      node.appendChild(label);
+    }
+    node.dataset.x0 = pnt.x;
+    node.dataset.y0 = pnt.y;
+    node.addEventListener('click', () => openRecordDetail(rec));
+    inner.appendChild(node);
+  }
+  layoutBoard(); // 현재 줌·팬 기준으로 화면 좌표 계산
+}
+
+// 보드 팬/줌
+const boardView = document.getElementById('boardView');
+const boardInner = document.getElementById('boardInner');
+// 지도처럼 줌: 노드(마커)와 글자 크기는 그대로 두고, 노드 사이 공간만
+// 늘어난다 — 이미지 확대(CSS scale)가 아니라 위치 재계산 (사용자 확정)
+function layoutBoard() {
+  boardInner.style.transform = ''; // CSS 스케일 사용 안 함
+  boardInner.querySelectorAll('.board-mass, .board-card').forEach(el => {
+    const x0 = parseFloat(el.dataset.x0), y0 = parseFloat(el.dataset.y0);
+    if (isNaN(x0)) return;
+    el.style.left = (boardPanX + x0 * boardZoom) + 'px';
+    el.style.top = (boardPanY + y0 * boardZoom) + 'px';
+  });
+  document.querySelectorAll('#boardSvg line, #boardSvg text').forEach(el => {
+    const d = el.dataset;
+    if (d.x1 === undefined) return;
+    // 노드 크기가 고정이므로 중심 오프셋(+48, +60)은 줌과 무관하게 더한다
+    const x1 = boardPanX + parseFloat(d.x1) * boardZoom + 48;
+    const y1 = boardPanY + parseFloat(d.y1) * boardZoom + 60;
+    const x2 = boardPanX + parseFloat(d.x2) * boardZoom + 48;
+    const y2 = boardPanY + parseFloat(d.y2) * boardZoom + 60;
+    if (el.tagName === 'line') {
+      el.setAttribute('x1', x1); el.setAttribute('y1', y1);
+      el.setAttribute('x2', x2); el.setAttribute('y2', y2);
+    } else {
+      el.setAttribute('x', (x1 + x2) / 2);
+      el.setAttribute('y', (y1 + y2) / 2 - 3);
+    }
+  });
+}
+const applyBoardTransform = layoutBoard;
+let bDrag = false, bLX = 0, bLY = 0;
+const bdPointers = new Map();
+let bdPinchDist = 0;
+boardView.addEventListener('pointerdown', e => {
+  if (e.target.closest('button')) return;
+  bdPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (bdPointers.size === 2) {
+    const [a, b] = [...bdPointers.values()];
+    bdPinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+    bDrag = false;
+    try { boardView.setPointerCapture(e.pointerId) } catch (err) {};
+    return;
+  }
+  if (e.target.closest('.board-card, .board-mass')) return; // 1손가락은 노드 클릭 우선
+  bDrag = true; bLX = e.clientX; bLY = e.clientY;
+  boardView.classList.add('dragging');
+  try { boardView.setPointerCapture(e.pointerId) } catch (err) {};
+});
+boardView.addEventListener('pointermove', e => {
+  if (bdPointers.has(e.pointerId)) bdPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (bdPointers.size === 2) {
+    const [a, b] = [...bdPointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (bdPinchDist > 0) {
+      const r = boardView.getBoundingClientRect();
+      zoomBoardAt(d / bdPinchDist, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+    }
+    bdPinchDist = d;
+    return;
+  }
+  if (!bDrag) return;
+  boardPanX += e.clientX - bLX; boardPanY += e.clientY - bLY;
+  bLX = e.clientX; bLY = e.clientY;
+  applyBoardTransform();
+});
+const bdEnd = e => {
+  bdPointers.delete(e.pointerId);
+  bdPinchDist = 0;
+  if (bdPointers.size === 0) { bDrag = false; boardView.classList.remove('dragging'); }
+};
+boardView.addEventListener('pointerup', bdEnd);
+boardView.addEventListener('pointercancel', bdEnd);
+// 지정한 화면 지점(cx, cy)을 고정한 채 줌 — 지도처럼 확대한 곳이 그 자리에 남는다
+function zoomBoardAt(factor, cx, cy) {
+  const newZoom = Math.min(4, Math.max(0.3, boardZoom * factor));
+  const k = newZoom / boardZoom;
+  boardPanX = cx - (cx - boardPanX) * k;
+  boardPanY = cy - (cy - boardPanY) * k;
+  boardZoom = newZoom;
+  applyBoardTransform();
+}
+boardView.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = boardView.getBoundingClientRect();
+  zoomBoardAt(1 - e.deltaY * 0.0012, e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
+document.getElementById('boardZoomIn').addEventListener('click', () => {
+  zoomBoardAt(1.35, boardView.clientWidth / 2, boardView.clientHeight / 2);
+});
+document.getElementById('boardZoomOut').addEventListener('click', () => {
+  zoomBoardAt(1 / 1.35, boardView.clientWidth / 2, boardView.clientHeight / 2);
+});
+
+function setMapMode(mode) {
+  boardMode = mode;
+  document.getElementById('boardView').style.display = mode === 'board' ? '' : 'none';
+  document.getElementById('mapView').style.display = mode === 'map' ? '' : 'none';
+  document.getElementById('viewBoardBtn').style.opacity = mode === 'board' ? '1' : '0.5';
+  document.getElementById('viewMapBtn').style.opacity = mode === 'map' ? '1' : '0.5';
+  if (mode === 'board') renderBoard();
+  else renderMapMarkers();
+}
+document.getElementById('viewBoardBtn').addEventListener('click', () => setMapMode('board'));
+document.getElementById('viewMapBtn').addEventListener('click', () => setMapMode('map'));
+
+async function renderMapMarkers() {
+  if (!window.L) return;
+  if (!lcMap) {
+    lcMap = L.map('mapView', { zoomControl: true });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(lcMap);
+    lcMapLayer = L.layerGroup().addTo(lcMap);
+  }
+  lcMapLayer.clearLayers();
+  const all = getRecords();
+  const recs = lcMapSelKey ? all.filter(r => massKeyOf(r) === lcMapSelKey) : all;
+  updateGauge(recs);
+  renderFloatWords(recs);
+  const pts = [];
+  for (const rec of recs) {
+    // 마커 위치 = 미디어가 촬영된 GPS만 사용 (주소 폴백 없음 — 사용자 확정)
+    if (!rec.mediaGps) continue;
+    const pos = rec.mediaGps;
+    pts.push([pos.lat, pos.lon]);
+    let iconUrl = rec.massThumb || null;
+    if (!iconUrl) {
+      const b4 = await idbGet(rec.savedAt + ':out4');
+      if (b4) iconUrl = URL.createObjectURL(b4);
+      else {
+        const b2 = await idbGet(rec.savedAt + ':out2');
+        if (b2) iconUrl = URL.createObjectURL(b2);
+      }
+    }
+    const marker = iconUrl
+      ? L.marker([pos.lat, pos.lon], { icon: L.icon({ iconUrl, iconSize: [72, 72], iconAnchor: [36, 36] }) })
+      : L.marker([pos.lat, pos.lon]);
+    const when = rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '';
+    marker.bindTooltip(`${when}${rec.momentWord ? ' · ' + rec.momentWord : ''}`);
+    marker.on('click', () => openRecordDetail(rec));
+    marker.addTo(lcMapLayer);
+  }
+  const noGps = recs.length - pts.length;
+  document.getElementById('mapStatus').textContent = noGps > 0 ? t('mapNoGps', noGps) : '';
+  if (pts.length) {
+    lcMap.fitBounds(pts, { padding: [70, 70], maxZoom: 17 });
+  } else {
+    // 미디어 GPS가 하나도 없으면 최소한 그 매스(주소) 지역으로 이동
+    const addrPts = recs
+      .filter(r => isFinite(r.lat) && isFinite(r.lon))
+      .map(r => [r.lat, r.lon]);
+    if (addrPts.length) lcMap.fitBounds(addrPts, { padding: [70, 70], maxZoom: 15 });
+    else lcMap.setView([37.5665, 126.978], 11);
+  }
+  setTimeout(() => lcMap.invalidateSize(), 60);
+}
+
+document.getElementById('mapBtn').addEventListener('click', () => {
+  goto(97);
+  renderMassCats();
+  setMapMode(boardMode); // 기본 보드
+});
+document.getElementById('backMapBtn').addEventListener('click', () => goto(1));
+
+// 기록 상세: 저장해둔 산출물(IndexedDB)을 미리보기 + 다시 다운로드
+async function openRecordDetail(rec) {
+  const info = document.getElementById('recDetailInfo');
+  const box = document.getElementById('recOutputs');
+  // 우리가 적은/측정한 모든 정보 나열 (우선 기능 — 디자인은 추후)
+  const rows = [];
+  const add = (k, v) => { if (v !== null && v !== undefined && v !== '') rows.push([k, v]); };
+  add(lang === 'ko' ? '한 단어' : 'One word', rec.momentWord);
+  if (typeof rec.momentScale === 'number') add(lang === 'ko' ? '스케일' : 'Scale', (rec.momentScale > 0 ? '+' : '') + rec.momentScale);
+  add(lang === 'ko' ? '이 순간에 대한 생각' : 'Thoughts', rec.momentThought);
+  add(lang === 'ko' ? '인상적인 물체' : 'Striking things', (rec.segmentsRaw || rec.segments || []).join(', '));
+  add(lang === 'ko' ? '촬영 시각' : 'Captured', rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '');
+  add(lang === 'ko' ? '매스 주소' : 'Mass address', rec.address);
+  if (typeof rec.gpsDistM === 'number' && rec.gpsDistM !== null) {
+    const d = rec.gpsDistM >= 1000 ? (rec.gpsDistM / 1000).toFixed(1) + 'km' : rec.gpsDistM + 'm';
+    add(lang === 'ko' ? '주소와의 거리' : 'Distance', d);
+  }
+  if (rec.mediaGps) add(lang === 'ko' ? '촬영 위치' : 'Location', rec.mediaGps.lat.toFixed(4) + ', ' + rec.mediaGps.lon.toFixed(4));
+  if (rec.contact && !rec.contact.anonymous) {
+    const c = rec.contact;
+    add(lang === 'ko' ? '연락처' : 'Contact', [c.name, c.instagram, c.email, c.website].filter(Boolean).join(' · '));
+  } else if (rec.contact && rec.contact.anonymous) {
+    add(lang === 'ko' ? '서명' : 'Signed', 'anonymous');
+  }
+  add(lang === 'ko' ? '자동 인식(검수용)' : 'Auto tags', (rec.autoTags || []).join(', '));
+  // 거리(반경)별 도시 측정 기록
+  radiusLinesFor(rec.amenities, rec.countryCode).forEach(line => {
+    const [k, ...rest] = line.split(' — ');
+    add(k, rest.join(' — '));
+  });
+  info.innerHTML = '';
+  const table = document.createElement('div');
+  rows.forEach(([k, v]) => {
+    const line = document.createElement('div');
+    line.style.cssText = 'display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px';
+    const kk = document.createElement('span');
+    kk.style.cssText = 'flex:none; width:110px; color:var(--dim)';
+    kk.textContent = k;
+    const vv = document.createElement('span');
+    vv.style.cssText = 'flex:1; color:var(--ink); line-height:1.5';
+    vv.textContent = v;
+    line.append(kk, vv);
+    table.appendChild(line);
+  });
+  info.appendChild(table);
+  box.innerHTML = '';
+  goto(98);
+  const kinds = [
+    { k: 'out1', name: t('outName1'), file: rec.mediaType === 'video' ? 'liquidcities-reels.mp4' : 'liquidcities-reels.jpg' },
+    { k: 'out2', name: t('outName2'), file: 'liquidcities-still.jpg' },
+    { k: 'out3', name: t('outName3'), file: 'liquidcities-reels-thumb.jpg' },
+    { k: 'out4', name: t('outName4'), file: 'liquidcities-square.png' },
+  ];
+  let found = 0;
+  for (const { k, name, file } of kinds) {
+    const blob = await idbGet(rec.savedAt + ':' + k);
+    if (!blob) continue;
+    found++;
+    const h = document.createElement('h2');
+    h.style.cssText = 'font-size:14px; margin:22px 0 0';
+    h.textContent = name;
+    box.appendChild(h);
+    const url = URL.createObjectURL(blob);
+    if (blob.type.startsWith('video/')) {
+      const v = document.createElement('video');
+      v.src = url; v.controls = true; v.playsInline = true;
+      box.appendChild(v);
+    } else {
+      const img = document.createElement('img');
+      img.src = url;
+      box.appendChild(img);
+    }
+    const row = document.createElement('div');
+    row.className = 'row';
+    const btn = document.createElement('button');
+    btn.textContent = t('btnDownload');
+    btn.addEventListener('click', () => downloadBlob(blob, file));
+    row.appendChild(btn);
+    box.appendChild(row);
+  }
+  if (!found) {
+    const pNo = document.createElement('p');
+    pNo.className = 'hint';
+    pNo.textContent = t('noOutputs');
+    box.appendChild(pNo);
+  }
+}
+document.getElementById('backRecBtn').addEventListener('click', () => goto(99));
+
+document.getElementById('myDataBtn').addEventListener('click', () => {
+  renderRecList();
+  goto(99);
+});
+document.getElementById('backDataBtn').addEventListener('click', () => goto(1));
+document.getElementById('clearAllBtn').addEventListener('click', async () => {
+  if (!confirm(t('confirmDeleteAll'))) return;
+  const list = getRecords();
+  localStorage.setItem(REC_KEY, JSON.stringify([]));
+  list.forEach(r => idbDelRecord(r.savedAt).catch(() => {}));
+  if (sb) {
+    for (const rec of list) {
+      try {
+        if (rec.serverId) await sb.from('records').delete().eq('id', rec.serverId);
+        else await sb.from('records').delete().eq('payload->>savedAt', String(rec.savedAt));
+      } catch (e) {}
+    }
+  }
+  renderRecList();
+  renderSavedList();
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(getRecords(), null, 2)], { type: 'application/json' });
+  downloadBlob(blob, 'liquidcities-records.json');
+});
+
+// 산출물 2: JPG
+dl2Btn.addEventListener('click', () => {
+  saveRecord();
+  out2Canvas.toBlob(b => { downloadBlob(b, 'liquidcities-still.jpg'); saveOutputBlob('out2', b); }, 'image/jpeg', 0.95);
+});
+
+// 산출물 3: 흰 배경 JPG (텍스트 없음)
+document.getElementById('dl3Btn').addEventListener('click', () => {
+  saveRecord();
+  document.getElementById('out3Canvas').toBlob(b => { downloadBlob(b, 'liquidcities-reels-thumb.jpg'); saveOutputBlob('out3', b); }, 'image/jpeg', 0.95);
+});
+
+// 산출물 4: 투명 PNG
+document.getElementById('dl4Btn').addEventListener('click', () => {
+  saveRecord();
+  document.getElementById('out4Canvas').toBlob(b => { downloadBlob(b, 'liquidcities-square.png'); saveOutputBlob('out4', b); }, 'image/png');
+});
+
+/* ============================================================
+   산출물 1 다운로드
+   - 영상: WebCodecs로 "오프라인 프레임 정확 렌더" (기본) — 실시간 녹화가
+     아니므로 기기 성능과 무관하게 정확히 30fps·무손실 타이밍의 MP4가 나온다.
+     원본이 10초보다 짧으면 프레임 단위로 반복(늘리지 않음), 정확히 10초에 컷.
+     소리는 원본 오디오를 디코드해 같은 방식으로 반복·10초 컷 후 AAC 인코딩.
+   - WebCodecs 미지원 브라우저: 기존 MediaRecorder 실시간 녹화 폴백.
+   ============================================================ */
+// AAC-LC AudioSpecificConfig(2바이트) — esds가 비면 QuickTime이 못 읽는다
+function aacASC(rate, ch2) {
+  const freqs = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+  const fi = Math.max(0, freqs.indexOf(rate));
+  return new Uint8Array([(2 << 3) | (fi >> 1), ((fi & 1) << 7) | (ch2 << 3)]);
+}
+// 조립된 오디오 버퍼를 Safari 네이티브 MediaRecorder로 AAC(m4a) 녹음
+// — AudioEncoder가 없는 실기 Safari용. ac는 클릭 제스처 안에서 만든 컨텍스트.
+async function recordBufferAAC(ac, rendered) {
+  let mime = null;
+  for (const m of ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4']) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) { mime = m; break; }
+  }
+  if (!mime) throw new Error('no AAC recorder');
+  const dest = ac.createMediaStreamDestination();
+  const src = ac.createBufferSource();
+  src.buffer = rendered;
+  src.connect(dest);
+  const rec = new MediaRecorder(dest.stream, { mimeType: mime, audioBitsPerSecond: 128000 });
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+  const done = new Promise(r => { rec.onstop = r; });
+  rec.start(500);
+  src.start();
+  await new Promise(r => { src.onended = r; });
+  await new Promise(r => setTimeout(r, 250)); // 인코더 꼬리 여유
+  rec.stop();
+  await done;
+  return await new Blob(chunks, { type: 'audio/mp4' }).arrayBuffer();
+}
+// 비디오 엘리먼트 재생을 경유해 [clipStart, +5초] 구간을 AAC로 녹음 —
+// decodeAudioData가 컨테이너를 못 읽는 경우(아이폰 .mov 등)의 대체 경로.
+// 재생 가능한 파일이면 코덱과 무관하게 소리를 얻는다.
+async function recordElementAAC(ac, srcUrl, clipStart, durSec) {
+  let mime = null;
+  for (const m of ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4']) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) { mime = m; break; }
+  }
+  if (!mime) throw new Error('no AAC recorder');
+  const v2 = document.createElement('video');
+  v2.src = srcUrl;
+  v2.playsInline = true;
+  v2.style.cssText = 'position:fixed; width:2px; height:2px; opacity:0.01; pointer-events:none';
+  document.body.appendChild(v2); // Safari는 DOM 밖 비디오의 오디오 그래프를 멈출 수 있음
+  try {
+    await new Promise((ok, bad) => { v2.onloadeddata = ok; v2.onerror = () => bad(new Error('video load')); });
+    const cs = Math.min(clipStart || 0, Math.max(0, v2.duration - 0.1));
+    const clipLen = Math.min(v2.duration - cs, durSec);
+    const src = ac.createMediaElementSource(v2); // 그래프로만 흐름 (스피커 출력 없음)
+    const dest = ac.createMediaStreamDestination();
+    src.connect(dest);
+    const rec = new MediaRecorder(dest.stream, { mimeType: mime, audioBitsPerSecond: 128000 });
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    const done = new Promise(r => { rec.onstop = r; });
+    v2.currentTime = cs;
+    await new Promise(r => { v2.onseeked = r; });
+    // 짧은 영상은 구간을 반복해 durSec를 채운다 (본편 렌더와 같은 규칙)
+    v2.addEventListener('timeupdate', () => {
+      if (v2.currentTime >= cs + clipLen - 0.05) v2.currentTime = cs;
+    });
+    rec.start(500);
+    await v2.play();
+    await new Promise(r => setTimeout(r, durSec * 1000 + 250));
+    v2.pause();
+    rec.stop();
+    await done;
+    return await new Blob(chunks, { type: 'audio/mp4' }).arrayBuffer();
+  } finally { v2.remove(); }
+}
+// MediaRecorder가 만든 m4a에서 AAC 샘플을 추출 (mp4box.js)
+async function demuxAAC(ab) {
+  const mod = await import('https://cdn.jsdelivr.net/npm/mp4box@0.5.3/+esm');
+  const MP4Box = mod.default || mod;
+  return new Promise((resolve, reject) => {
+    const file = MP4Box.createFile();
+    const samples = [];
+    let tr = null;
+    file.onError = e => reject(new Error('mp4box: ' + e));
+    file.onReady = info => {
+      tr = info.audioTracks && info.audioTracks[0];
+      if (!tr) return reject(new Error('no audio track in recording'));
+      file.setExtractionOptions(tr.id, null, { nbSamples: 1000000 });
+      file.start();
+    };
+    file.onSamples = (id, user, smp) => { samples.push(...smp); };
+    ab.fileStart = 0;
+    file.appendBuffer(ab);
+    file.flush();
+    setTimeout(() => {
+      if (!tr || !samples.length) return reject(new Error('demux produced no samples'));
+      resolve({ samples,
+        sampleRate: tr.audio ? tr.audio.sample_rate : 44100,
+        channels: tr.audio ? tr.audio.channel_count : 2 });
+    }, 80);
+  });
+}
+async function exportVideoOffline(status) {
+  // Safari: AudioContext는 어떤 await보다 먼저(클릭 제스처 안) 만들어야 산다
+  const gestureAC = new (window.AudioContext || window.webkitAudioContext)();
+  gestureAC.resume().catch(() => {});
+  const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/+esm');
+  const FPS = 30, TOTAL = TARGET_DURATION * FPS;
+  const W = CANVAS_W, H = CANVAS_H;
+
+  // ---- 오디오: 원본 디코드 → 5초 반복 채움 (OfflineAudioContext가 리샘플까지 처리) ----
+  let audioBuf = null;
+  try {
+    const ab = await (await fetch(video.src)).arrayBuffer();
+    audioBuf = await gestureAC.decodeAudioData(ab);
+  } catch (e) { audioBuf = null; }
+
+  // 오디오 경로 결정: ① AudioEncoder(AAC) — Chrome·최신 WebKit
+  //                 ② MediaRecorder 녹음 + demux — AudioEncoder 없는 실기 Safari
+  let audioCfg = null, audioMode = null;
+  if (audioBuf && 'AudioEncoder' in window) {
+    const aac = { codec: 'mp4a.40.2', sampleRate: audioBuf.sampleRate, numberOfChannels: audioBuf.numberOfChannels, bitrate: 128000 };
+    if ((await AudioEncoder.isConfigSupported(aac)).supported) { audioCfg = aac; audioMode = 'webcodecs'; }
+  }
+  if (audioBuf && !audioMode) audioMode = 'mediarec';
+  if (!audioBuf) audioMode = 'element'; // 디코드 불가 컨테이너(아이폰 .mov 등) — 재생 경유 녹음
+
+  // ---- 조립: 구간 [clipStart, +5s]를 반복·컷한 단일 버퍼 (두 오디오 경로 공용) ----
+  let renderedAudio = null;
+  if (audioBuf) {
+    const oc = new OfflineAudioContext(audioBuf.numberOfChannels,
+      Math.ceil(TARGET_DURATION * audioBuf.sampleRate), audioBuf.sampleRate);
+    const acs = Math.min(state.clipStart || 0, Math.max(0, audioBuf.duration - 0.1));
+    const aLen = Math.min(audioBuf.duration - acs, TARGET_DURATION);
+    for (let t0 = 0; t0 < TARGET_DURATION; t0 += aLen) {
+      const src = oc.createBufferSource();
+      src.buffer = audioBuf; src.connect(oc.destination);
+      src.start(t0, acs, Math.min(aLen, TARGET_DURATION - t0));
+    }
+    renderedAudio = await oc.startRendering();
+  }
+
+  // ---- mediarec 모드: muxer 생성 전에 녹음·추출까지 끝내 sampleRate 확정 ----
+  let mrAAC = null;
+  if (audioMode === 'mediarec') {
+    status.textContent = t('dlAudioPrep');
+    mrAAC = await demuxAAC(await recordBufferAAC(gestureAC, renderedAudio));
+  } else if (audioMode === 'element') {
+    status.textContent = t('dlAudioPrep');
+    try {
+      mrAAC = await demuxAAC(await recordElementAAC(gestureAC, video.src, state.clipStart || 0, TARGET_DURATION));
+      audioMode = 'mediarec'; // 이후 주입 로직은 동일
+    } catch (e) {
+      console.warn('element audio capture failed:', e.message);
+      audioMode = null; // 진짜 무음 영상일 수 있음 — 비디오만 저장
+    }
+  }
+  const audioMuxCodec = audioMode ? 'aac' : null;
+  const muxSampleRate = audioMode === 'mediarec' ? mrAAC.sampleRate : (audioCfg ? audioCfg.sampleRate : 44100);
+  const muxChannels = audioMode === 'mediarec' ? mrAAC.channels : (audioCfg ? audioCfg.numberOfChannels : 2);
+
+  // ---- 비디오 인코더: H.264 우선(호환성), 안 되면 VP9-in-MP4 ----
+  let vCodecCfg = null, videoMuxCodec = null;
+  for (const [codec, mux] of [['avc1.640028', 'avc'], ['avc1.4d0028', 'avc'], ['avc1.42e028', 'avc'], ['vp09.00.40.08', 'vp9']]) {
+    const cfg = { codec, width: W, height: H, bitrate: 10_000_000, framerate: FPS };
+    if ((await VideoEncoder.isConfigSupported(cfg)).supported) { vCodecCfg = cfg; videoMuxCodec = mux; break; }
+  }
+  if (!vCodecCfg) throw new Error(t('errNoRecorder'));
+
+  const muxer = new Muxer({
+    target: new ArrayBufferTarget(),
+    video: { codec: videoMuxCodec, width: W, height: H },
+    ...(audioMuxCodec ? { audio: { codec: audioMuxCodec, sampleRate: muxSampleRate, numberOfChannels: muxChannels } } : {}),
+    fastStart: 'in-memory',
+  });
+
+  let encError = null;
+  const venc = new VideoEncoder({
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+    error: e => { encError = e; },
+  });
+  venc.configure(vCodecCfg);
+
+  // ---- 프레임 렌더: 출력 프레임 i의 소스 시각 = (i/30) mod 원본길이 → 반복 후 10초 컷 ----
+  const v = await ensureSeekVideo();
+  const srcDur = v.duration;
+  const cs = Math.min(state.clipStart || 0, Math.max(0, srcDur - 0.1));
+  const clipLen = Math.min(srcDur - cs, TARGET_DURATION); // 짧으면 반복, 길면 10초 컷
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const octx = off.getContext('2d');
+  for (let i = 0; i < TOTAL; i++) {
+    if (encError) throw encError;
+    const srcT = cs + ((i / FPS) % clipLen);
+    await seekTo(v, Math.min(srcT, srcDur - 0.001));
+    drawComposite(octx, v, '#fff', state.edgeLayer);
+    if (state._out1TextLayer) octx.drawImage(state._out1TextLayer, 0, 0);
+    const frame = new VideoFrame(off, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+    venc.encode(frame, { keyFrame: i % 60 === 0 });
+    frame.close();
+    if (venc.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
+    if (i % 15 === 0) status.textContent = t('dlRendering', Math.round(i / TOTAL * 100));
+  }
+  await venc.flush();
+
+  // ---- 오디오 트랙 주입 ----
+  if (audioMode === 'webcodecs') {
+    // 조립 버퍼를 AudioEncoder(AAC)로 통째 인코딩
+    const rendered = renderedAudio;
+    const ch = rendered.numberOfChannels, frames = rendered.length;
+    const data = new Float32Array(frames * ch);
+    for (let c = 0; c < ch; c++) data.set(rendered.getChannelData(c), c * frames);
+    const aenc = new AudioEncoder({
+      output: (chunk, meta) => {
+        // WebKit AudioEncoder는 decoderConfig.description을 주지 않아
+        // esds가 비어 QuickTime이 못 읽는다 → ASC를 직접 채움
+        if (!meta || !meta.decoderConfig || !meta.decoderConfig.description) {
+          meta = { decoderConfig: {
+            codec: audioCfg.codec, sampleRate: audioCfg.sampleRate,
+            numberOfChannels: audioCfg.numberOfChannels,
+            description: aacASC(audioCfg.sampleRate, audioCfg.numberOfChannels),
+          } };
+        }
+        muxer.addAudioChunk(chunk, meta);
+      },
+      error: e => { encError = e; },
+    });
+    aenc.configure(audioCfg);
+    const ad = new AudioData({ format: 'f32-planar', sampleRate: rendered.sampleRate,
+      numberOfFrames: frames, numberOfChannels: ch, timestamp: 0, data });
+    aenc.encode(ad);
+    ad.close();
+    await aenc.flush();
+    if (encError) throw encError;
+  } else if (audioMode === 'mediarec') {
+    // 네이티브 녹음에서 추출한 AAC 샘플을 그대로 주입 (재인코딩 없음)
+    // 녹음 시작 지연으로 첫 샘플 cts가 0이 아닐 수 있어 0 기준으로 정규화
+    let first = true;
+    const cts0 = mrAAC.samples.length ? mrAAC.samples[0].cts : 0;
+    for (const smp of mrAAC.samples) {
+      const tsUs = Math.round((smp.cts - cts0) * 1e6 / smp.timescale);
+      if (tsUs > TARGET_DURATION * 1e6) break; // 5초에서 컷
+      muxer.addAudioChunkRaw(
+        new Uint8Array(smp.data),
+        smp.is_sync ? 'key' : 'delta',
+        tsUs,
+        Math.round(smp.duration * 1e6 / smp.timescale),
+        first ? { decoderConfig: {
+          codec: 'mp4a.40.2', sampleRate: mrAAC.sampleRate,
+          numberOfChannels: mrAAC.channels,
+          description: aacASC(mrAAC.sampleRate, mrAAC.channels),
+        } } : undefined);
+      first = false;
+    }
+  }
+  try { gestureAC.close(); } catch (e) {}
+
+  muxer.finalize();
+  const outBlob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
+  downloadBlob(outBlob, 'liquidcities-reels.mp4');
+  saveOutputBlob('out1', outBlob);
+  status.textContent = t('dlDone');
+}
+
+// WebCodecs 미지원 브라우저용 실시간 녹화 폴백 (기존 검증된 경로)
+async function recordRealtime(status) {
+  status.textContent = t('dlRecording', TARGET_DURATION);
+  // (1) 오디오 컨텍스트는 어떤 await보다 먼저(=클릭 제스처 안에서) 생성·활성화 —
+  //     Safari는 await 뒤의 resume()을 제스처로 인정하지 않아 무음이 됐다
+  const recAudioCtxEarly = new (window.AudioContext || window.webkitAudioContext)();
+  recAudioCtxEarly.onstatechange = () => {
+    if (recAudioCtxEarly.state === 'suspended') recAudioCtxEarly.resume().catch(() => {});
+  };
+  recAudioCtxEarly.resume().catch(() => {});
+  // (2) 수동 프레임 공급은 실제 지원 여부로 판정 — Safari는 requestFrame이 없어
+  //     captureStream(0)을 쓰면 프레임이 기록되지 않는다(끊김·색 깨짐의 원인)
+  // Safari/WebKit은 requestFrame API가 존재해도 실제로는 프레임을 밀어넣지
+  // 못한다(10초에 3프레임 실측) — 벤더 판별로 자동 샘플링(30fps) 강제
+  const IS_WEBKIT = /apple/i.test(navigator.vendor || '');
+  const useManualFrames = !IS_WEBKIT
+    && 'requestVideoFrameCallback' in HTMLVideoElement.prototype
+    && typeof CanvasCaptureMediaStreamTrack !== 'undefined'
+    && 'requestFrame' in CanvasCaptureMediaStreamTrack.prototype;
+  const stream = out1Canvas.captureStream(useManualFrames ? 0 : 30);
+  if (useManualFrames) state._recTrack = stream.getVideoTracks()[0];
+  // 오디오: 재생을 실시간으로 캡처하는 방식은 반복 경계·Safari 절전 등으로
+  // 계속 끊겼다. 대신 **원본 오디오를 디코드해 [구간시작, +10초]를 샘플
+  // 단위로 반복·컷해 미리 조립한 버퍼**를 녹음기에 공급한다 — 재생 과정이
+  // 없으므로 끊길 지점이 원천적으로 없다.
+  const cs0 = state.clipStart || 0;
+  let recAudioNode = null, recAudioCtx = null;
+  try {
+    if (!state._mix10 || state._mix10.src !== video.src || state._mix10.cs !== cs0) {
+      const ab = await (await fetch(video.src)).arrayBuffer();
+      const dctx = new (window.AudioContext || window.webkitAudioContext)();
+      const full = await dctx.decodeAudioData(ab);
+      dctx.close().catch(() => {});
+      const clipLen = Math.max(0.1, Math.min(full.duration - cs0, TARGET_DURATION));
+      const oc = new OfflineAudioContext(full.numberOfChannels,
+        Math.ceil(TARGET_DURATION * full.sampleRate), full.sampleRate);
+      for (let t0 = 0; t0 < TARGET_DURATION; t0 += clipLen) {
+        const bs = oc.createBufferSource();
+        bs.buffer = full;
+        bs.connect(oc.destination);
+        bs.start(t0, cs0, Math.min(clipLen, TARGET_DURATION - t0));
+      }
+      state._mix10 = { buf: await oc.startRendering(), src: video.src, cs: cs0 };
+    }
+    recAudioCtx = recAudioCtxEarly; // 클릭 제스처 안에서 이미 생성·활성화됨
+    const dest = recAudioCtx.createMediaStreamDestination();
+    recAudioNode = recAudioCtx.createBufferSource();
+    recAudioNode.buffer = state._mix10.buf;
+    recAudioNode.connect(dest);
+    dest.stream.getAudioTracks().forEach(tr => stream.addTrack(tr));
+  } catch (e) {
+    // 원본에 오디오가 없거나 디코드 실패 → 무음으로 진행
+    recAudioNode = null;
+  }
+  const candidates = [
+    'video/mp4;codecs=avc1,mp4a', 'video/mp4',
+    'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm',
+  ];
+  const mimeType = candidates.find(t => MediaRecorder.isTypeSupported(t));
+  if (!mimeType) throw new Error(t('errNoRecorder'));
+  const ext = mimeType.startsWith('video/mp4') ? 'mp4' : 'webm';
+
+  // Safari: muted 상태의 비디오는 오디오 그래프에도 무음이 갈 수 있으므로
+  // 녹화 전에 완전히 해제 (사용자 제스처 컨텍스트 안이라 허용됨)
+  video.removeAttribute('muted');
+  video.muted = false;
+  video.defaultMuted = false;
+  video.volume = 1;
+  soundBtn.textContent = t('soundOff');
+  soundBtn6.textContent = t('soundOff');
+  video.currentTime = state.clipStart || 0; // 선택 구간부터 10초 (timeupdate 가드가 구간 반복 처리)
+  await video.play().catch(() => {});
+
+  const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 10_000_000 });
+  const chunks = [];
+  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+  const done = new Promise((ok, no) => {
+    rec.onstop = ok;
+    rec.onerror = e => no(e.error || new Error('recorder error'));
+  });
+  rec.start(1000);  // 타임슬라이스 필수 (검증된 함정)
+  if (recAudioNode) recAudioNode.start(); // 조립된 10초 오디오를 녹화와 동시에 시작
+  // 녹화 중에는 전용 루프로 프레임 공급을 보장 (rvfc가 백그라운드 스로틀돼도 안전)
+  let recDrawing = true;
+  let lastDraw = 0;
+  (function recLoop(ts) {
+    if (!recDrawing) return;
+    if (ts - lastDraw >= 33) {
+      lastDraw = ts;
+      if (state._drawOut1) state._drawOut1();
+    }
+    requestAnimationFrame(recLoop);
+  })(0);
+  await new Promise(r => setTimeout(r, TARGET_DURATION * 1000)); // 정확히 10초에 컷
+  recDrawing = false;
+  if (rec.state !== 'inactive') rec.stop();
+  await done;
+  state._recTrack = null;
+  if (recAudioCtx) recAudioCtx.close().catch(() => {}); // 녹화용 오디오 정리
+
+  if (!chunks.length) throw new Error(t('errEmptyRec'));
+  const outBlob = new Blob(chunks, { type: mimeType });
+  downloadBlob(outBlob, `liquidcities-reels.${ext}`);
+  saveOutputBlob('out1', outBlob);
+  status.textContent = ext === 'webm' ? t('dlDoneWebm') : t('dlDoneRT');
+}
+
+// 릴스: 사진→JPG / 영상→5초 MP4 (오프라인 렌더 기본, 실시간 녹화 폴백)
+dl1Btn.addEventListener('click', async () => {
+  const status = document.getElementById('dl1Status');
+  saveRecord();
+  if (state.mediaType === 'image') {
+    out1Canvas.toBlob(b => { downloadBlob(b, 'liquidcities-reels.jpg'); saveOutputBlob('out1', b); }, 'image/jpeg', 0.95);
+    return;
+  }
+  dl1Btn.disabled = true;
+  try {
+    // 오프라인 렌더 우선(모든 브라우저) — WebKit도 H.264+AAC WebCodecs를
+    // 지원함을 실측 확인(2026-07-10). 실시간 녹화는 Safari에서 2~3fps로
+    // 끊기고 색범위도 좁게 인코딩되므로 최후 폴백으로만 사용.
+    if ('VideoEncoder' in window) {
+      try {
+        await exportVideoOffline(status);
+      } catch (e) {
+        console.warn('offline export failed, falling back to realtime:', e.message);
+        await recordRealtime(status);
+      }
+    } else {
+      await recordRealtime(status);
+    }
+  } catch (e) {
+    status.textContent = t('dlFail', e.message);
+  } finally {
+    state._recTrack = null;
+    dl1Btn.disabled = false;
+  }
+});
+
+// 초기 언어 적용 + 저장 목록 렌더 (모든 선언이 끝난 시점)
+applyLang();
+initSupabase(); // Supabase 설정이 있으면 익명 세션 확보 + 미전송분 재전송
+
+// 테스트/디버깅 훅
+window.__lc = { state, goto, proceedWithLocation, enterResults, startMassViewer, drawOut4, saveRecord, idbGet };
+</script>
+</body>
+</html>
