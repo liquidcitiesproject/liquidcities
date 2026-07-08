@@ -186,7 +186,7 @@
   }
   /* ---- 제작 플로우: 좌측 고정 디렉션 + 우측 입력 (참조: thinkjane.com/hi-cella) ---- */
   @media (min-width: 900px) {
-    .step.flow { display: grid; grid-template-columns: minmax(240px, 360px) 1fr;
+    .step.flow.active { display: grid; grid-template-columns: minmax(240px, 360px) 1fr;
       column-gap: 56px; align-items: start; }
     .step.flow > * { grid-column: 2; }
     .step.flow > h1 { grid-column: 1; grid-row: 1; position: sticky; top: calc(var(--hdrH, 112px) + 20px); }
