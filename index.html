@@ -209,6 +209,8 @@
     <span id="accountLabel"></span>
     <button id="accLinkBtn" class="secondary" data-i18n="btnLinkEmail"
       style="padding:4px 10px; font-size:11px; margin-left:8px; display:none"></button>
+    <button id="accPwBtn" class="secondary" data-i18n="btnSetPw"
+      style="padding:4px 10px; font-size:11px; margin-left:8px; display:none"></button>
     <button id="logoutBtn" class="secondary" data-i18n="btnLogout"
       style="padding:4px 10px; font-size:11px; margin-left:8px"></button>
   </div>
@@ -519,7 +521,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12b</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12c</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -571,6 +573,7 @@ const I18N = {
     errPwEmpty: '이메일과 비밀번호를 입력해주세요', errPwShort: '비밀번호는 6자 이상이어야 합니다',
     errPwWrongOrConfirm: '비밀번호가 다르거나 이미 가입된 이메일입니다',
     askLinkPw: '사용할 비밀번호를 정해주세요 (6자 이상)', stLinked: '계정이 연결되었습니다',
+    btnSetPw: '비밀번호 설정', stPwSet: '비밀번호가 설정되었습니다 — 이제 이메일+비밀번호로 로그인할 수 있습니다',
     shareFail: '공유 실패', shareNeedServer: '서버 연결 후 사용할 수 있습니다',
     s3Title: '3. 사진 또는 영상 업로드',
     s3Sub: '건물 실루엣 안에 매핑할 사진이나 영상을 올려주세요.',
@@ -708,6 +711,7 @@ const I18N = {
     errPwEmpty: 'Enter email and password', errPwShort: 'Password must be 6+ characters',
     errPwWrongOrConfirm: 'Wrong password, or this email is already registered',
     askLinkPw: 'Choose a password (6+ chars)', stLinked: 'Account linked',
+    btnSetPw: 'Set password', stPwSet: 'Password set — you can now log in with email + password',
     shareFail: 'Share failed', shareNeedServer: 'Connect the server first',
     s3Title: '3. Upload Photo or Video',
     s3Sub: 'Upload the photo or video to map inside the building silhouette.',
@@ -2127,6 +2131,7 @@ async function updateAccountBar() {
     // 로그아웃은 이메일 계정에만 — 익명 계정은 로그아웃하면 다시 못 찾는다.
     const linkBtn = document.getElementById('accLinkBtn');
     if (linkBtn) linkBtn.style.display = u.email ? 'none' : '';
+    document.getElementById('accPwBtn').style.display = u.email ? '' : 'none';
     document.getElementById('logoutBtn').style.display = u.email ? '' : 'none';
     bar.style.display = '';
   } catch (e) { bar.style.display = 'none'; }
@@ -2229,6 +2234,15 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   updateAccountBar();
   updateSbStatus();
   goto(0);
+});
+// 이메일 계정에 비밀번호 설정/변경 — 매직링크 시절 계정에 비밀번호를 붙일 때 사용
+document.getElementById('accPwBtn').addEventListener('click', async () => {
+  if (!sb) return;
+  const pw = prompt(t('askLinkPw'));
+  if (pw === null) return;
+  if (!pw || pw.length < 6) { alert(t('errPwShort')); return; }
+  const { error } = await sb.auth.updateUser({ password: pw });
+  alert(error ? t('sbFail') + ' — ' + error.message : t('stPwSet'));
 });
 // 게스트 → 이메일 계정 승격 (기록이 그대로 계정에 귀속됨)
 document.getElementById('accLinkBtn').addEventListener('click', async () => {
