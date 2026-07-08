@@ -190,9 +190,11 @@
   <p class="sub" data-i18n="s0Sub"></p>
   <input type="text" inputmode="email" id="loginEmail" data-ph="phCEmail"
     autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <input type="password" id="loginPw" data-ph="phPw" autocomplete="current-password" style="margin-top:8px">
   <div class="row">
-    <button id="magicBtn" data-i18n="btnMagic"></button>
+    <button id="pwLoginBtn" data-i18n="btnPwLogin"></button>
   </div>
+  <p class="hint" data-i18n="s0PwHint"></p>
   <div class="status" id="loginStatus"></div>
   <hr style="border:none; border-top:1px solid var(--line); margin:22px 0">
   <div class="row" style="margin-top:0">
@@ -517,7 +519,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-11u</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12a</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -564,6 +566,11 @@ const I18N = {
     massHint: '드래그해서 보고 싶은 각도로 돌린 뒤, 확인을 누르면 이 뷰로 고정됩니다.',
     btnAgain: '다시 검색', btnConfirm: '확인', btnBack: '← 뒤로', btnHome: '⌂ 홈으로',
     btnShareBoard: '보드 공유', shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
+    phPw: '비밀번호 (6자 이상)', btnPwLogin: '로그인 / 가입',
+    s0PwHint: '처음이면 이 이메일·비밀번호로 바로 가입됩니다.',
+    errPwEmpty: '이메일과 비밀번호를 입력해주세요', errPwShort: '비밀번호는 6자 이상이어야 합니다',
+    errPwWrongOrConfirm: '비밀번호가 다르거나 이미 가입된 이메일입니다',
+    askLinkPw: '사용할 비밀번호를 정해주세요 (6자 이상)', stLinked: '계정이 연결되었습니다',
     shareFail: '공유 실패', shareNeedServer: '서버 연결 후 사용할 수 있습니다',
     s3Title: '3. 사진 또는 영상 업로드',
     s3Sub: '건물 실루엣 안에 매핑할 사진이나 영상을 올려주세요.',
@@ -696,6 +703,11 @@ const I18N = {
     massHint: 'Drag to rotate to the angle you like, then press Confirm to lock this view.',
     btnAgain: 'Search again', btnConfirm: 'Confirm', btnBack: '← Back', btnHome: '⌂ Home',
     btnShareBoard: 'Share board', shareReady: 'Share link:', shareCopied: 'Link copied:',
+    phPw: 'Password (6+ chars)', btnPwLogin: 'Log in / Sign up',
+    s0PwHint: 'New here? This email and password will create your account instantly.',
+    errPwEmpty: 'Enter email and password', errPwShort: 'Password must be 6+ characters',
+    errPwWrongOrConfirm: 'Wrong password, or this email is already registered',
+    askLinkPw: 'Choose a password (6+ chars)', stLinked: 'Account linked',
     shareFail: 'Share failed', shareNeedServer: 'Connect the server first',
     s3Title: '3. Upload Photo or Video',
     s3Sub: 'Upload the photo or video to map inside the building silhouette.',
@@ -2182,12 +2194,30 @@ document.getElementById('guestBtn').addEventListener('click', async () => {
   }
   goto(1); // 실패해도 로컬 모드로 진행
 });
-document.getElementById('magicBtn').addEventListener('click', async () => {
+document.getElementById('pwLoginBtn').addEventListener('click', async () => {
   const email = document.getElementById('loginEmail').value.trim();
+  const pw = document.getElementById('loginPw').value;
   const st = document.getElementById('loginStatus');
-  if (!sb || !email) return;
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href } });
-  st.textContent = error ? t('sbFail') + ' — ' + error.message : t('stMagicSent');
+  if (!sb) return;
+  if (!email || !pw) { st.textContent = t('errPwEmpty'); return; }
+  if (pw.length < 6) { st.textContent = t('errPwShort'); return; }
+  st.textContent = '…';
+  // 1) 기존 계정 로그인 시도
+  const r1 = await sb.auth.signInWithPassword({ email, password: pw });
+  if (!r1.error) { st.textContent = ''; return; } // onAuthStateChange가 복원+이동
+  // 2) 계정이 없으면 즉시 가입 (Confirm email OFF 필요 — 즉시 세션 발급)
+  if (/invalid/i.test(r1.error.message || '')) {
+    const r2 = await sb.auth.signUp({ email, password: pw });
+    if (!r2.error && r2.data && r2.data.session) { st.textContent = ''; return; }
+    if (!r2.error && r2.data && r2.data.user && !r2.data.session) {
+      // 이미 있는 이메일(비번 틀림) 또는 확인 메일이 켜져 있는 경우
+      st.textContent = t('errPwWrongOrConfirm');
+      return;
+    }
+    st.textContent = t('sbFail') + ' — ' + (r2.error ? r2.error.message : '?');
+    return;
+  }
+  st.textContent = t('sbFail') + ' — ' + r1.error.message;
 });
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   if (sb) await sb.auth.signOut().catch(() => {});
@@ -2200,8 +2230,12 @@ document.getElementById('accLinkBtn').addEventListener('click', async () => {
   if (!sb) return;
   const email = prompt(t('askLinkEmail'));
   if (!email || !email.trim()) return;
-  const { error } = await sb.auth.updateUser({ email: email.trim() });
-  alert(error ? t('sbFail') + ' — ' + error.message : t('stLinkSent'));
+  const pw = prompt(t('askLinkPw'));
+  if (!pw || pw.length < 6) { alert(t('errPwShort')); return; }
+  const { error } = await sb.auth.updateUser({ email: email.trim(), password: pw });
+  alert(error ? t('sbFail') + ' — ' + error.message : t('stLinked'));
+  updateAccountBar();
+  updateSbStatus();
 });
 // 서버에 저장된 내 기록을 이 기기의 로컬 목록에 병합 — 다른 기기에서
 // 로그인해도 기록이 보이게 하는 복원 경로 (업로드만 있던 동기화의 반쪽)
@@ -2365,11 +2399,12 @@ document.getElementById('sbLinkBtn').addEventListener('click', async () => {
 });
 // 연결된 이메일로 다른 기기에서 로그인 (매직링크)
 document.getElementById('sbLoginBtn').addEventListener('click', async () => {
+  if (!sb) return;
   const email = document.getElementById('sbEmailInput').value.trim();
-  if (!sb || !email) return;
-  const el = document.getElementById('sbStatus');
-  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.href } });
-  el.textContent = error ? t('sbFail') + ' — ' + error.message : t('sbMailSent');
+  const pw = prompt(t('askLinkPw'));
+  if (!email || !pw) return;
+  const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+  document.getElementById('sbStatus').textContent = error ? t('sbFail') + ' — ' + error.message : t('sbLinked', email);
 });
 
 async function claudeDeepen(ans) {
