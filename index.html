@@ -202,7 +202,7 @@
   .back-top { display: block; margin: 0 0 14px; }
   .back-top button { padding: 6px 14px; font-size: 14px; }
   .back-arrow { display: none !important; } /* 브라우저 뒤로가기로 대체 (사용자 확정) */
-  .row:has(> .back-arrow) { display: none; }
+  .row:has(> .back-arrow:only-child) { display: none; } /* 화살표 단독 행만 — 확인 버튼이 함께 있으면 유지 */
   /* ---- 폰 최적화 ---- */
   @media (max-width: 600px) {
     body { padding: 0 0 40px; }
