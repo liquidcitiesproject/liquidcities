@@ -3096,6 +3096,11 @@ async function enterResults() {
   drawTexts(ctx2, state._out2Top, bot);
   dl2Btn.disabled = false;
 
+  // 결과 페이지 도달 = 기록 자동 저장 (다운로드 없이도 — 사용자 확정).
+  // 매스 썸네일(toBlob)이 준비될 시간을 살짝 준 뒤 저장하고,
+  // 이후 다운로드하면 같은 기록이 갱신된다.
+  setTimeout(() => { try { saveRecord(); } catch (e) {} }, 800);
+
   // 도시 정보(반경 데이터)를 결과 페이지에 텍스트로 표시 (구 산출물 2 대체)
   {
     const ci = document.getElementById('cityInfo');
