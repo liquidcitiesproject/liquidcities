@@ -14,10 +14,13 @@
   body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
   /* 모든 페이지: 좌우 26px 여백의 풀폭 — 헤더와 정확히 같은 정렬 */
   .step { display: none; width: 100%; max-width: none; padding: 34px 26px 80px; margin: 0; }
-  /* 제작 플로우의 입력·캔버스는 읽기 좋은 폭(560px)으로 좌측 정렬 */
-  .step .flow-col, .step > h1, .step > .sub, .step > input, .step > .row,
-  .step > .hint, .step > .status, .step > .err { max-width: 640px; }
-  .step.wide > h1 { max-width: none; }
+  /* 제작 플로우의 입력·버튼은 읽기 좋은 폭(640px)으로 좌측 정렬 —
+     래퍼(#structForm 등) 안에 있어도 적용되도록 요소 단위로 제한 */
+  .step h1, .step .sub, .step .hint, .step .status, .step .err { max-width: 640px; }
+  .step input[type=text], .step input[type=number], .step input[type=email],
+  .step input[type=password], .step textarea, .step input[type=range] { max-width: 640px; }
+  .step .row { max-width: 640px; }
+  .step.wide h1, .step.wide .row, .step.wide .status { max-width: none; }
   /* 반응형 — 넓은 화면에서는 여유 있게, 중앙 정렬 */
   @media (min-width: 900px) {
     .canvas-wrap { max-width: 420px; }
@@ -600,7 +603,7 @@
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12k</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12m</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
