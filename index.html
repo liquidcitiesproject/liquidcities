@@ -710,7 +710,7 @@
   <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:0 0 6px">
     <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
   </div>
-<p id="buildTag" title="build 2026-07-13c" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
+<p id="buildTag" title="build 2026-07-13d" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
 </footer>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
@@ -1981,9 +1981,30 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   if (!file) return;
   const err = document.getElementById('mediaErr');
   err.style.display = 'none';
-  // 새 미디어 = 새 기록 세션 (이걸 리셋하지 않으면 두 번째 작품이 저장되지 않음)
+  // 새 미디어 = 새 기록 세션 — 이전 작품의 상태를 전부 초기화
   state._recordSaved = false;
   state._recordSavedAt = null;
+  state.locked = false;                 // 이전 잠금 해제
+  editorCanvas.classList.remove('locked');
+  state.pan = { x: 0, y: 0 };           // 위치·크기 리셋 (baseScale은 로드 후 resetTransform)
+  state.userScale = 1;
+  state.clipStart = 0;
+  state.thumbFrac = 0.5;
+  state.momentScale = 0;
+  state.momentThought = '';
+  state.momentWord = '';
+  state.momentWordEn = null;
+  state._finalEn = null;
+  state.userReasons = [];
+  state.segmentsRaw = []; state.segmentsFinal = []; state._segsEn = null;
+  state.contact = null; state.userText = '';
+  state.weatherCode = null; state.w3w = null;
+  // 입력 필드도 비우기 (이전 값 잔존 방지)
+  ['momentThought', 'momentWord', 'seg1', 'seg2', 'seg3', 'cName', 'cInsta', 'cEmail', 'cWeb'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const sc = document.getElementById('scaleSlider'); if (sc) { sc.value = 0; sc.dispatchEvent(new Event('input')); }
+  const tr = document.getElementById('translateResult'); if (tr) tr.style.display = 'none';
   const cap = await readCaptureDate(file);
   state.mediaDate = cap.date;
   state.mediaDateSource = cap.source; // 'exif' | 'video-meta' | 'file' | 'now'
