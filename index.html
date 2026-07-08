@@ -332,11 +332,6 @@
   </div>
   <p class="hint" data-i18n="s0PwHint"></p>
   <div class="status" id="loginStatus"></div>
-  <hr style="border:none; border-top:1px solid var(--line); margin:22px 0">
-  <div class="row" style="margin-top:0">
-    <button id="guestBtn" class="secondary" data-i18n="btnGuest"></button>
-  </div>
-  <p class="hint" data-i18n="s0GuestHint"></p>
 </section>
 
 <!-- STEP 1: 주소 검색 -->
@@ -634,8 +629,6 @@
   <h1>My page</h1>
   <div id="accountBar" style="display:none; margin:18px 0; font-size:14px; color:var(--ink)">
     <span id="accountLabel"></span>
-    <button id="accLinkBtn" class="secondary" data-i18n="btnLinkEmail"
-      style="padding:4px 10px; font-size:11px; margin-left:8px; display:none"></button>
     <button id="accPwBtn" class="secondary" data-i18n="btnSetPw"
       style="padding:4px 10px; font-size:11px; margin-left:8px; display:none"></button>
     <button id="logoutBtn" class="secondary" data-i18n="btnLogout"
@@ -710,7 +703,7 @@
   <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:0 0 6px">
     <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
   </div>
-<p id="buildTag" title="build 2026-07-13d" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
+<p id="buildTag" title="build 2026-07-13e" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
 </footer>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
@@ -804,8 +797,6 @@ const I18N = {
     sbMailSent: '확인 메일을 보냈습니다 — 받은 편지함을 확인하세요',
     s0Sub: '도시의 순간을 기록합니다. 이메일로 로그인하면 어느 기기에서든 기록이 이어집니다.',
     btnMagic: '이메일로 로그인 링크 받기',
-    btnGuest: '게스트로 시작',
-    s0GuestHint: '게스트로 시작해도 기록은 이 브라우저의 익명 계정에 저장되며, 나중에 설정(⚙️)에서 이메일을 연결할 수 있습니다.',
     stMagicSent: '로그인 링크를 보냈습니다 — 메일함에서 링크를 눌러주세요',
     btnLogout: '로그아웃', btnLinkEmail: '이메일 연결',
     askLinkEmail: '연결할 이메일 주소를 입력해주세요', stLinkSent: '확인 메일을 보냈습니다 — 메일함에서 승인해주세요',
@@ -947,8 +938,6 @@ const I18N = {
     sbMailSent: 'Confirmation email sent — check your inbox',
     s0Sub: 'Recording moments of the city. Sign in with email to continue across devices.',
     btnMagic: 'Email me a sign-in link',
-    btnGuest: 'Continue as guest',
-    s0GuestHint: 'As a guest, records are saved to an anonymous account in this browser — you can link an email later in Settings (⚙️).',
     stMagicSent: 'Sign-in link sent — tap the link in your inbox',
     btnLogout: 'Sign out',
     accGuest: 'Guest (anonymous)', accUser: e => e,
@@ -2468,13 +2457,11 @@ async function updateAccountBar() {
     const u = data && data.user;
     if (!u) { bar.style.display = 'none'; return; }
     document.getElementById('accountLabel').textContent =
-      u.email ? t('accUser', u.email) : t('accGuest');
+      t('accUser', u.email || u.id.slice(0, 8));
     // 게스트에게만 "이메일 연결" 노출 — 연결하면 기록이 계정으로 승격됨.
     // 로그아웃은 이메일 계정에만 — 익명 계정은 로그아웃하면 다시 못 찾는다.
-    const linkBtn = document.getElementById('accLinkBtn');
-    if (linkBtn) linkBtn.style.display = u.email ? 'none' : '';
-    document.getElementById('accPwBtn').style.display = u.email ? '' : 'none';
-    document.getElementById('logoutBtn').style.display = u.email ? '' : 'none';
+    document.getElementById('accPwBtn').style.display = '';
+    document.getElementById('logoutBtn').style.display = '';
     bar.style.display = '';
   } catch (e) { bar.style.display = 'none'; }
 }
@@ -2528,19 +2515,6 @@ async function initSupabase() {
   updateSbStatus();
 }
 // 로그인 페이지 동작
-document.getElementById('guestBtn').addEventListener('click', async () => {
-  const st = document.getElementById('loginStatus');
-  if (sb) {
-    try {
-      const r = await sb.auth.signInAnonymously();
-      if (r.error) throw r.error;
-      await pullServerRecords();
-      syncPendingRecords();
-      updateAccountBar();
-    } catch (e) { st.textContent = t('sbFail') + ' — ' + e.message; }
-  }
-  goto(1); // 실패해도 로컬 모드로 진행
-});
 document.getElementById('pwLoginBtn').addEventListener('click', async () => {
   const email = document.getElementById('loginEmail').value.trim();
   const pw = document.getElementById('loginPw').value;
@@ -2587,17 +2561,6 @@ document.getElementById('accPwBtn').addEventListener('click', async () => {
   alert(error ? t('sbFail') + ' — ' + error.message : t('stPwSet'));
 });
 // 게스트 → 이메일 계정 승격 (기록이 그대로 계정에 귀속됨)
-document.getElementById('accLinkBtn').addEventListener('click', async () => {
-  if (!sb) return;
-  const email = prompt(t('askLinkEmail'));
-  if (!email || !email.trim()) return;
-  const pw = prompt(t('askLinkPw'));
-  if (!pw || pw.length < 6) { alert(t('errPwShort')); return; }
-  const { error } = await sb.auth.updateUser({ email: email.trim(), password: pw });
-  alert(error ? t('sbFail') + ' — ' + error.message : t('stLinked'));
-  updateAccountBar();
-  updateSbStatus();
-});
 // 서버에 저장된 내 기록을 이 기기의 로컬 목록에 병합 — 다른 기기에서
 // 로그인해도 기록이 보이게 하는 복원 경로 (업로드만 있던 동기화의 반쪽)
 async function pullServerRecords() {
