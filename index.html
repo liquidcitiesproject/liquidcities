@@ -184,6 +184,15 @@
     .rec-side { flex: 1; }
     .rec-info { flex: 1 1 100%; min-width: 0; margin-left: 0; }
   }
+  /* ---- 제작 플로우: 좌측 고정 디렉션 + 우측 입력 (참조: thinkjane.com/hi-cella) ---- */
+  @media (min-width: 900px) {
+    .step.flow { display: grid; grid-template-columns: minmax(240px, 360px) 1fr;
+      column-gap: 56px; align-items: start; }
+    .step.flow > * { grid-column: 2; }
+    .step.flow > h1 { grid-column: 1; grid-row: 1; position: sticky; top: calc(var(--hdrH, 112px) + 20px); }
+    .step.flow > .direction { grid-column: 1; grid-row: 2; position: sticky;
+      top: calc(var(--hdrH, 112px) + 48px); }
+  }
   /* ---- 공통 헤더 (스케치 확정: 1행 로고 / 2행 메뉴 4개) ---- */
   /* 헤더 — thinkjane.com 사양: 13px, 로고 500/링크 400, rgba(0,0,0,.75),
      좌우 26px 여백의 풀폭 룰. 페이지가 바뀌어도 고정값 불변 */
@@ -301,9 +310,9 @@
 </div>
 
 <!-- STEP 0: 로그인 (Supabase 설정 시에만 표시) -->
-<section class="step" id="step0">
+<section class="step flow" id="step0">
   <h1 style="margin-top:40px">Liquidcities</h1>
-  <p class="sub" data-i18n="s0Sub"></p>
+  <p class="sub direction" data-i18n="s0Sub"></p>
   <input type="text" inputmode="email" id="loginEmail" data-ph="phCEmail"
     autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false">
   <input type="password" id="loginPw" data-ph="phPw" autocomplete="current-password" style="margin-top:8px">
@@ -320,9 +329,9 @@
 </section>
 
 <!-- STEP 1: 주소 검색 -->
-<section class="step active" id="step1">
+<section class="step flow active" id="step1">
   <h1 data-i18n="s1Title"></h1>
-  <p class="sub" data-i18n="s1Sub"></p>
+  <p class="sub direction" data-i18n="s1Sub"></p>
 
 
   <!-- 통합 검색: 창 하나 + 입력 중 추천 목록에서 선택 (사용자 확정) -->
@@ -389,9 +398,9 @@
 </section>
 
 <!-- STEP 2: 건물 매스 확인 (드래그로 뷰 회전 → 확인으로 고정) -->
-<section class="step" id="step2">
+<section class="step flow" id="step2">
   <h1 data-i18n="s2Title"></h1>
-  <p class="sub" id="buildingInfo"></p>
+  <p class="sub direction" id="buildingInfo"></p>
   <p class="hint" data-i18n="massHint"></p>
   <div class="canvas-wrap"><canvas id="massCanvas" width="1080" height="1920" style="cursor:grab"></canvas></div>
   <div class="row">
@@ -401,9 +410,9 @@
 </section>
 
 <!-- STEP 3: 미디어 업로드 -->
-<section class="step" id="step3">
+<section class="step flow" id="step3">
   <h1 data-i18n="s3Title"></h1>
-  <p class="sub" data-i18n="s3Sub"></p>
+  <p class="sub direction" data-i18n="s3Sub"></p>
   <input type="file" id="mediaInput" accept="image/*,video/*">
   <div class="err" id="mediaErr"></div>
   <div class="row">
@@ -412,9 +421,9 @@
 </section>
 
 <!-- STEP 4: 위치/크기 조절 -->
-<section class="step" id="step4">
+<section class="step flow" id="step4">
   <h1 data-i18n="s4Title"></h1>
-  <p class="sub" data-i18n="s4Sub"></p>
+  <p class="sub direction" data-i18n="s4Sub"></p>
   <div class="canvas-wrap"><canvas id="editorCanvas" width="1080" height="1920"></canvas></div>
   <p class="hint" id="captureInfo" style="margin-top:10px"></p>
   <div id="clipRow" style="display:none; margin-top:12px">
@@ -437,10 +446,10 @@
 </section>
 
 <!-- STEP 5: 스케일 평가 + 순간에 대한 생각(데이터 전용) + 한 단어(이미지 노출) -->
-<section class="step" id="step5">
+<section class="step flow" id="step5">
   <h1><span data-i18n="s5Title"></span></h1>
 
-  <p class="sub" data-i18n="scaleSub" style="margin-bottom:10px"></p>
+  <p class="sub direction" data-i18n="scaleSub" style="margin-bottom:10px"></p>
   <div style="text-align:center; font-size:44px; font-weight:200; margin:6px 0" id="scaleValue">0</div>
   <input type="range" id="scaleSlider" min="-10" max="10" step="1" value="0" style="width:100%">
   <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--dim); margin-top:4px">
@@ -480,9 +489,9 @@
 </section>
 
 <!-- STEP 5.5: 인상적이었던 세 가지 (별도 페이지) + 연락처 -->
-<section class="step" id="step55">
+<section class="step flow" id="step55">
   <h1><span data-i18n="s5cTitle"></span> <span class="badge" data-i18n="badgeOpt"></span></h1>
-  <p class="sub" data-i18n="s5cSub"></p>
+  <p class="sub direction" data-i18n="s5cSub"></p>
   <input type="text" id="seg1" data-ph="phSeg1" maxlength="30">
   <div class="row"><input type="text" id="seg2" data-ph="phSeg2" maxlength="30"></div>
   <div class="row"><input type="text" id="seg3" data-ph="phSeg3" maxlength="30"></div>
@@ -524,13 +533,13 @@
 </section>
 
 <!-- STEP 6: 결과 페이지 -->
-<section class="step" id="step6">
+<section class="step flow" id="step6">
   <h1 data-i18n="s6Title"></h1>
   <div class="row" style="margin-top:0; margin-bottom:14px">
     <button id="back6Btn" class="secondary back-arrow">&lt;</button>
     <button id="home6Btn" class="secondary" data-i18n="btnHome"></button>
   </div>
-  <p class="sub" id="detectStatus"></p>
+  <p class="sub direction" id="detectStatus"></p>
 
   <!-- 매핑한 매스 -->
   <div class="canvas-wrap" style="max-width:280px">
