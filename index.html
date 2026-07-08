@@ -216,6 +216,7 @@
   background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; width:320px; box-shadow:0 4px 18px rgba(0,0,0,0.12)">
   <p class="hint" data-i18n="cfgKeyHint" style="margin:0 0 10px"></p>
   <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+  <input type="text" id="w3wKeyInput" placeholder="what3words API key" style="margin-top:6px">
   <div class="row">
     <button id="apiKeySave" data-i18n="btnSave" style="padding:8px 14px; font-size:12px"></button>
     <button id="apiKeyClear" class="secondary" data-i18n="btnDelete" style="padding:8px 14px; font-size:12px"></button>
@@ -595,7 +596,7 @@
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12h</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12i</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -1094,6 +1095,25 @@ const searchErr = document.getElementById('searchErr');
 const searchStatus = document.getElementById('searchStatus');
 const manualBox = document.getElementById('manualBox');
 
+// ---- what3words: 3단어 주소 ↔ 좌표 (키는 관리자 설정 lc_w3w_key 또는 내장) ----
+const DEFAULT_W3W_KEY = ''; // ← 운영자 w3w 키 내장 슬롯
+const w3wKey = () => localStorage.getItem('lc_w3w_key') || DEFAULT_W3W_KEY;
+const W3W_RE = /^\s*\/{0,3}([^\s.\/]+)\.([^\s.\/]+)\.([^\s.\/]+)\s*$/u;
+async function w3wToCoords(words) {
+  if (!w3wKey()) return null;
+  const r = await fetch(`https://api.what3words.com/v3/convert-to-coordinates?words=${encodeURIComponent(words)}&key=${w3wKey()}`);
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message || j.error.code);
+  return j.coordinates ? { lat: j.coordinates.lat, lon: j.coordinates.lng, nearest: j.nearestPlace } : null;
+}
+async function coordsToW3w(lat, lon) {
+  if (!w3wKey()) return null;
+  try {
+    const r = await fetch(`https://api.what3words.com/v3/convert-to-3wa?coordinates=${lat}%2C${lon}&language=en&key=${w3wKey()}`);
+    const j = await r.json();
+    return j.words || null;
+  } catch (e) { return null; }
+}
 // Nominatim 1회 조회 (limit=3, 첫 결과 사용)
 async function nominatim(q) {
   const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=3&q=' + encodeURIComponent(q);
@@ -1241,6 +1261,30 @@ function buildQueryCandidates(q) {
 }
 
 searchBtn.addEventListener('click', async () => {
+  // 3단어 주소(word.word.word 또는 ///word.word.word)면 what3words로 변환
+  {
+    const q0 = document.getElementById('addrInput').value || '';
+    const mw = q0.match(W3W_RE);
+    if (mw && w3wKey()) {
+      searchErr.style.display = 'none';
+      searchStatus.textContent = t('stSearching');
+      try {
+        const c = await w3wToCoords(`${mw[1]}.${mw[2]}.${mw[3]}`);
+        if (c) {
+          state.address = `///${mw[1]}.${mw[2]}.${mw[3]}` + (c.nearest ? ` (${c.nearest})` : '');
+          state.countryCode = null;
+          searchStatus.textContent = '';
+          await proceedWithLocation(c.lat, c.lon);
+          return;
+        }
+      } catch (e) {
+        searchErr.textContent = 'what3words — ' + e.message;
+        searchErr.style.display = 'block';
+        searchStatus.textContent = '';
+        return;
+      }
+    }
+  }
   const q = document.getElementById('addrInput').value.trim();
   if (!q) return;
   searchErr.style.display = 'none';
@@ -2173,6 +2217,8 @@ document.getElementById('cfgBtn').addEventListener('click', () => {
   }
 });
 document.getElementById('apiKeySave').addEventListener('click', () => {
+  const wk = document.getElementById('w3wKeyInput').value.trim();
+  if (wk) localStorage.setItem('lc_w3w_key', wk);
   const v = document.getElementById('apiKeyInput').value.trim();
   if (v) localStorage.setItem('lc_api_key', v);
   updateKeyStatus();
@@ -3702,7 +3748,27 @@ async function openRecordDetail(rec) {
     const d = rec.gpsDistM >= 1000 ? (rec.gpsDistM / 1000).toFixed(1) + 'km' : rec.gpsDistM + 'm';
     add(lang === 'ko' ? '주소와의 거리' : 'Distance', d);
   }
-  if (rec.mediaGps) add(lang === 'ko' ? '촬영 위치' : 'Location', rec.mediaGps.lat.toFixed(4) + ', ' + rec.mediaGps.lon.toFixed(4));
+  if (rec.mediaGps) {
+    add(lang === 'ko' ? '촬영 위치' : 'Location',
+      rec.w3w ? '///' + rec.w3w : rec.mediaGps.lat.toFixed(4) + ', ' + rec.mediaGps.lon.toFixed(4));
+    // 3단어 주소가 아직 없으면 조회해서 표시·저장 (w3w 키 있을 때)
+    if (!rec.w3w && w3wKey()) {
+      coordsToW3w(rec.mediaGps.lat, rec.mediaGps.lon).then(words => {
+        if (!words) return;
+        const list = getRecords();
+        const target = list.find(x => x.savedAt === rec.savedAt);
+        if (target) { target.w3w = words; localStorage.setItem(REC_KEY, JSON.stringify(list)); }
+        rec.w3w = words;
+        // 화면 즉시 갱신
+        const rows2 = document.querySelectorAll('#recDetailInfo span');
+        rows2.forEach(sp => {
+          if (sp.textContent === rec.mediaGps.lat.toFixed(4) + ', ' + rec.mediaGps.lon.toFixed(4)) {
+            sp.textContent = '///' + words;
+          }
+        });
+      });
+    }
+  }
   if (rec.contact && !rec.contact.anonymous) {
     const c = rec.contact;
     add(lang === 'ko' ? '연락처' : 'Contact', [c.name, c.instagram, c.email, c.website].filter(Boolean).join(' · '));
