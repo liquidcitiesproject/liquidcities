@@ -114,6 +114,30 @@
   .leaflet-container { background: #fff; font-family: inherit; }
   .board-edge-label { font-size: 9px; fill: #8a8f95; }
 
+  /* ---- 앱 맵 풀스크린: 헤더 아래 전체 + 떠 있는 컨트롤 ---- */
+  body.map-full { overflow: hidden; }
+  body.map-full #step97 { padding: 0; max-width: none; }
+  body.map-full #step97 > h1, body.map-full #step97 > .sub { display: none; }
+  body.map-full #mapView {
+    position: fixed !important; left: 0; right: 0; bottom: 0; top: var(--hdrH, 112px);
+    width: 100vw !important; height: auto !important;
+    border: none !important; border-radius: 0 !important; z-index: 1;
+  }
+  body.map-full #massCats {
+    position: fixed; top: calc(var(--hdrH, 112px) + 12px); left: 12px; right: 190px;
+    z-index: 1200; margin: 0; padding-bottom: 0;
+  }
+  body.map-full #massCats .mass-cat { box-shadow: 0 1px 6px rgba(0,0,0,0.10); }
+  body.map-full #mapCtrlRow {
+    position: fixed; top: calc(var(--hdrH, 112px) + 12px); right: 12px; z-index: 1200;
+    margin: 0; max-width: none; width: auto; display: flex; gap: 6px;
+  }
+  body.map-full #mapCtrlRow button { flex: 0 0 auto; padding: 8px 12px; font-size: 12px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.10); background: #fff; }
+  body.map-full #mapStatus { position: fixed; bottom: 12px; left: 12px; z-index: 1200; margin: 0; }
+  body.map-full #shareStatus { position: fixed; bottom: 32px; left: 12px; right: 12px; z-index: 1200; margin: 0; }
+  body.map-full #scaleGauge { position: fixed !important; z-index: 1200; }
+  body.map-full #back97Row { display: none; }
   /* ---- 보드 공유 뷰어 (?board=) — 풀스크린 보드 + 떠 있는 카테고리 ---- */
   body.board-viewer #step97 { max-width: none; width: 100%; padding: 0; margin: 0; }
   body.board-viewer #step97 > h1,
@@ -547,7 +571,7 @@
   <h1 data-i18n="mapTitle"></h1>
   <p class="sub" data-i18n="mapSub"></p>
   <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:6px"></div>
-  <div class="row" style="margin-top:0; margin-bottom:8px">
+  <div class="row" id="mapCtrlRow" style="margin-top:0; margin-bottom:8px">
     <button id="viewBoardBtn" class="secondary" style="opacity:1" data-i18n="btnBoard"></button>
     <button id="viewMapBtn" class="secondary" style="opacity:0.5" data-i18n="btnGeoMap"></button>
     <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
@@ -603,7 +627,7 @@
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12m</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12n</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -964,6 +988,11 @@ const state = {
 const steps = [...document.querySelectorAll('.step')];
 function goto(n) {
   steps.forEach(s => s.classList.toggle('active', s.id === 'step' + n));
+  // 맵은 헤더 아래 풀스크린 — 컨트롤은 맵 위 오버레이
+  document.body.classList.toggle('map-full', n === 97 && !document.body.classList.contains('board-viewer'));
+  const hdr = document.getElementById('appHeader');
+  if (hdr) document.documentElement.style.setProperty('--hdrH', hdr.offsetHeight + 'px');
+  if (n === 97 && lcMap) setTimeout(() => lcMap.invalidateSize(), 120);
   window.scrollTo(0, 0);
 }
 
