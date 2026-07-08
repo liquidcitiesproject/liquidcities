@@ -152,11 +152,12 @@
   #appHeader { width: 100%; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
     background: var(--bg); position: sticky; top: 0; z-index: 900; }
   #appHeader .hdr-row { max-width: 1100px; margin: 0 auto; padding: 10px 20px; }
-  #appHeader .hdr-logo { font-weight: 600; font-size: 16px; cursor: pointer;
+  #appHeader .hdr-logo { font-weight: 300; font-size: 16px; cursor: pointer;
     border-bottom: 1px solid var(--line); }
   #appHeader .hdr-menu { display: flex; gap: 8px; }
-  #appHeader .hdr-link { flex: 1; font-weight: 500; font-size: 15px; cursor: pointer; }
-  #appHeader .hdr-link:hover { text-decoration: underline; }
+  #appHeader .hdr-link { flex: 1; font-weight: 300; font-size: 15px; cursor: pointer;
+    text-decoration: underline; text-underline-offset: 4px; }
+  #appHeader .hdr-link:hover { opacity: 0.6; }
   body.board-viewer #appHeader { display: none; }
   /* 페이지 좌상단 뒤로가기 */
   .back-top { display: block; margin: 0 0 14px; }
@@ -197,10 +198,10 @@
 <!-- 언어 전환 (향후 언어 추가는 I18N 딕셔너리에 항목만 추가하면 됨) -->
 
 <header id="appHeader">
-  <div class="hdr-row hdr-logo" id="hdrLogo">📁 Liquidcities Project</div>
+  <div class="hdr-row hdr-logo" id="hdrLogo">→|Liquid Cities Project</div>
   <nav class="hdr-row hdr-menu">
-    <span class="hdr-link" id="hdrMy">My liquid cities</span>
     <span class="hdr-link" id="hdrMap">Map</span>
+    <span class="hdr-link" id="hdrMy">My Cities</span>
     <span class="hdr-link" id="hdrMass">Mass</span>
     <span class="hdr-link" id="hdrPage">My page</span>
   </nav>
@@ -577,7 +578,7 @@
 <!-- 내 기록 관리 페이지 -->
 <section class="step wide" id="step99">
   <div class="row" style="margin-top:0"><button id="backDataBtn" class="secondary back-arrow">&lt;</button></div>
-  <h1>My liquid cities</h1>
+  <h1 style="font-weight:300">My Cities</h1>
   <div id="recCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin:14px 0 6px"></div>
   <div id="recList"></div>
   <div class="row" style="justify-content:flex-end">
@@ -590,7 +591,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12d</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12e</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
