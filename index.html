@@ -3544,6 +3544,7 @@ async function renderMapMarkers() {
   if (!window.L) return;
   if (!lcMap) {
     lcMap = L.map('mapView', { zoomControl: true });
+    lcMap.zoomControl.setPosition('bottomright'); // 좌상단 카테고리 칩과 겹치지 않게
     lcTileLayer = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
