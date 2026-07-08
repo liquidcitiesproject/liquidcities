@@ -345,6 +345,8 @@
     <div class="row">
       <input type="text" id="unitInput2" data-ph="phUnit">
     </div>
+    <!-- 저장된 매스 바로가기 — 누르면 그 매스로 시작 -->
+    <div id="quickMasses" style="display:flex; gap:12px; margin-top:18px; overflow-x:auto; max-width:640px"></div>
   </div>
 
   <div class="row" style="margin-top:0; display:none">
@@ -1088,6 +1090,7 @@ function renderSavedList() {
   // Mass 페이지는 목록을 바로 보여준다 (토글·이동 버튼 없음 — 사용자 확정)
   histRow.style.display = 'none';
   box.style.display = list.length ? '' : 'none';
+  renderQuickMasses(); // 검색 화면의 매스 바로가기도 동기화
   wrap.innerHTML = '';
   list.forEach(item => {
     const row = document.createElement('div');
@@ -1165,6 +1168,28 @@ function saveCurrentBuilding(view) {
   localStorage.setItem(LS_KEY, JSON.stringify(list.slice(0, 10))); // 최근 10개까지
   syncBuildingToServer(entry);
   renderSavedList();
+}
+// 검색창 아래 저장된 매스 썸네일 — 클릭 = 바로 불러오기
+function renderQuickMasses() {
+  const box = document.getElementById('quickMasses');
+  if (!box) return;
+  box.innerHTML = '';
+  for (const item of getSavedBuildings()) {
+    const cell = document.createElement('div');
+    cell.style.cssText = 'flex:0 0 auto; width:64px; cursor:pointer; text-align:center';
+    if (item.thumb) {
+      const img = document.createElement('img');
+      img.src = item.thumb;
+      img.style.cssText = 'width:64px; height:114px; object-fit:cover; border-radius:6px; display:block';
+      cell.appendChild(img);
+    }
+    const lb = document.createElement('div');
+    lb.textContent = item.customName || item.building.name || (item.address || '').split(',')[0];
+    lb.style.cssText = 'font-size:11px; color:var(--dim); margin-top:4px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap';
+    cell.appendChild(lb);
+    cell.addEventListener('click', () => loadSavedBuilding(item));
+    box.appendChild(cell);
+  }
 }
 function loadSavedBuilding(item) {
   state.lat = item.lat; state.lon = item.lon;
