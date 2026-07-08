@@ -155,6 +155,9 @@
   body.board-viewer #massCats .mass-cat { box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
   body.board-viewer #scaleGauge { position: fixed !important; z-index: 1200; }
   body.board-viewer #langBar, body.board-viewer #buildTag { display: none; }
+  .info-line { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .info-k { flex: none; width: 110px; color: var(--dim); }
+  .info-v { flex: 1; color: var(--ink); line-height: 1.5; }
   /* ---- My liquid cities 리스트 (참조: 썸네일/제목/본문/날짜·날씨) ---- */
   .rec-row { display: flex; gap: 28px; padding: 26px 0; border-bottom: 1px solid var(--line);
     align-items: flex-start; cursor: pointer; }
@@ -162,14 +165,15 @@
   .rec-thumb img { width: 100%; display: block; }
   .rec-thumb .rec-noimg { width: 100%; height: 150px; background: var(--panel);
     display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 12px; }
-  .rec-mid { flex: 1; min-width: 0; }
+  .rec-mid { flex: 0 0 180px; min-width: 0; }
+  .rec-info { flex: 1 1 380px; min-width: 300px; }
   .rec-title { font-size: 15px; font-weight: 500; text-decoration: underline;
     text-underline-offset: 3px; margin: 0 0 12px; letter-spacing: 0.02em; }
   .rec-body { font-size: 13px; line-height: 1.7; color: var(--ink);
     display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
     margin: 0 0 12px; white-space: pre-wrap; }
   .rec-more { font-size: 13px; text-decoration: underline; color: var(--ink); }
-  .rec-side { flex: 0 0 130px; text-align: left; font-size: 13px; color: var(--ink); }
+  .rec-side { flex: 0 0 140px; text-align: left; font-size: 13px; color: var(--ink); }
   .rec-side .rec-weather { font-size: 22px; margin-top: 14px; }
   .rec-side .rec-del { margin-top: 18px; font-size: 11px; color: var(--dim);
     text-decoration: underline; cursor: pointer; }
@@ -177,6 +181,7 @@
     .rec-row { flex-wrap: wrap; gap: 12px; }
     .rec-thumb { flex: 0 0 100%; }
     .rec-side { flex: 1; }
+    .rec-info { flex: 1 1 100%; min-width: 0; }
   }
   /* ---- 공통 헤더 (스케치 확정: 1행 로고 / 2행 메뉴 4개) ---- */
   /* 헤더 — thinkjane.com 사양: 13px, 로고 500/링크 400, rgba(0,0,0,.75),
@@ -196,7 +201,7 @@
   .back-top { display: block; margin: 0 0 14px; }
   .back-top button { padding: 6px 14px; font-size: 14px; }
   .back-arrow { flex: 0 0 auto !important; width: 44px; min-height: 36px; padding: 6px 0 !important;
-    font-size: 16px; }
+    font-size: 13px; }
   .row:has(> .back-arrow) { justify-content: flex-start; }
   /* ---- 폰 최적화 ---- */
   @media (max-width: 600px) {
@@ -208,6 +213,29 @@
     #mapView { height: min(560px, 62vh) !important; }
     .saved-item { flex-wrap: wrap; }
     .saved-item span { flex: 1 1 100%; }
+  }
+
+  /* ============================================================
+     타이포 위계 시스템 (사용자 확정)
+     최상위 = 헤더 로고 13px / 500. 그보다 크거나 굵은 UI 텍스트 금지.
+       레벨 1  13px / 500  로고 · 페이지 제목(h1) · 리스트 제목 · 섹션 제목
+       레벨 2  13px / 400  메뉴 · 버튼 · 입력 · 값
+       레벨 3  13px / 300  본문 · 설명
+       레벨 4  11px / 300~400  캡션 · 뱃지 · 상태
+     (산출물 캔버스 내부 텍스트는 작품 스펙 — 이 시스템의 대상 아님)
+     ============================================================ */
+  h1 { font-size: 13px !important; font-weight: 500 !important; letter-spacing: 0 !important; margin: 0 0 8px; }
+  .rec-title { font-size: 13px; font-weight: 500; }
+  .out-block h2 { font-size: 13px; font-weight: 500; }
+  button { font-size: 13px; font-weight: 400; }
+  input[type=text], input[type=number], input[type=email], input[type=password], textarea {
+    font-size: 13px; font-weight: 400; }
+  .sub, .hint, .status, .rec-body { font-size: 13px; font-weight: 300; }
+  .float-word { font-size: 13px !important; }
+  .info-line, .rec-side { font-size: 13px; }
+  /* iOS는 입력 16px 미만이면 포커스 시 강제 줌 — 터치 기기에서만 16px */
+  @media (pointer: coarse) {
+    input[type=text], input[type=number], input[type=email], input[type=password], textarea { font-size: 16px; }
   }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
@@ -274,7 +302,7 @@
 
 <!-- STEP 0: 로그인 (Supabase 설정 시에만 표시) -->
 <section class="step" id="step0">
-  <h1 style="font-size:26px; margin-top:40px">Liquidcities</h1>
+  <h1 style="margin-top:40px">Liquidcities</h1>
   <p class="sub" data-i18n="s0Sub"></p>
   <input type="text" inputmode="email" id="loginEmail" data-ph="phCEmail"
     autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -616,7 +644,7 @@
 <!-- 내 기록 관리 페이지 -->
 <section class="step wide" id="step99">
   <div class="row" style="margin-top:0"><button id="backDataBtn" class="secondary back-arrow">&lt;</button></div>
-  <h1 style="font-weight:300">My Cities</h1>
+  <h1>My Cities</h1>
   <div id="recCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin:14px 0 6px"></div>
   <div id="recList"></div>
   <div class="row" style="justify-content:flex-end">
@@ -627,7 +655,7 @@
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12n</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12q</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -2830,9 +2858,10 @@ function bottomLines() {
 }
 
 function radiusLinesFor(a, countryCode) {
+  const num = v => (v === null || v === undefined) ? '—' : v;
   const t = a && a.transitDistM != null ? `Nearest transit ${a.transitDistM}m` : 'Nearest transit —';
-  const f = a ? `Restaurants ${a.restaurants}, cafes ${a.cafes}` : 'Restaurants —';
-  const p = a ? `Parks & green space: ${a.parks}` : 'Parks —';
+  const f = a ? `Restaurants ${num(a.restaurants)}, cafes ${num(a.cafes)}` : 'Restaurants —';
+  const p = a ? `Parks & green space: ${num(a.parks)}` : 'Parks —';
   // City-wide 재생에너지: Ember API 미연동 상태의 국가별 샘플값 (문서에 명시된 한계)
   const renewMap = { kr: '9.2%', sg: '4.1%', gb: '46%', us: '23%' };
   const r = renewMap[countryCode] || '—';
@@ -3347,21 +3376,18 @@ async function renderRecList() {
         th.appendChild(img);
       }).catch(() => {});
     }
-    // 중앙: 번호+단어 제목, 생각 본문, Read more
+    // 2열: 번호+단어 제목 + Read more (참조: 본문 없이 간결)
     const mid = document.createElement('div');
     mid.className = 'rec-mid';
     const title = document.createElement('p');
     title.className = 'rec-title';
     const word = (rec.momentWordEn || rec.momentWord || '—');
     title.textContent = String(idx).padStart(2, '0') + ' ' + word.toUpperCase();
-    const body = document.createElement('p');
-    body.className = 'rec-body';
-    body.textContent = rec.momentThought || (rec.segmentsRaw || rec.segments || []).join(', ') || '';
     const more = document.createElement('span');
     more.className = 'rec-more';
     more.textContent = t('readMore');
-    mid.append(title, body, more);
-    // 우: 날짜/시간 + 날씨 + 삭제
+    mid.append(title, more);
+    // 3열: 날짜/시간 + 날씨 + 삭제
     const side = document.createElement('div');
     side.className = 'rec-side';
     const when = document.createElement('div');
@@ -3381,7 +3407,11 @@ async function renderRecList() {
     del.textContent = t('btnDelete');
     del.addEventListener('click', ev => { ev.stopPropagation(); deleteRecord(rec.savedAt); });
     side.appendChild(del);
-    row.append(th, mid, side);
+    // 4열: 정보 표 (참조 이미지 — Scale·Captured·주소·거리·위치·반경 데이터)
+    const infoCol = document.createElement('div');
+    infoCol.className = 'rec-info';
+    infoCol.appendChild(renderInfoTable(buildInfoRows(rec, false)));
+    row.append(th, mid, side, infoCol);
     row.addEventListener('click', () => openRecordDetail(rec));
     wrap.appendChild(row);
     idx--;
@@ -3723,6 +3753,47 @@ document.getElementById('mapBtn').addEventListener('click', () => {
 document.getElementById('backMapBtn').addEventListener('click', () => goto(1));
 
 // 기록 상세: 저장해둔 산출물(IndexedDB)을 미리보기 + 다시 다운로드
+// 정보 표 생성 (리스트·상세 공용) — [키, 값] 배열
+function buildInfoRows(rec, full) {
+  const rows = [];
+  const add = (k, v) => { if (v !== null && v !== undefined && v !== '') rows.push([k, v]); };
+  if (typeof rec.momentScale === 'number') add('Scale', (rec.momentScale > 0 ? '+' : '') + rec.momentScale);
+  add('Captured', rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '');
+  add('Mass address', rec.address);
+  if (typeof rec.gpsDistM === 'number' && rec.gpsDistM !== null) {
+    add('Distance', rec.gpsDistM >= 1000 ? (rec.gpsDistM / 1000).toFixed(1) + 'km' : rec.gpsDistM + 'm');
+  }
+  if (rec.mediaGps) add('Location', rec.w3w ? '///' + rec.w3w : rec.mediaGps.lat.toFixed(4) + ', ' + rec.mediaGps.lon.toFixed(4));
+  if (full) {
+    add(lang === 'ko' ? '인상적인 물체' : 'Striking things', (rec.segmentsRaw || rec.segments || []).join(', '));
+    if (rec.contact && !rec.contact.anonymous) {
+      const c = rec.contact;
+      add('Contact', [c.name, c.instagram, c.email, c.website].filter(Boolean).join(' · '));
+    } else if (rec.contact && rec.contact.anonymous) add('Signed', 'anonymous');
+    add(lang === 'ko' ? '자동 인식(검수용)' : 'Auto tags', (rec.autoTags || []).join(', '));
+  }
+  radiusLinesFor(rec.amenities, rec.countryCode).forEach(line => {
+    const [k, ...rest] = line.split(' — ');
+    add(k, rest.join(' — '));
+  });
+  return rows;
+}
+function renderInfoTable(rows) {
+  const table = document.createElement('div');
+  rows.forEach(([k, v]) => {
+    const line = document.createElement('div');
+    line.className = 'info-line';
+    const kk = document.createElement('span');
+    kk.className = 'info-k';
+    kk.textContent = k;
+    const vv = document.createElement('span');
+    vv.className = 'info-v';
+    vv.textContent = v;
+    line.append(kk, vv);
+    table.appendChild(line);
+  });
+  return table;
+}
 async function openRecordDetail(rec) {
   // 뒤로 버튼이 진입한 화면(맵 97 또는 내 기록 99)으로 돌아가게 출처를 기억
   const cur = document.querySelector('.step.active');
@@ -3772,65 +3843,8 @@ async function openRecordDetail(rec) {
   }
   const info = document.getElementById('recDetailInfo');
   const box = document.getElementById('recOutputs');
-  // 우리가 적은/측정한 모든 정보 나열 (우선 기능 — 디자인은 추후)
-  const rows = [];
-  const add = (k, v) => { if (v !== null && v !== undefined && v !== '') rows.push([k, v]); };
-  if (typeof rec.momentScale === 'number') add(lang === 'ko' ? '스케일' : 'Scale', (rec.momentScale > 0 ? '+' : '') + rec.momentScale);
-  add(lang === 'ko' ? '인상적인 물체' : 'Striking things', (rec.segmentsRaw || rec.segments || []).join(', '));
-  add(lang === 'ko' ? '촬영 시각' : 'Captured', rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '');
-  add(lang === 'ko' ? '매스 주소' : 'Mass address', rec.address);
-  if (typeof rec.gpsDistM === 'number' && rec.gpsDistM !== null) {
-    const d = rec.gpsDistM >= 1000 ? (rec.gpsDistM / 1000).toFixed(1) + 'km' : rec.gpsDistM + 'm';
-    add(lang === 'ko' ? '주소와의 거리' : 'Distance', d);
-  }
-  if (rec.mediaGps) {
-    add(lang === 'ko' ? '촬영 위치' : 'Location',
-      rec.w3w ? '///' + rec.w3w : rec.mediaGps.lat.toFixed(4) + ', ' + rec.mediaGps.lon.toFixed(4));
-    // 3단어 주소가 아직 없으면 조회해서 표시·저장 (w3w 키 있을 때)
-    if (!rec.w3w && w3wKey()) {
-      coordsToW3w(rec.mediaGps.lat, rec.mediaGps.lon).then(words => {
-        if (!words) return;
-        const list = getRecords();
-        const target = list.find(x => x.savedAt === rec.savedAt);
-        if (target) { target.w3w = words; localStorage.setItem(REC_KEY, JSON.stringify(list)); }
-        rec.w3w = words;
-        // 화면 즉시 갱신
-        const rows2 = document.querySelectorAll('#recDetailInfo span');
-        rows2.forEach(sp => {
-          if (sp.textContent === rec.mediaGps.lat.toFixed(4) + ', ' + rec.mediaGps.lon.toFixed(4)) {
-            sp.textContent = '///' + words;
-          }
-        });
-      });
-    }
-  }
-  if (rec.contact && !rec.contact.anonymous) {
-    const c = rec.contact;
-    add(lang === 'ko' ? '연락처' : 'Contact', [c.name, c.instagram, c.email, c.website].filter(Boolean).join(' · '));
-  } else if (rec.contact && rec.contact.anonymous) {
-    add(lang === 'ko' ? '서명' : 'Signed', 'anonymous');
-  }
-  add(lang === 'ko' ? '자동 인식(검수용)' : 'Auto tags', (rec.autoTags || []).join(', '));
-  // 거리(반경)별 도시 측정 기록
-  radiusLinesFor(rec.amenities, rec.countryCode).forEach(line => {
-    const [k, ...rest] = line.split(' — ');
-    add(k, rest.join(' — '));
-  });
   info.innerHTML = '';
-  const table = document.createElement('div');
-  rows.forEach(([k, v]) => {
-    const line = document.createElement('div');
-    line.style.cssText = 'display:flex; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px';
-    const kk = document.createElement('span');
-    kk.style.cssText = 'flex:none; width:110px; color:var(--dim)';
-    kk.textContent = k;
-    const vv = document.createElement('span');
-    vv.style.cssText = 'flex:1; color:var(--ink); line-height:1.5';
-    vv.textContent = v;
-    line.append(kk, vv);
-    table.appendChild(line);
-  });
-  info.appendChild(table);
+  info.appendChild(renderInfoTable(buildInfoRows(rec, true)));
   box.innerHTML = '';
   goto(98);
   const kinds = [
