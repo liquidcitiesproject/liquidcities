@@ -156,6 +156,7 @@
   body.board-viewer #scaleGauge { position: fixed !important; z-index: 1200; }
   body.board-viewer #langBar, body.board-viewer #buildTag { display: none; }
   .info-line { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .rec-info .info-line:first-child { padding-top: 0; } /* 제목·날짜와 상단 라인 정렬 */
   .info-k { flex: none; width: 110px; color: var(--dim); }
   .info-v { flex: 1; color: var(--ink); line-height: 1.5; }
   /* ---- My liquid cities 리스트 (참조: 썸네일/제목/본문/날짜·날씨) ---- */
@@ -168,7 +169,7 @@
   .rec-mid { flex: 0 0 180px; min-width: 0; }
   .rec-info { flex: 1 1 380px; min-width: 300px; margin-left: 56px; }
   .rec-title { font-size: 15px; font-weight: 500; text-decoration: underline;
-    text-underline-offset: 3px; margin: 0 0 12px; letter-spacing: 0.02em; }
+    text-underline-offset: 3px; margin: 0 0 12px; letter-spacing: 0.02em; line-height: 1.2; }
   .rec-body { font-size: 13px; line-height: 1.7; color: var(--ink);
     display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
     margin: 0 0 12px; white-space: pre-wrap; }
@@ -636,6 +637,9 @@
     </div>
     <div style="flex:1 1 340px; min-width:280px">
       <p class="sub" id="recDetailInfo" style="margin-top:0"></p>
+      <div class="row" style="justify-content:flex-end; max-width:none">
+        <button id="recDelBtn" class="secondary" data-i18n="btnDelete" style="flex:0 0 auto"></button>
+      </div>
     </div>
   </div>
 </section>
@@ -654,7 +658,7 @@
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12s</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12t</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -702,7 +706,7 @@ const I18N = {
     btnAgain: '다시 검색', btnConfirm: '확인', btnBack: '← 뒤로', btnHome: '⌂ 홈으로',
     readMore: 'Read more',
     s96Sub: '확정한 건물 매스가 여기에 보관됩니다. 이름을 바꾸면 맵에도 반영됩니다.',
-    btnShareBoard: '보드 공유', shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
+    confirmDelete: '이 기록을 삭제할까요?', btnShareBoard: '보드 공유', shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
     phPw: '비밀번호 (6자 이상)', btnPwLogin: '로그인 / 가입',
     s0PwHint: '처음이면 이 이메일·비밀번호로 바로 가입됩니다.',
     errPwEmpty: '이메일과 비밀번호를 입력해주세요', errPwShort: '비밀번호는 6자 이상이어야 합니다',
@@ -842,7 +846,7 @@ const I18N = {
     btnAgain: 'Search again', btnConfirm: 'Confirm', btnBack: '← Back', btnHome: '⌂ Home',
     readMore: 'Read more',
     s96Sub: 'Confirmed building masses live here. Renaming also updates the map.',
-    btnShareBoard: 'Share board', shareReady: 'Share link:', shareCopied: 'Link copied:',
+    confirmDelete: 'Delete this record?', btnShareBoard: 'Share board', shareReady: 'Share link:', shareCopied: 'Link copied:',
     phPw: 'Password (6+ chars)', btnPwLogin: 'Log in / Sign up',
     s0PwHint: 'New here? This email and password will create your account instantly.',
     errPwEmpty: 'Enter email and password', errPwShort: 'Password must be 6+ characters',
@@ -3413,11 +3417,7 @@ async function renderRecList() {
         if (code !== null && code !== undefined) weather.textContent = WEATHER_EMOJI(code);
       });
     }
-    const del = document.createElement('div');
-    del.className = 'rec-del';
-    del.textContent = t('btnDelete');
-    del.addEventListener('click', ev => { ev.stopPropagation(); deleteRecord(rec.savedAt); });
-    side.appendChild(del);
+    // 삭제는 상세 페이지에서 (사용자 확정)
     // 4열: 정보 표 (참조 이미지 — Scale·Captured·주소·거리·위치·반경 데이터)
     const infoCol = document.createElement('div');
     infoCol.className = 'rec-info';
@@ -3806,6 +3806,7 @@ function renderInfoTable(rows) {
   return table;
 }
 async function openRecordDetail(rec) {
+  state._detailRec = rec; // 상세의 삭제 버튼용
   // 뒤로 버튼이 진입한 화면(맵 97 또는 내 기록 99)으로 돌아가게 출처를 기억
   const cur = document.querySelector('.step.active');
   state._detailFrom = cur && cur.id === 'step97' ? 97 : 99;
@@ -3898,6 +3899,13 @@ async function openRecordDetail(rec) {
     box.appendChild(pNo);
   }
 }
+document.getElementById('recDelBtn').addEventListener('click', () => {
+  if (!state._detailRec) return;
+  if (!confirm(t('confirmDelete'))) return;
+  deleteRecord(state._detailRec.savedAt);
+  renderRecList();
+  goto(99);
+});
 document.getElementById('backRecBtn').addEventListener('click', () => goto(state._detailFrom || 99));
 
 document.getElementById('myDataBtn').addEventListener('click', () => {
