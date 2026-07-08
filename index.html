@@ -519,7 +519,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12a</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12b</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -2214,7 +2214,12 @@ document.getElementById('pwLoginBtn').addEventListener('click', async () => {
       st.textContent = t('errPwWrongOrConfirm');
       return;
     }
-    st.textContent = t('sbFail') + ' — ' + (r2.error ? r2.error.message : '?');
+    // 이미 가입된 이메일에 틀린 비밀번호를 넣은 경우 — 친절한 안내로
+    if (r2.error && /already registered/i.test(r2.error.message || '')) {
+      st.textContent = t('errPwWrongOrConfirm');
+    } else {
+      st.textContent = t('sbFail') + ' — ' + (r2.error ? r2.error.message : '?');
+    }
     return;
   }
   st.textContent = t('sbFail') + ' — ' + r1.error.message;
