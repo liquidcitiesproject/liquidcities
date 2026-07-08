@@ -198,7 +198,12 @@
 <!-- 언어 전환 (향후 언어 추가는 I18N 딕셔너리에 항목만 추가하면 됨) -->
 
 <header id="appHeader">
-  <div class="hdr-row hdr-logo" id="hdrLogo">→|Liquid Cities Project</div>
+  <div class="hdr-row hdr-logo" style="display:flex; justify-content:space-between; align-items:center">
+    <span id="hdrLogo" style="cursor:pointer">→ Liquid Cities Project</span>
+    <span id="hdrLang" style="cursor:pointer; font-weight:300">
+      <span id="langEn2">EN</span> / <span id="langKo2">KO</span>
+    </span>
+  </div>
   <nav class="hdr-row hdr-menu">
     <span class="hdr-link" id="hdrMap">Map</span>
     <span class="hdr-link" id="hdrMy">My Cities</span>
@@ -587,11 +592,9 @@
 </section>
 
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
-  <button id="langKo" class="secondary" style="padding:6px 12px; font-size:12px">KO</button>
-  <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12e</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12f</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -904,7 +907,7 @@ const I18N = {
     frameHint: 'Pick the scene for the reels thumbnail',
   },
 };
-let lang = 'ko';
+let lang = localStorage.getItem('lc_lang') || 'en'; // 영어가 기본 (사용자 확정)
 function t(key, ...args) {
   const v = (I18N[lang] && I18N[lang][key]) ?? I18N.ko[key] ?? key;
   return typeof v === 'function' ? v(...args) : v;
@@ -918,12 +921,15 @@ function applyLang() {
   sb.textContent = v.muted ? t('soundOn') : t('soundOff');
   const sb6 = document.getElementById('soundBtn6');
   if (sb6) sb6.textContent = sb.textContent;
-  document.getElementById('langKo').style.opacity = lang === 'ko' ? '1' : '0.5';
-  document.getElementById('langEn').style.opacity = lang === 'en' ? '1' : '0.5';
+  document.getElementById('langEn2').style.opacity = lang === 'en' ? '1' : '0.4';
+  document.getElementById('langKo2').style.opacity = lang === 'ko' ? '1' : '0.4';
   renderSavedList(); // 저장 목록 버튼 라벨도 언어 반영 (함수 선언은 호이스팅됨)
 }
-document.getElementById('langKo').addEventListener('click', () => { lang = 'ko'; applyLang(); });
-document.getElementById('langEn').addEventListener('click', () => { lang = 'en'; applyLang(); });
+document.getElementById('hdrLang').addEventListener('click', () => {
+  lang = lang === 'en' ? 'ko' : 'en';
+  localStorage.setItem('lc_lang', lang);
+  applyLang();
+});
 // 주의: 초기 applyLang()은 모든 const(LS_KEY 등)가 초기화된 뒤인
 // 스크립트 맨 끝에서 호출한다 (TDZ 회피)
 
