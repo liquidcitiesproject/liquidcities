@@ -12,6 +12,9 @@
     font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-weight: 300; }
   body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .step.active { flex: 1 0 auto; }
+  #appFooter { flex: none; width: 100%; padding: 20px 0; }
+  body.board-viewer #appFooter, body.map-full #appFooter { display: none; }
   /* 모든 페이지: 좌우 26px 여백의 풀폭 — 헤더와 정확히 같은 정렬 */
   .step { display: none; width: 100%; max-width: none; padding: 34px 26px 80px; margin: 0; }
   /* 제작 플로우의 입력·버튼은 읽기 좋은 폭(640px)으로 좌측 정렬 —
@@ -50,8 +53,13 @@
   .err { color: #c62828; font-size: 13px; margin-top: 12px; display: none; line-height: 1.5; }
   .hint { color: var(--dim); font-size: 12px; margin-top: 10px; line-height: 1.5; }
   .canvas-wrap { margin: 18px 0 0; width: 100%; max-width: 360px; position: relative; }
+  /* 매스·배치 미리보기: 세로 1080×1920 캔버스의 중앙 정사각 밴드만 노출 */
+  .canvas-wrap.square { aspect-ratio: 1 / 1; overflow: hidden; background: #fff;
+    border: 1px solid var(--line); border-radius: 6px; max-width: 460px; }
+  .canvas-wrap.square > canvas { width: 100%; height: auto; display: block;
+    position: absolute; top: 50%; left: 0; transform: translateY(-50%); }
   .canvas-wrap canvas { width: 100%; display: block; border: 1px solid var(--line);
-    border-radius: 6px; background: #000; }
+    border-radius: 6px; background: #fff; }
   #editorCanvas { cursor: grab; touch-action: none; }
   #massCanvas { touch-action: none; }
   #massCanvas, #editorCanvas { -webkit-user-select: none; user-select: none; }
@@ -407,7 +415,7 @@
   <h1 data-i18n="s2Title"></h1>
   <p class="sub direction" id="buildingInfo"></p>
   <p class="hint" data-i18n="massHint"></p>
-  <div class="canvas-wrap"><canvas id="massCanvas" width="1080" height="1920" style="cursor:grab"></canvas></div>
+  <div class="canvas-wrap square"><canvas id="massCanvas" width="1080" height="1920" style="cursor:grab"></canvas></div>
   <div class="row">
     <button id="backToSearchBtn" class="secondary" data-i18n="btnAgain"></button>
     <button id="confirmMassBtn" data-i18n="btnConfirm"></button>
@@ -429,16 +437,12 @@
 <section class="step flow" id="step4">
   <h1 data-i18n="s4Title"></h1>
   <p class="sub direction" data-i18n="s4Sub"></p>
-  <div class="canvas-wrap"><canvas id="editorCanvas" width="1080" height="1920"></canvas></div>
+  <div class="canvas-wrap square"><canvas id="editorCanvas" width="1080" height="1920"></canvas></div>
   <p class="hint" id="captureInfo" style="margin-top:10px"></p>
   <div id="clipRow" style="display:none; margin-top:12px">
     <p class="hint" data-i18n="clipHint" style="margin:0 0 6px"></p>
     <input type="range" id="clipSlider" min="0" max="0" step="0.1" value="0" style="width:100%">
     <div class="status" id="clipLabel"></div>
-  </div>
-  <div id="frameRow" style="display:none; margin-top:12px">
-    <p class="hint" data-i18n="frameHint" style="margin:0 0 6px"></p>
-    <input type="range" id="frameSlider" min="0" max="1000" value="500" style="width:100%">
   </div>
   <div class="status" id="soundHint"></div>
   <div class="row">
@@ -451,22 +455,46 @@
 </section>
 
 <!-- STEP 5: 스케일 평가 + 순간에 대한 생각(데이터 전용) + 한 단어(이미지 노출) -->
-<section class="step flow" id="step5">
-  <h1><span data-i18n="s5Title"></span></h1>
+<!-- STEP 45: 썸네일 장면 선택 (영상 전용) -->
+<section class="step flow" id="step45">
+  <h1 data-i18n="s45Title"></h1>
+  <p class="sub direction" data-i18n="frameHint"></p>
+  <div class="canvas-wrap square"><canvas id="thumbPreview" width="1080" height="1920"></canvas></div>
+  <input type="range" id="frameSlider" min="0" max="1000" value="500" style="width:100%; margin-top:14px">
+  <div class="row">
+    <button id="next45Btn" data-i18n="btnNext"></button>
+  </div>
+</section>
 
-  <p class="sub direction" data-i18n="scaleSub" style="margin-bottom:10px"></p>
+<!-- STEP 5: 스케일 -->
+<section class="step flow" id="step5">
+  <h1 data-i18n="s5Title"></h1>
+  <p class="sub direction" data-i18n="scaleSub"></p>
   <div style="text-align:center; font-size:44px; font-weight:200; margin:6px 0; max-width:640px" id="scaleValue">0</div>
   <input type="range" id="scaleSlider" min="-10" max="10" step="1" value="0" style="width:100%">
   <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--dim); margin-top:4px; max-width:640px">
     <span data-i18n="scaleBad"></span><span>0</span><span data-i18n="scaleGood"></span>
   </div>
+  <div class="row">
+    <button id="next5Btn" data-i18n="btnNext"></button>
+  </div>
+</section>
 
-  <h2 class="sec-title"><span data-i18n="thoughtTitle"></span> <span class="badge" data-i18n="badgeOpt"></span></h2>
-  <p class="sub" data-i18n="thoughtSub"></p>
+<!-- STEP 51: 이 순간에 대한 생각 (필수) -->
+<section class="step flow" id="step51">
+  <h1 data-i18n="thoughtTitle"></h1>
+  <p class="sub direction" data-i18n="thoughtSub"></p>
   <textarea id="momentThought" data-ph="phThought"></textarea>
+  <div class="status" id="thoughtErr" style="color:#c0392b"></div>
+  <div class="row">
+    <button id="next51Btn" data-i18n="btnNext"></button>
+  </div>
+</section>
 
-  <h2 class="sec-title"><span data-i18n="wordTitle"></span></h2>
-  <p class="sub" data-i18n="wordSub"></p>
+<!-- STEP 52: 한 단어 (필수, 이미지 노출) -->
+<section class="step flow" id="step52">
+  <h1 data-i18n="wordTitle"></h1>
+  <p class="sub direction" data-i18n="wordSub"></p>
   <input type="text" id="momentWord" data-ph="phWord" maxlength="20">
   <div class="row" id="translateRow">
     <button id="translateBtn" class="secondary" data-i18n="btnTranslate"></button>
@@ -485,11 +513,9 @@
     </div>
   </div>
   <div class="status" id="translateStatus"></div>
-
+  <div class="status" id="wordErr" style="color:#c0392b"></div>
   <div class="row">
-    <button id="back5Btn" class="secondary back-arrow">&lt;</button>
-    <button id="skip5Btn" class="secondary" data-i18n="btnSkip"></button>
-    <button id="next5Btn" data-i18n="btnNext"></button>
+    <button id="next52Btn" data-i18n="btnNext"></button>
   </div>
 </section>
 
@@ -680,10 +706,12 @@
   </div>
 </section>
 
-<div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
-  <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
-</div>
-<p id="buildTag" title="build 2026-07-12x" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
+<footer id="appFooter">
+  <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:0 0 6px">
+    <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
+  </div>
+<p id="buildTag" title="build 2026-07-13b" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
+</footer>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -749,6 +777,7 @@ const I18N = {
     s5Title: '5. 이 순간', badgeOpt: '선택',
     scaleSub: '이 순간이 얼마나 좋았나요? 0을 기준으로 움직여주세요.',
     scaleBad: '-10 나쁨', scaleGood: '좋음 +10',
+    s45Title: '썸네일 장면 선택', errRequired: '이 항목은 필수입니다.',
     thoughtTitle: '이 순간에 대한 생각',
     thoughtSub: '자유롭게 적어주세요 — 이미지에는 표시되지 않고 기록에만 남습니다.',
     phThought: '떠오르는 대로...',
@@ -891,8 +920,9 @@ const I18N = {
     s5Title: '5. This moment', badgeOpt: 'optional',
     scaleSub: 'How good was this moment? Move from 0.',
     scaleBad: '-10 bad', scaleGood: 'good +10',
+    s45Title: 'Pick the thumbnail scene', errRequired: 'This field is required.',
     thoughtTitle: 'Your thoughts on this moment',
-    thoughtSub: 'Write freely — kept in the record only, not shown on the image.',
+    thoughtSub: 'Write freely (required) — kept in the record only, not shown on the image.',
     phThought: 'Whatever comes to mind...',
     wordTitle: 'This moment in one word',
     wordSub: 'Only this word appears on the image.',
@@ -1684,7 +1714,7 @@ function startMassViewer(building) {
   stopMassViewer();
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x000000);
+  scene.background = new THREE.Color(0xffffff); // 미리보기 흰 배경 (외곽선은 검정 유지)
   // alpha:true — 확정 시 "외곽선만 있는 투명 레이어"(흰 배경 산출물용) 캡처에 필요
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
   renderer.setSize(CANVAS_W, CANVAS_H);
@@ -1844,14 +1874,6 @@ document.getElementById('back4Btn').addEventListener('click', () => {
   document.getElementById('mediaInput').value = '';
   goto(3);
 });
-document.getElementById('back5Btn').addEventListener('click', () => {
-  // 위치 조절 재개 (잠금 해제 + 루프 재시작)
-  state.locked = false;
-  editorCanvas.classList.remove('locked');
-  startEditorLoop();
-  if (state.mediaType === 'video' && video.paused) video.play().catch(() => {});
-  goto(4);
-});
 document.getElementById('back6Btn').addEventListener('click', () => goto(55));
 document.getElementById('home6Btn').addEventListener('click', () => {
   // 홈으로 — 미리보기 재생 정지 후 첫 화면으로
@@ -1999,10 +2021,9 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
       const h = document.getElementById('soundHint');
       if (h && !video.muted) h.textContent = t('sndOnHint');
     }, 100);
-    // 썸네일 장면 선택 (영상 전체 범위, 기본 중간)
+    // 썸네일 장면 기본값 (선택은 step45에서)
     state.thumbFrac = 0.5;
     document.getElementById('frameSlider').value = 500;
-    document.getElementById('frameRow').style.display = '';
     // 10초 초과 영상: 사용할 10초 구간의 시작 지점 선택 UI
     state.clipStart = 0;
     const over = video.duration > TARGET_DURATION + 0.05;
@@ -2024,7 +2045,6 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
     pauseBtn.style.display = 'none';
     state.clipStart = 0;
     document.getElementById('clipRow').style.display = 'none';
-    document.getElementById('frameRow').style.display = 'none';
   } else {
     err.textContent = t('errType');
     err.style.display = 'block';
@@ -2120,7 +2140,7 @@ function startEditorLoop() {
     if (!editorRunning) return;
     if (ts - last >= 33) {
       last = ts;
-      if (state.mediaEl) drawComposite(editorCtx, state.mediaEl);
+      if (state.mediaEl) drawComposite(editorCtx, state.mediaEl, '#fff', state.edgeLayer);
     }
     requestAnimationFrame(loop);
   })(0);
@@ -2281,7 +2301,8 @@ document.getElementById('confirmPosBtn').addEventListener('click', () => {
   editorCanvas.classList.add('locked');
   editorRunning = false; // 이후 화면에서 불필요한 이중 합성 방지 (끊김 원인)
   if (state.mediaType === 'video' && video.paused) video.play().catch(() => {});
-  goto(5);
+  if (state.mediaType === 'video') { renderThumbPreview(); goto(45); } // 영상 → 썸네일 선택
+  else goto(5); // 이미지 → 바로 스케일
 });
 
 /* ============================================================
@@ -2793,20 +2814,34 @@ function collectMoment() {
   state.momentWord = word;
   state.userReasons = word ? [useEn ? state._finalEn : word] : []; // 하위 호환: 상단 렌더가 이 배열 사용
 }
-document.getElementById('skip5Btn').addEventListener('click', () => {
-  state.momentScale = parseInt(scaleSlider.value, 10) || 0;
-  state.momentThought = '';
-  state.momentWord = '';
-  state.userReasons = [];
-  goto(55);
-});
+// 스케일(필수: 슬라이더 기본값 0으로 항상 충족) → 생각
 document.getElementById('next5Btn').addEventListener('click', () => {
-  collectMoment();
+  state.momentScale = parseInt(scaleSlider.value, 10) || 0;
+  goto(51);
+});
+// 생각 (필수)
+document.getElementById('next51Btn').addEventListener('click', () => {
+  const v = document.getElementById('momentThought').value.trim();
+  const err = document.getElementById('thoughtErr');
+  if (!v) { err.textContent = t('errRequired'); return; }
+  err.textContent = '';
+  state.momentThought = v;
+  goto(52);
+});
+// 한 단어 (필수) → 인상 3가지(step55)
+document.getElementById('next52Btn').addEventListener('click', () => {
+  const raw = document.getElementById('momentWord').value.trim().split(/\s+/)[0] || '';
+  const err = document.getElementById('wordErr');
+  if (!raw) { err.textContent = t('errRequired'); return; }
+  err.textContent = '';
+  const useEn = document.querySelector('input[name="reasonLang"]:checked')?.value === 'en' && state._finalEn;
+  state.momentWord = raw;
+  state.userReasons = [useEn ? state._finalEn : raw];
   goto(55);
 });
 
 // step55 (인상 3가지 + 연락처)
-document.getElementById('back55Btn').addEventListener('click', () => goto(5));
+document.getElementById('back55Btn').addEventListener('click', () => goto(52));
 function collectSegments() {
   const raw = ['seg1', 'seg2', 'seg3']
     .map(id => document.getElementById(id).value.trim())
@@ -3193,20 +3228,23 @@ function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 }
 
-// 썸네일 장면 선택 (4단계) — 슬라이더를 움직이면 비디오가 그 장면으로
-// 일시정지되어 미리보기, 선택값은 결과 페이지의 썸네일·PNG에 사용된다
+// 썸네일 장면 선택 (step45) — 슬라이더로 장면을 고르면 정방형 미리보기 갱신
 const frameSlider = document.getElementById('frameSlider');
+const thumbPreview = document.getElementById('thumbPreview');
+let thumbTimer = null;
+async function renderThumbPreview() {
+  if (state.mediaType !== 'video') return;
+  const still = await grabVideoFrameAt(state.thumbFrac ?? 0.5);
+  const tctx = thumbPreview.getContext('2d');
+  drawComposite(tctx, still, '#fff', state.edgeLayer);
+}
 frameSlider.addEventListener('input', () => {
   if (state.mediaType !== 'video' || !video.duration) return;
   state.thumbFrac = frameSlider.value / 1000;
-  state._thumbScrub = true; // 구간 가드가 seek를 되돌리지 않게
-  video.pause();
-  video.currentTime = video.duration * Math.min(0.999, state.thumbFrac);
-  pauseBtn.textContent = t('btnPlay');
+  clearTimeout(thumbTimer);
+  thumbTimer = setTimeout(renderThumbPreview, 90);
 });
-frameSlider.addEventListener('change', () => {
-  setTimeout(() => { state._thumbScrub = false; }, 400);
-});
+document.getElementById('next45Btn').addEventListener('click', () => goto(5));
 
 /* ============================================================
    검수용 레코드 — 객관 태그(자동 인식) × 주관 태그(사용자 이유) × 위치 × 시점.
