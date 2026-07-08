@@ -710,7 +710,7 @@
   <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:0 0 6px">
     <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
   </div>
-<p id="buildTag" title="build 2026-07-13b" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
+<p id="buildTag" title="build 2026-07-13c" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
 </footer>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
@@ -1883,6 +1883,9 @@ document.getElementById('home6Btn').addEventListener('click', () => {
 // 확인 = 현재 드래그로 맞춘 뷰를 최종 확정 → 이 프레임이 합성 마스크가 된다
 document.getElementById('confirmMassBtn').addEventListener('click', () => {
   if (massViewer) {
+    // 마스크 캡처는 검은 배경 위에서 (미리보기는 흰 배경이지만, buildAlphaMask는
+    // 밝기를 알파로 쓰므로 배경이 검정이어야 매스만 불투명하게 남는다)
+    massViewer.scene.background = new THREE.Color(0x000000);
     massViewer.renderFrame(); // 마지막 상태를 확실히 반영
     const src = document.createElement('canvas');
     src.width = CANVAS_W; src.height = CANVAS_H;
