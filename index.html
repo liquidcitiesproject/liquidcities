@@ -1085,15 +1085,9 @@ function renderSavedList() {
   const expBtn = document.getElementById('exportBtn');
   let recCount = 0;
   try { recCount = (JSON.parse(localStorage.getItem('lc_records')) || []).length; } catch (e) {}
-  histRow.style.display = (list.length || recCount) ? '' : 'none';
-  histBtn.style.display = list.length ? '' : 'none';
-  expBtn.style.display = recCount ? '' : 'none';
-  expBtn.textContent = t('btnExport') + ` (${recCount})`;
-  const mdBtn = document.getElementById('myDataBtn');
-  mdBtn.style.display = recCount ? '' : 'none';
-  document.getElementById('mapBtn').style.display = recCount ? '' : 'none';
-  box.style.display = (list.length && historyOpen) ? '' : 'none';
-  histBtn.textContent = historyOpen ? t('btnHistoryHide') : t('btnHistory');
+  // Mass 페이지는 목록을 바로 보여준다 (토글·이동 버튼 없음 — 사용자 확정)
+  histRow.style.display = 'none';
+  box.style.display = list.length ? '' : 'none';
   wrap.innerHTML = '';
   list.forEach(item => {
     const row = document.createElement('div');
