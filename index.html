@@ -630,6 +630,10 @@
 <!-- 기록 상세: 저장된 산출물 미리보기 + 다운로드 -->
 <section class="step wide" id="step98">
   <div class="row" style="margin-top:0"><button id="backRecBtn" class="secondary back-arrow">&lt;</button></div>
+  <div class="row" style="justify-content:flex-end; max-width:none; margin:0 0 6px">
+    <button id="recEditBtn" class="secondary" data-i18n="btnEdit" style="flex:0 0 auto; padding:6px 14px"></button>
+    <button id="recDelBtn" class="secondary" data-i18n="btnDelete" style="flex:0 0 auto; padding:6px 14px"></button>
+  </div>
   <div id="recDetailHead"></div>
   <div id="recDetailCols" style="display:flex; gap:36px; flex-wrap:wrap; margin-top:8px">
     <div style="flex:1 1 300px; min-width:260px">
@@ -637,9 +641,6 @@
     </div>
     <div style="flex:1 1 340px; min-width:280px">
       <p class="sub" id="recDetailInfo" style="margin-top:0"></p>
-      <div class="row" style="justify-content:flex-end; max-width:none">
-        <button id="recDelBtn" class="secondary" data-i18n="btnDelete" style="flex:0 0 auto"></button>
-      </div>
     </div>
   </div>
 </section>
@@ -658,7 +659,7 @@
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12t</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12u</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -706,7 +707,8 @@ const I18N = {
     btnAgain: '다시 검색', btnConfirm: '확인', btnBack: '← 뒤로', btnHome: '⌂ 홈으로',
     readMore: 'Read more',
     s96Sub: '확정한 건물 매스가 여기에 보관됩니다. 이름을 바꾸면 맵에도 반영됩니다.',
-    confirmDelete: '이 기록을 삭제할까요?', btnShareBoard: '보드 공유', shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
+    confirmDelete: '이 기록을 삭제할까요?', btnEdit: '수정', editWord: '한 단어를 수정해주세요', editThought: '이 순간에 대한 생각을 수정해주세요',
+    btnShareBoard: '보드 공유', shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
     phPw: '비밀번호 (6자 이상)', btnPwLogin: '로그인 / 가입',
     s0PwHint: '처음이면 이 이메일·비밀번호로 바로 가입됩니다.',
     errPwEmpty: '이메일과 비밀번호를 입력해주세요', errPwShort: '비밀번호는 6자 이상이어야 합니다',
@@ -846,7 +848,8 @@ const I18N = {
     btnAgain: 'Search again', btnConfirm: 'Confirm', btnBack: '← Back', btnHome: '⌂ Home',
     readMore: 'Read more',
     s96Sub: 'Confirmed building masses live here. Renaming also updates the map.',
-    confirmDelete: 'Delete this record?', btnShareBoard: 'Share board', shareReady: 'Share link:', shareCopied: 'Link copied:',
+    confirmDelete: 'Delete this record?', btnEdit: 'Edit', editWord: 'Edit your one word', editThought: 'Edit your thoughts on this moment',
+    btnShareBoard: 'Share board', shareReady: 'Share link:', shareCopied: 'Link copied:',
     phPw: 'Password (6+ chars)', btnPwLogin: 'Log in / Sign up',
     s0PwHint: 'New here? This email and password will create your account instantly.',
     errPwEmpty: 'Enter email and password', errPwShort: 'Password must be 6+ characters',
@@ -3899,6 +3902,25 @@ async function openRecordDetail(rec) {
     box.appendChild(pNo);
   }
 }
+// 기록 수정 — 단어·생각을 고치고 서버에도 재동기화
+document.getElementById('recEditBtn').addEventListener('click', async () => {
+  const rec = state._detailRec;
+  if (!rec) return;
+  const w = prompt(t('editWord'), rec.momentWord || '');
+  if (w === null) return;
+  const th = prompt(t('editThought'), rec.momentThought || '');
+  if (th === null) return;
+  const list = getRecords();
+  const target = list.find(x => x.savedAt === rec.savedAt);
+  if (!target) return;
+  target.momentWord = w.trim();
+  delete target.momentWordEn; // 번역본은 무효 — 보드에서 다시 번역
+  target.momentThought = th.trim();
+  target.synced = false;
+  localStorage.setItem(REC_KEY, JSON.stringify(list));
+  resyncRecord(target);
+  openRecordDetail(target); // 화면 갱신
+});
 document.getElementById('recDelBtn').addEventListener('click', () => {
   if (!state._detailRec) return;
   if (!confirm(t('confirmDelete'))) return;
