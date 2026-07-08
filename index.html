@@ -325,13 +325,23 @@
   <p class="sub" data-i18n="s1Sub"></p>
 
 
-  <div class="row" style="margin-top:0">
+  <!-- 통합 검색: 창 하나 + 입력 중 추천 목록에서 선택 (사용자 확정) -->
+  <div id="uniForm" style="margin-top:14px; position:relative">
+    <input type="text" id="uniInput" data-ph="phUni" autocomplete="off">
+    <div id="uniSuggest" style="display:none; border:1px solid var(--line); border-top:none;
+      max-width:640px; background:#fff; max-height:300px; overflow-y:auto"></div>
+    <div class="row">
+      <input type="text" id="unitInput2" data-ph="phUnit">
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:0; display:none">
     <button id="tabStruct" class="secondary" style="opacity:1" data-i18n="tabStruct"></button>
     <button id="tabSimple" class="secondary" style="opacity:0.5" data-i18n="tabSimple"></button>
   </div>
 
-  <!-- 구조화 검색 (기본): 나라 / 우편번호 / 도로명·건물명(선택) / 동·호수(표시용) -->
-  <div id="structForm" style="margin-top:14px">
+  <!-- 구조화 검색 (레거시 — 통합 검색으로 대체, 숨김) -->
+  <div id="structForm" style="display:none; margin-top:14px">
     <input type="text" id="countryInput" list="countryList" data-ph="phCountry">
     <datalist id="countryList">
       <option value="South Korea">한국</option>
@@ -659,7 +669,7 @@
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12v</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12w</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -696,6 +706,7 @@ const I18N = {
     s1Title: '1. 주소 검색',
     s1Sub: '건물 위치를 입력하면 실제 건물 형태를 가져옵니다.',
     tabStruct: '주소로 검색', tabSimple: '간편 검색',
+    phUni: '주소·우편번호·장소 이름을 입력하세요',
     phCountry: '나라 (예: South Korea)', phPostcode: '우편번호 (예: 11111)',
     phStreet: '도로명·건물명 (선택)', phUnit: '동·호수 (선택, 표기에만 사용)',
     phAddr: '주소 (예: 11111)', phLat: '위도 (예: 11.1111)', phLon: '경도 (예: 111.1111)',
@@ -837,6 +848,7 @@ const I18N = {
     s1Title: '1. Address Search',
     s1Sub: 'Enter a building location to fetch its real shape.',
     tabStruct: 'Search by address', tabSimple: 'Quick search',
+    phUni: 'Type an address, postcode, or place name',
     phCountry: 'Country (e.g. South Korea)', phPostcode: 'Postcode (e.g. 11111)',
     phStreet: 'Street / building name (optional)', phUnit: 'Unit no. (optional, display only)',
     phAddr: 'Address (e.g. 11111)', phLat: 'Latitude (e.g. 11.1111)', phLon: 'Longitude (e.g. 111.1111)',
@@ -1224,6 +1236,51 @@ async function finishSearch(hit, usedLabel) {
   await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon));
 }
 
+// ---- 통합 검색: 한 창 + 추천 선택 ----
+const uniInput = document.getElementById('uniInput');
+const uniSuggest = document.getElementById('uniSuggest');
+let uniTimer = null, uniSeq = 0;
+async function nominatimList(q) {
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=' + encodeURIComponent(q);
+  const res = await fetch(url, { headers: { 'Accept-Language': lang === 'ko' ? 'ko,en' : 'en' } });
+  if (!res.ok) return [];
+  return await res.json();
+}
+uniInput.addEventListener('input', () => {
+  clearTimeout(uniTimer);
+  const q = uniInput.value.trim();
+  if (q.length < 3) { uniSuggest.style.display = 'none'; return; }
+  uniTimer = setTimeout(async () => {
+    const seq = ++uniSeq;
+    try {
+      const list = await nominatimList(q);
+      if (seq !== uniSeq) return; // 오래된 응답 무시
+      uniSuggest.innerHTML = '';
+      if (!list.length) { uniSuggest.style.display = 'none'; return; }
+      for (const hit of list) {
+        const item = document.createElement('div');
+        item.textContent = hit.display_name;
+        item.style.cssText = 'padding:10px 14px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line)';
+        item.addEventListener('mouseenter', () => { item.style.background = 'var(--panel)'; });
+        item.addEventListener('mouseleave', () => { item.style.background = ''; });
+        item.addEventListener('click', async () => {
+          uniSuggest.style.display = 'none';
+          uniInput.value = hit.display_name;
+          searchErr.style.display = 'none';
+          const unit = (document.getElementById('unitInput2').value || '').trim();
+          state.address = (unit ? unit + ' · ' : '') + hit.display_name;
+          state.countryCode = (hit.address && hit.address.country_code) || null;
+          await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon));
+        });
+        uniSuggest.appendChild(item);
+      }
+      uniSuggest.style.display = '';
+    } catch (e) { /* 조용히 */ }
+  }, 650); // Nominatim 예의(1req/s) + 타이핑 안정화
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#uniForm')) uniSuggest.style.display = 'none';
+});
 // 탭 전환 (주소로 검색 ↔ 간편 검색)
 const tabStruct = document.getElementById('tabStruct');
 const tabSimple = document.getElementById('tabSimple');
