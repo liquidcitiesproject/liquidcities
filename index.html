@@ -13,6 +13,7 @@
     font-weight: 300; }
   body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
   .step { display: none; width: 100%; max-width: 560px; padding: 40px 20px 80px; margin: 0 auto; }
+  .step.wide { max-width: 1100px; }
   /* 반응형 — 넓은 화면에서는 여유 있게, 중앙 정렬 */
   @media (min-width: 900px) {
     .step { max-width: 680px; padding: 56px 24px 100px; }
@@ -124,6 +125,45 @@
   body.board-viewer #massCats .mass-cat { box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
   body.board-viewer #scaleGauge { position: fixed !important; z-index: 1200; }
   body.board-viewer #langBar, body.board-viewer #buildTag { display: none; }
+  /* ---- My liquid cities 리스트 (참조: 썸네일/제목/본문/날짜·날씨) ---- */
+  .rec-row { display: flex; gap: 28px; padding: 26px 0; border-bottom: 1px solid var(--line);
+    align-items: flex-start; cursor: pointer; }
+  .rec-thumb { flex: 0 0 240px; }
+  .rec-thumb img { width: 100%; display: block; }
+  .rec-thumb .rec-noimg { width: 100%; height: 150px; background: var(--panel);
+    display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 12px; }
+  .rec-mid { flex: 1; min-width: 0; }
+  .rec-title { font-size: 15px; font-weight: 500; text-decoration: underline;
+    text-underline-offset: 3px; margin: 0 0 12px; letter-spacing: 0.02em; }
+  .rec-body { font-size: 13px; line-height: 1.7; color: var(--ink);
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+    margin: 0 0 12px; white-space: pre-wrap; }
+  .rec-more { font-size: 13px; text-decoration: underline; color: var(--ink); }
+  .rec-side { flex: 0 0 130px; text-align: left; font-size: 13px; color: var(--ink); }
+  .rec-side .rec-weather { font-size: 22px; margin-top: 14px; }
+  .rec-side .rec-del { margin-top: 18px; font-size: 11px; color: var(--dim);
+    text-decoration: underline; cursor: pointer; }
+  @media (max-width: 600px) {
+    .rec-row { flex-wrap: wrap; gap: 12px; }
+    .rec-thumb { flex: 0 0 100%; }
+    .rec-side { flex: 1; }
+  }
+  /* ---- 공통 헤더 (스케치 확정: 1행 로고 / 2행 메뉴 4개) ---- */
+  #appHeader { width: 100%; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
+    background: var(--bg); position: sticky; top: 0; z-index: 900; }
+  #appHeader .hdr-row { max-width: 1100px; margin: 0 auto; padding: 10px 20px; }
+  #appHeader .hdr-logo { font-weight: 600; font-size: 16px; cursor: pointer;
+    border-bottom: 1px solid var(--line); }
+  #appHeader .hdr-menu { display: flex; gap: 8px; }
+  #appHeader .hdr-link { flex: 1; font-weight: 500; font-size: 15px; cursor: pointer; }
+  #appHeader .hdr-link:hover { text-decoration: underline; }
+  body.board-viewer #appHeader { display: none; }
+  /* 페이지 좌상단 뒤로가기 */
+  .back-top { display: block; margin: 0 0 14px; }
+  .back-top button { padding: 6px 14px; font-size: 14px; }
+  .back-arrow { flex: 0 0 auto !important; width: 44px; min-height: 36px; padding: 6px 0 !important;
+    font-size: 16px; }
+  .row:has(> .back-arrow) { justify-content: flex-start; }
   /* ---- 폰 최적화 ---- */
   @media (max-width: 600px) {
     body { padding: 14px 12px 40px; }
@@ -156,6 +196,15 @@
 
 <!-- 언어 전환 (향후 언어 추가는 I18N 딕셔너리에 항목만 추가하면 됨) -->
 
+<header id="appHeader">
+  <div class="hdr-row hdr-logo" id="hdrLogo">📁 Liquidcities Project</div>
+  <nav class="hdr-row hdr-menu">
+    <span class="hdr-link" id="hdrMy">My liquid cities</span>
+    <span class="hdr-link" id="hdrMap">Map</span>
+    <span class="hdr-link" id="hdrMass">Mass</span>
+    <span class="hdr-link" id="hdrPage">My page</span>
+  </nav>
+</header>
 <div id="cfgPanel" style="display:none; position:fixed; bottom:70px; right:12px; z-index:20;
   background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; width:320px; box-shadow:0 4px 18px rgba(0,0,0,0.12)">
   <p class="hint" data-i18n="cfgKeyHint" style="margin:0 0 10px"></p>
@@ -205,29 +254,9 @@
 
 <!-- STEP 1: 주소 검색 -->
 <section class="step active" id="step1">
-  <div id="accountBar" style="display:none; margin-bottom:14px; font-size:12px; color:var(--dim)">
-    <span id="accountLabel"></span>
-    <button id="accLinkBtn" class="secondary" data-i18n="btnLinkEmail"
-      style="padding:4px 10px; font-size:11px; margin-left:8px; display:none"></button>
-    <button id="accPwBtn" class="secondary" data-i18n="btnSetPw"
-      style="padding:4px 10px; font-size:11px; margin-left:8px; display:none"></button>
-    <button id="logoutBtn" class="secondary" data-i18n="btnLogout"
-      style="padding:4px 10px; font-size:11px; margin-left:8px"></button>
-  </div>
   <h1 data-i18n="s1Title"></h1>
   <p class="sub" data-i18n="s1Sub"></p>
 
-  <!-- 검색 기록 (확정된 매스 아카이브, localStorage) — 버튼으로 펼침 -->
-  <div class="row" id="historyRow" style="display:none; margin-top:0; margin-bottom:18px">
-    <button id="historyBtn" class="secondary" data-i18n="btnHistory"></button>
-    <button id="myDataBtn" class="secondary" style="display:none" data-i18n="btnMyData"></button>
-    <button id="mapBtn" class="secondary" style="display:none" data-i18n="btnMap"></button>
-    <button id="exportBtn" class="secondary" style="display:none" data-i18n="btnExport"></button>
-  </div>
-  <div id="savedBox" style="display:none; margin-bottom:22px">
-    <p class="hint" data-i18n="savedTitle" style="margin:0 0 8px"></p>
-    <div id="savedList"></div>
-  </div>
 
   <div class="row" style="margin-top:0">
     <button id="tabStruct" class="secondary" style="opacity:1" data-i18n="tabStruct"></button>
@@ -301,7 +330,7 @@
   <input type="file" id="mediaInput" accept="image/*,video/*">
   <div class="err" id="mediaErr"></div>
   <div class="row">
-    <button id="back3Btn" class="secondary" data-i18n="btnBack"></button>
+    <button id="back3Btn" class="secondary back-arrow">&lt;</button>
   </div>
 </section>
 
@@ -322,7 +351,7 @@
   </div>
   <div class="status" id="soundHint"></div>
   <div class="row">
-    <button id="back4Btn" class="secondary" data-i18n="btnBack"></button>
+    <button id="back4Btn" class="secondary back-arrow">&lt;</button>
     <button id="soundBtn" class="secondary" style="display:none"></button>
     <button id="pauseBtn" class="secondary" style="display:none"></button>
     <button id="resetBtn" class="secondary" data-i18n="btnReset"></button>
@@ -367,7 +396,7 @@
   <div class="status" id="translateStatus"></div>
 
   <div class="row">
-    <button id="back5Btn" class="secondary" data-i18n="btnBack"></button>
+    <button id="back5Btn" class="secondary back-arrow">&lt;</button>
     <button id="skip5Btn" class="secondary" data-i18n="btnSkip"></button>
     <button id="next5Btn" data-i18n="btnNext"></button>
   </div>
@@ -411,7 +440,7 @@
     <div class="status" id="anonStatus"></div>
   </div>
   <div class="row">
-    <button id="back55Btn" class="secondary" data-i18n="btnBack"></button>
+    <button id="back55Btn" class="secondary back-arrow">&lt;</button>
     <button id="skipTextBtn" class="secondary" data-i18n="btnSkip"></button>
     <button id="nextTextBtn" data-i18n="btnNext"></button>
   </div>
@@ -421,7 +450,7 @@
 <section class="step" id="step6">
   <h1 data-i18n="s6Title"></h1>
   <div class="row" style="margin-top:0; margin-bottom:14px">
-    <button id="back6Btn" class="secondary" data-i18n="btnBack"></button>
+    <button id="back6Btn" class="secondary back-arrow">&lt;</button>
     <button id="home6Btn" class="secondary" data-i18n="btnHome"></button>
   </div>
   <p class="sub" id="detectStatus"></p>
@@ -463,7 +492,43 @@
 </section>
 
 <!-- 맵: 매스별 카테고리 → 미디어(GPS) 위치 마커 + 평균 스케일 게이지 + 떠다니는 단어 -->
-<section class="step" id="step97">
+<!-- STEP 96: Mass — 저장된 건물(검색 기록) -->
+<section class="step wide" id="step96">
+  <div class="row" style="margin-top:0"><button id="back96Btn" class="secondary back-arrow">&lt;</button></div>
+  <h1>Mass</h1>
+  <p class="sub" data-i18n="s96Sub"></p>
+  <!-- 검색 기록 (확정된 매스 아카이브, localStorage) — 버튼으로 펼침 -->
+  <div class="row" id="historyRow" style="margin-top:0; margin-bottom:18px">
+    <button id="historyBtn" class="secondary" data-i18n="btnHistory"></button>
+    <button id="myDataBtn" class="secondary" style="display:none" data-i18n="btnMyData"></button>
+    <button id="mapBtn" class="secondary" style="display:none" data-i18n="btnMap"></button>
+    <button id="exportBtn" class="secondary" style="display:none" data-i18n="btnExport"></button>
+  </div>
+  <div id="savedBox" style="display:none; margin-bottom:22px">
+    <p class="hint" data-i18n="savedTitle" style="margin:0 0 8px"></p>
+    <div id="savedList"></div>
+  </div>
+
+</section>
+
+<!-- STEP 95: My page — 계정 -->
+<section class="step" id="step95">
+  <div class="row" style="margin-top:0"><button id="back95Btn" class="secondary back-arrow">&lt;</button></div>
+  <h1>My page</h1>
+  <div id="accountBar" style="display:none; margin:18px 0; font-size:14px; color:var(--ink)">
+    <span id="accountLabel"></span>
+    <button id="accLinkBtn" class="secondary" data-i18n="btnLinkEmail"
+      style="padding:4px 10px; font-size:11px; margin-left:8px; display:none"></button>
+    <button id="accPwBtn" class="secondary" data-i18n="btnSetPw"
+      style="padding:4px 10px; font-size:11px; margin-left:8px; display:none"></button>
+    <button id="logoutBtn" class="secondary" data-i18n="btnLogout"
+      style="padding:4px 10px; font-size:11px; margin-left:8px"></button>
+  </div>
+
+  <div class="status" id="myPageStatus" style="margin-top:14px"></div>
+</section>
+
+<section class="step wide" id="step97">
   <h1 data-i18n="mapTitle"></h1>
   <p class="sub" data-i18n="mapSub"></p>
   <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:6px"></div>
@@ -491,28 +556,32 @@
     <div id="wordFloat" style="position:absolute; inset:0; overflow:hidden; z-index:499; pointer-events:none"></div>
   </div>
   <div class="row">
-    <button id="backMapBtn" class="secondary" data-i18n="btnBack"></button>
+    <button id="backMapBtn" class="secondary back-arrow">&lt;</button>
   </div>
 </section>
 
 <!-- 기록 상세: 저장된 산출물 미리보기 + 다운로드 -->
-<section class="step" id="step98">
-  <h1 data-i18n="recDetailTitle"></h1>
-  <p class="sub" id="recDetailInfo"></p>
-  <div id="recOutputs"></div>
-  <div class="row">
-    <button id="backRecBtn" class="secondary" data-i18n="btnBack"></button>
+<section class="step wide" id="step98">
+  <div class="row" style="margin-top:0"><button id="backRecBtn" class="secondary back-arrow">&lt;</button></div>
+  <div id="recDetailHead"></div>
+  <div id="recDetailCols" style="display:flex; gap:36px; flex-wrap:wrap; margin-top:8px">
+    <div style="flex:1 1 300px; min-width:260px">
+      <div id="recOutputs"></div>
+    </div>
+    <div style="flex:1 1 340px; min-width:280px">
+      <p class="sub" id="recDetailInfo" style="margin-top:0"></p>
+    </div>
   </div>
 </section>
 
 <!-- 내 기록 관리 페이지 -->
-<section class="step" id="step99">
-  <h1 data-i18n="dataTitle"></h1>
-  <p class="sub" data-i18n="dataSub"></p>
+<section class="step wide" id="step99">
+  <div class="row" style="margin-top:0"><button id="backDataBtn" class="secondary back-arrow">&lt;</button></div>
+  <h1>My liquid cities</h1>
+  <div id="recCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin:14px 0 6px"></div>
   <div id="recList"></div>
-  <div class="row">
-    <button id="backDataBtn" class="secondary" data-i18n="btnBack"></button>
-    <button id="clearAllBtn" class="secondary" data-i18n="btnDeleteAll"></button>
+  <div class="row" style="justify-content:flex-end">
+    <button id="clearAllBtn" class="secondary" data-i18n="btnDeleteAll" style="flex:0 0 auto"></button>
   </div>
 </section>
 
@@ -521,7 +590,7 @@
   <button id="langEn" class="secondary" style="padding:6px 12px; font-size:12px; opacity:0.5">EN</button>
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12c</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12d</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -567,6 +636,8 @@ const I18N = {
     s2Title: '2. 건물 확인',
     massHint: '드래그해서 보고 싶은 각도로 돌린 뒤, 확인을 누르면 이 뷰로 고정됩니다.',
     btnAgain: '다시 검색', btnConfirm: '확인', btnBack: '← 뒤로', btnHome: '⌂ 홈으로',
+    readMore: 'Read more',
+    s96Sub: '확정한 건물 매스가 여기에 보관됩니다. 이름을 바꾸면 맵에도 반영됩니다.',
     btnShareBoard: '보드 공유', shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
     phPw: '비밀번호 (6자 이상)', btnPwLogin: '로그인 / 가입',
     s0PwHint: '처음이면 이 이메일·비밀번호로 바로 가입됩니다.',
@@ -705,6 +776,8 @@ const I18N = {
     s2Title: '2. Confirm Building',
     massHint: 'Drag to rotate to the angle you like, then press Confirm to lock this view.',
     btnAgain: 'Search again', btnConfirm: 'Confirm', btnBack: '← Back', btnHome: '⌂ Home',
+    readMore: 'Read more',
+    s96Sub: 'Confirmed building masses live here. Renaming also updates the map.',
     btnShareBoard: 'Share board', shareReady: 'Share link:', shareCopied: 'Link copied:',
     phPw: 'Password (6+ chars)', btnPwLogin: 'Log in / Sign up',
     s0PwHint: 'New here? This email and password will create your account instantly.',
@@ -976,6 +1049,7 @@ function saveCurrentBuilding(view) {
     savedAt: Date.now(),
   };
   const prev = getSavedBuildings().find(x => x.id === entry.id);
+  if (prev && prev.customName) entry.customName = prev.customName; // 지정한 이름은 재확정해도 유지 (사용자 확정)
   if (prev && prev.serverId) deleteBuildingFromServer(prev); // 같은 건물 갱신 — 서버 구본 제거
   const list = getSavedBuildings().filter(x => x.id !== entry.id);
   list.unshift(entry);
@@ -1543,8 +1617,8 @@ document.getElementById('back3Btn').addEventListener('click', () => {
   goto(2);
 });
 document.getElementById('back4Btn').addEventListener('click', () => {
-  if (state.mediaType === 'video') video.pause();
-  editorRunning = false;
+  // 같은 파일을 다시 선택해도 change가 울리도록 입력을 리셋
+  document.getElementById('mediaInput').value = '';
   goto(3);
 });
 document.getElementById('back5Btn').addEventListener('click', () => {
@@ -3082,9 +3156,75 @@ function saveRecord() {
   }
   renderSavedList(); // 내보내기 버튼 표시 갱신
 }
-function renderRecList() {
+// ---- 날씨: 촬영 GPS+날짜로 그날의 날씨 이모지 (open-meteo, 무료·키 없음, 1회 조회 후 레코드에 저장) ----
+const WEATHER_EMOJI = code => {
+  if (code === 0) return '☀️';
+  if (code <= 2) return '🌤️';
+  if (code === 3) return '☁️';
+  if (code <= 48) return '🌫️';
+  if (code <= 67) return '🌧️';
+  if (code <= 77) return '🌨️';
+  if (code <= 82) return '🌧️';
+  if (code <= 86) return '🌨️';
+  return '⛈️';
+};
+async function fetchWeatherFor(rec) {
+  if (rec.weatherCode !== undefined && rec.weatherCode !== null) return rec.weatherCode;
+  const g = rec.mediaGps || (isFinite(rec.lat) && isFinite(rec.lon) ? { lat: rec.lat, lon: rec.lon } : null);
+  if (!g || !rec.mediaDate) return null;
+  try {
+    const d = new Date(rec.mediaDate).toISOString().slice(0, 10);
+    const r = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${g.lat}&longitude=${g.lon}&start_date=${d}&end_date=${d}&daily=weather_code&timezone=auto`);
+    const j = await r.json();
+    const code = j.daily && j.daily.weather_code && j.daily.weather_code[0];
+    if (code === undefined || code === null) return null;
+    // 레코드에 저장해 재조회 방지
+    const list = getRecords();
+    const target = list.find(x => x.savedAt === rec.savedAt);
+    if (target) { target.weatherCode = code; localStorage.setItem(REC_KEY, JSON.stringify(list)); }
+    rec.weatherCode = code;
+    return code;
+  } catch (e) { return null; }
+}
+let recListSelKey = null; // My liquid cities 필터
+function renderRecCats() {
+  const box = document.getElementById('recCats');
+  box.innerHTML = '';
+  const groups = new Map();
+  for (const rec of getRecords()) {
+    const k = massKeyOf(rec);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(rec);
+  }
+  let customNames = {};
+  try { customNames = JSON.parse(localStorage.getItem('lc_mass_names')) || {}; } catch (e) {}
+  let savedB = [];
+  try { savedB = JSON.parse(localStorage.getItem('lc_saved_buildings')) || []; } catch (e) {}
+  const mkChip = (label, key) => {
+    const chip = document.createElement('button');
+    chip.className = 'mass-cat' + ((recListSelKey === key) ? ' sel' : '');
+    const span = document.createElement('span');
+    span.textContent = label;
+    chip.appendChild(span);
+    chip.addEventListener('click', () => {
+      recListSelKey = (recListSelKey === key) ? null : key;
+      renderRecList();
+    });
+    box.appendChild(chip);
+  };
+  mkChip(`All (${getRecords().length})`, null);
+  for (const [key, recs] of groups) {
+    const match = savedB.find(b => isFinite(b.lat) && isFinite(recs[0].lat)
+      && Math.abs(b.lat - recs[0].lat) < 0.001 && Math.abs(b.lon - recs[0].lon) < 0.001);
+    const name = customNames[key] || (match && match.customName) || key.split('|')[0];
+    mkChip(`${name || '?'} (${recs.length})`, key);
+  }
+}
+async function renderRecList() {
+  renderRecCats();
   const wrap = document.getElementById('recList');
-  const list = getRecords().slice().reverse(); // 최신이 위
+  let list = getRecords().slice().reverse(); // 최신이 위
+  if (recListSelKey) list = list.filter(r => massKeyOf(r) === recListSelKey);
   wrap.innerHTML = '';
   if (!list.length) {
     const pEmpty = document.createElement('p');
@@ -3093,26 +3233,70 @@ function renderRecList() {
     wrap.appendChild(pEmpty);
     return;
   }
-  list.forEach(rec => {
+  let idx = list.length;
+  for (const rec of list) {
     const row = document.createElement('div');
-    row.className = 'saved-item';
-    const label = document.createElement('span');
-    const when = rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '';
-    const what = rec.momentWord || rec.finalReason || (rec.userReasons || []).join(', ') || '—';
-    const segs = (rec.segments || []).join(', ');
-    const sync = rec.synced ? '☁ ' + t('recSynced') : t('recLocal');
-    label.textContent = `${when} · ${what}${segs ? ' · ' + segs : ''} · ${sync}`;
-    label.title = rec.address || '';
-    const viewBtn = document.createElement('button');
-    viewBtn.textContent = t('btnView');
-    viewBtn.addEventListener('click', () => openRecordDetail(rec));
-    const delBtn = document.createElement('button');
-    delBtn.className = 'secondary';
-    delBtn.textContent = t('btnDelete');
-    delBtn.addEventListener('click', () => deleteRecord(rec.savedAt));
-    row.append(label, viewBtn, delBtn);
+    row.className = 'rec-row';
+    // 좌: 매핑된 매스
+    const th = document.createElement('div');
+    th.className = 'rec-thumb';
+    if (rec.massThumb) {
+      const img = document.createElement('img');
+      img.src = rec.massThumb;
+      th.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'rec-noimg';
+      ph.textContent = rec.address ? rec.address.split(',')[0] : '—';
+      th.appendChild(ph);
+      // 산출물 4가 로컬/서버에 있으면 교체
+      fetchOutputBlob(rec.savedAt, 'out4').then(b => {
+        if (!b) return;
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(b);
+        th.innerHTML = '';
+        th.appendChild(img);
+      }).catch(() => {});
+    }
+    // 중앙: 번호+단어 제목, 생각 본문, Read more
+    const mid = document.createElement('div');
+    mid.className = 'rec-mid';
+    const title = document.createElement('p');
+    title.className = 'rec-title';
+    const word = (rec.momentWordEn || rec.momentWord || '—');
+    title.textContent = String(idx).padStart(2, '0') + ' ' + word.toUpperCase();
+    const body = document.createElement('p');
+    body.className = 'rec-body';
+    body.textContent = rec.momentThought || (rec.segmentsRaw || rec.segments || []).join(', ') || '';
+    const more = document.createElement('span');
+    more.className = 'rec-more';
+    more.textContent = t('readMore');
+    mid.append(title, body, more);
+    // 우: 날짜/시간 + 날씨 + 삭제
+    const side = document.createElement('div');
+    side.className = 'rec-side';
+    const when = document.createElement('div');
+    when.textContent = rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '';
+    const weather = document.createElement('div');
+    weather.className = 'rec-weather';
+    side.append(when, weather);
+    if (rec.weatherCode !== undefined && rec.weatherCode !== null) {
+      weather.textContent = WEATHER_EMOJI(rec.weatherCode);
+    } else {
+      fetchWeatherFor(rec).then(code => {
+        if (code !== null && code !== undefined) weather.textContent = WEATHER_EMOJI(code);
+      });
+    }
+    const del = document.createElement('div');
+    del.className = 'rec-del';
+    del.textContent = t('btnDelete');
+    del.addEventListener('click', ev => { ev.stopPropagation(); deleteRecord(rec.savedAt); });
+    side.appendChild(del);
+    row.append(th, mid, side);
+    row.addEventListener('click', () => openRecordDetail(rec));
     wrap.appendChild(row);
-  });
+    idx--;
+  }
 }
 /* ============================================================
    맵 — 저장된 레코드의 매스(산출물 4, 투명 PNG)를 지도 위에 마커로 배치.
@@ -3425,6 +3609,22 @@ async function initBoardViewer(uid) {
     return false;
   }
 }
+// My page 렌더 — 계정 상태 표시(기존 accountBar 재사용)
+async function renderMyPage() {
+  await updateAccountBar();
+  const st = document.getElementById('myPageStatus');
+  st.textContent = sb ? '' : t('sbOff');
+}
+document.getElementById('back96Btn').addEventListener('click', () => goto(1));
+document.getElementById('back95Btn').addEventListener('click', () => goto(1));
+// ---- 공통 헤더 네비게이션 ----
+document.getElementById('hdrLogo').addEventListener('click', () => goto(1));
+document.getElementById('hdrMy').addEventListener('click', () => { renderRecList(); goto(99); });
+document.getElementById('hdrMap').addEventListener('click', () => {
+  goto(97); renderMassCats(); setMapMode(boardMode || 'board');
+});
+document.getElementById('hdrMass').addEventListener('click', () => { renderSavedList(); goto(96); });
+document.getElementById('hdrPage').addEventListener('click', () => { renderMyPage(); goto(95); });
 document.getElementById('mapBtn').addEventListener('click', () => {
   goto(97);
   renderMassCats();
@@ -3437,14 +3637,55 @@ async function openRecordDetail(rec) {
   // 뒤로 버튼이 진입한 화면(맵 97 또는 내 기록 99)으로 돌아가게 출처를 기억
   const cur = document.querySelector('.step.active');
   state._detailFrom = cur && cur.id === 'step97' ? 97 : 99;
+  // 상단: 리스트 행과 같은 포맷 (매스 · 제목/글 · 날짜/날씨)
+  {
+    const head = document.getElementById('recDetailHead');
+    head.innerHTML = '';
+    const row = document.createElement('div');
+    row.className = 'rec-row';
+    row.style.cursor = 'default';
+    const th = document.createElement('div');
+    th.className = 'rec-thumb';
+    if (rec.massThumb) {
+      const img = document.createElement('img');
+      img.src = rec.massThumb;
+      th.appendChild(img);
+    } else {
+      fetchOutputBlob(rec.savedAt, 'out4').then(b => {
+        if (!b) return;
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(b);
+        th.appendChild(img);
+      }).catch(() => {});
+    }
+    const mid = document.createElement('div');
+    mid.className = 'rec-mid';
+    const title = document.createElement('p');
+    title.className = 'rec-title';
+    title.textContent = (rec.momentWordEn || rec.momentWord || '—').toUpperCase();
+    const body = document.createElement('p');
+    body.className = 'rec-body';
+    body.style.webkitLineClamp = 'unset';
+    body.textContent = rec.momentThought || '';
+    mid.append(title, body);
+    const side = document.createElement('div');
+    side.className = 'rec-side';
+    const when = document.createElement('div');
+    when.textContent = rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '';
+    const weather = document.createElement('div');
+    weather.className = 'rec-weather';
+    side.append(when, weather);
+    if (rec.weatherCode !== undefined && rec.weatherCode !== null) weather.textContent = WEATHER_EMOJI(rec.weatherCode);
+    else fetchWeatherFor(rec).then(c => { if (c !== null && c !== undefined) weather.textContent = WEATHER_EMOJI(c); });
+    row.append(th, mid, side);
+    head.appendChild(row);
+  }
   const info = document.getElementById('recDetailInfo');
   const box = document.getElementById('recOutputs');
   // 우리가 적은/측정한 모든 정보 나열 (우선 기능 — 디자인은 추후)
   const rows = [];
   const add = (k, v) => { if (v !== null && v !== undefined && v !== '') rows.push([k, v]); };
-  add(lang === 'ko' ? '한 단어' : 'One word', rec.momentWord);
   if (typeof rec.momentScale === 'number') add(lang === 'ko' ? '스케일' : 'Scale', (rec.momentScale > 0 ? '+' : '') + rec.momentScale);
-  add(lang === 'ko' ? '이 순간에 대한 생각' : 'Thoughts', rec.momentThought);
   add(lang === 'ko' ? '인상적인 물체' : 'Striking things', (rec.segmentsRaw || rec.segments || []).join(', '));
   add(lang === 'ko' ? '촬영 시각' : 'Captured', rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '');
   add(lang === 'ko' ? '매스 주소' : 'Mass address', rec.address);
