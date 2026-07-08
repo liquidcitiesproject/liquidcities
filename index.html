@@ -216,7 +216,6 @@
   background:#fff; border:1px solid var(--line); border-radius:10px; padding:14px; width:320px; box-shadow:0 4px 18px rgba(0,0,0,0.12)">
   <p class="hint" data-i18n="cfgKeyHint" style="margin:0 0 10px"></p>
   <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
-  <input type="text" id="w3wKeyInput" placeholder="what3words API key" style="margin-top:6px">
   <div class="row">
     <button id="apiKeySave" data-i18n="btnSave" style="padding:8px 14px; font-size:12px"></button>
     <button id="apiKeyClear" class="secondary" data-i18n="btnDelete" style="padding:8px 14px; font-size:12px"></button>
@@ -596,7 +595,7 @@
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12i</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12j</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
@@ -2217,8 +2216,6 @@ document.getElementById('cfgBtn').addEventListener('click', () => {
   }
 });
 document.getElementById('apiKeySave').addEventListener('click', () => {
-  const wk = document.getElementById('w3wKeyInput').value.trim();
-  if (wk) localStorage.setItem('lc_w3w_key', wk);
   const v = document.getElementById('apiKeyInput').value.trim();
   if (v) localStorage.setItem('lc_api_key', v);
   updateKeyStatus();
