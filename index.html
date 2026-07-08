@@ -149,11 +149,12 @@
     .rec-side { flex: 1; }
   }
   /* ---- 공통 헤더 (스케치 확정: 1행 로고 / 2행 메뉴 4개) ---- */
-  #appHeader { width: 100%; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
-    background: var(--bg); position: sticky; top: 0; z-index: 900; }
+  /* 헤더 선: 위·중간·아래 모두 같은 얇은 선, 콘텐츠 폭(1100px)과 동일 길이 */
+  #appHeader { width: 100%; background: var(--bg); position: sticky; top: 0; z-index: 900; }
   #appHeader .hdr-row { max-width: 1100px; margin: 0 auto; padding: 10px 20px; }
-  #appHeader .hdr-logo { font-weight: 300; font-size: 16px; cursor: pointer;
-    border-bottom: 1px solid var(--line); }
+  #appHeader .hdr-logo { font-weight: 300; font-size: 16px;
+    border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  #appHeader .hdr-menu { border-bottom: 1px solid var(--line); }
   #appHeader .hdr-menu { display: flex; gap: 8px; }
   #appHeader .hdr-link { flex: 1; font-weight: 300; font-size: 15px; cursor: pointer;
     text-decoration: underline; text-underline-offset: 4px; }
@@ -594,7 +595,7 @@
 <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:36px 0 10px">
   <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
 </div>
-<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12f</p>
+<p id="buildTag" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">build 2026-07-12g</p>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
      뷰포트 안 실크기로 두되 투명 처리한다 -->
