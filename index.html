@@ -706,7 +706,7 @@
   <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:0 0 6px">
     <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
   </div>
-<p id="buildTag" title="build 2026-07-13f" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
+<p id="buildTag" title="build 2026-07-13g" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
 </footer>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
@@ -1614,15 +1614,20 @@ async function overpass(query) {
 }
 
 async function fetchBuilding(lat, lon) {
-  // 본체(building)와 부분(building:part — 굴뚝·타워 등 높이가 다른 구조)을 함께 조회
-  const q = `[out:json][timeout:25];
-    (
-      way["building"](around:80,${lat},${lon});
-      way["building:part"](around:80,${lat},${lon});
-    );
-    out geom tags;`;
-  const data = await overpass(q);
-  const allWays = data.elements.filter(e => e.type === 'way' && e.geometry && e.geometry.length >= 4);
+  // 본체(building)와 부분(building:part)을 함께 조회. 지오코더 좌표가 큰 건물의
+  // 중심에서 벗어날 수 있어 반경을 넓게(80→150→300m) 재시도한다.
+  let allWays = [];
+  for (const radius of [80, 150, 300]) {
+    const q = `[out:json][timeout:25];
+      (
+        way["building"](around:${radius},${lat},${lon});
+        way["building:part"](around:${radius},${lat},${lon});
+      );
+      out geom tags;`;
+    const data = await overpass(q);
+    allWays = data.elements.filter(e => e.type === 'way' && e.geometry && e.geometry.length >= 4);
+    if (allWays.some(e => e.tags && e.tags.building)) break;
+  }
   const partWays = allWays.filter(e => e.tags && e.tags['building:part']);
   const ways = allWays.filter(e => e.tags && e.tags.building);
   if (!ways.length) return null;
