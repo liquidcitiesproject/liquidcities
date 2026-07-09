@@ -706,7 +706,7 @@
   <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:0 0 6px">
     <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
   </div>
-<p id="buildTag" title="build 2026-07-13h" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
+<p id="buildTag" title="build 2026-07-13i" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
 </footer>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
@@ -1334,14 +1334,41 @@ uniInput.addEventListener('input', () => {
 document.addEventListener('click', e => {
   if (!e.target.closest('#uniForm')) uniSuggest.style.display = 'none';
 });
+// 상세 주소(flat/동·호수 등)가 끼면 지오코더가 0건을 주므로,
+// 실패 시 점점 단순한 형태로 자동 재시도한다.
+function searchVariants(q) {
+  const out = [q];
+  // ① flat/apt/unit/suite + 번호, 한국식 동·호수 제거
+  const cleaned = q
+    .replace(/\b(flat|apt|apartment|unit|suite|room)\s*[\w-]*/gi, '')
+    .replace(/\d+\s*동\s*\d*\s*호?/g, '')
+    .replace(/\s{2,}/g, ' ').replace(/\s*,\s*,/g, ',').trim();
+  if (cleaned && cleaned !== q) out.push(cleaned);
+  // ② 쉼표 파트 재조합: 첫 파트 제거 / 마지막 두 파트
+  const parts = q.split(',').map(x => x.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    out.push(parts.slice(1).join(', '));
+    out.push(parts.slice(-2).join(', '));
+  }
+  // ③ 우편번호만 (영국식 또는 5~6자리 숫자)
+  const pc = q.match(/\b[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}\b/) || q.match(/\b\d{5,6}\b/);
+  if (pc) out.push(pc[0]);
+  return [...new Set(out.map(x => x.trim()).filter(x => x.length >= 3))];
+}
 document.getElementById('uniSearchBtn').addEventListener('click', async () => {
   const q = uniInput.value.trim();
   if (!q) return;
   searchErr.style.display = 'none';
-  searchStatus.textContent = t('stSearching');
   uniSuggest.style.display = 'none';
   try {
-    const list = await nominatimList(q);
+    const variants = searchVariants(q);
+    let list = [];
+    for (let i = 0; i < variants.length; i++) {
+      searchStatus.textContent = i === 0 ? t('stSearching') : t('stRetry', variants[i]);
+      list = await nominatimList(variants[i]);
+      if (list.length) break;
+      await new Promise(r => setTimeout(r, 1100)); // Nominatim 예의(1req/s)
+    }
     if (!list.length) {
       searchStatus.textContent = '';
       searchErr.textContent = t('errNoResult');
