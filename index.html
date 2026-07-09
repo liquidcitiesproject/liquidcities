@@ -348,6 +348,9 @@
     <div class="row">
       <input type="text" id="unitInput2" data-ph="phUnit">
     </div>
+    <div class="row">
+      <button id="uniSearchBtn" data-i18n="btnFind"></button>
+    </div>
     <!-- 저장된 매스 바로가기 — 누르면 그 매스로 시작 -->
     <div id="quickMasses" style="display:flex; gap:12px; margin-top:18px; overflow-x:auto; max-width:640px"></div>
   </div>
@@ -703,7 +706,7 @@
   <div id="langBar" style="display:flex; gap:6px; justify-content:center; margin:0 0 6px">
     <button id="cfgBtn" class="secondary" style="display:none; padding:6px 12px; font-size:12px">⚙️</button>
   </div>
-<p id="buildTag" title="build 2026-07-13e" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
+<p id="buildTag" title="build 2026-07-13f" style="text-align:center; color:#b6b6ba; font-size:11px; margin:0 0 20px; cursor:default">©2026 Liquidcities Project</p>
 </footer>
 <!-- display:none은 Safari가 오디오 재생을 억제하는 경우가 있어 비가시 배치로 대체 -->
 <!-- Safari는 너무 작거나 숨겨진 비디오의 디코딩/오디오를 절약(끊김 원인)하므로
@@ -852,7 +855,7 @@ const I18N = {
     infoLevels: n => `${n}층 추정`, unnamedBuilding: '이름 없는 건물',
     errSearch: m => '검색 중 오류가 발생했습니다: ' + m,
     errBuilding: m => '건물 조회 실패: ' + m,
-    errNoBuilding: '이 위치 주변에서 건물 폴리곤을 찾지 못했습니다. 좌표를 조금 옮겨보세요.',
+    errNoResult: '검색 결과가 없습니다. 다르게 입력해보세요.', errNoBuilding: '이 위치 주변에서 건물 폴리곤을 찾지 못했습니다. 좌표를 조금 옮겨보세요.',
     errPlay: '이 영상을 재생할 수 없습니다 (코덱 미지원 가능).',
     errRes: '영상 해상도를 읽지 못했습니다. 다른 파일을 시도해주세요.',
     errImg: '이미지를 열 수 없습니다.',
@@ -992,7 +995,7 @@ const I18N = {
     infoLevels: n => `est. ${n} floors`, unnamedBuilding: 'Unnamed building',
     errSearch: m => 'Search error: ' + m,
     errBuilding: m => 'Building lookup failed: ' + m,
-    errNoBuilding: 'No building polygon found near this point. Try moving the coordinates slightly.',
+    errNoResult: 'No results. Try a different query.', errNoBuilding: 'No building polygon found near this point. Try moving the coordinates slightly.',
     errPlay: 'Cannot play this video (codec may be unsupported).',
     errRes: 'Could not read video resolution. Try another file.',
     errImg: 'Cannot open this image.',
@@ -1331,6 +1334,34 @@ uniInput.addEventListener('input', () => {
 document.addEventListener('click', e => {
   if (!e.target.closest('#uniForm')) uniSuggest.style.display = 'none';
 });
+document.getElementById('uniSearchBtn').addEventListener('click', async () => {
+  const q = uniInput.value.trim();
+  if (!q) return;
+  searchErr.style.display = 'none';
+  searchStatus.textContent = t('stSearching');
+  uniSuggest.style.display = 'none';
+  try {
+    const list = await nominatimList(q);
+    if (!list.length) {
+      searchStatus.textContent = '';
+      searchErr.textContent = t('errNoResult');
+      searchErr.style.display = 'block';
+      return;
+    }
+    const hit = list[0];
+    const unit = (document.getElementById('unitInput2').value || '').trim();
+    state.address = (unit ? unit + ' · ' : '') + hit.display_name;
+    state.countryCode = (hit.address && hit.address.country_code) || null;
+    await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon));
+  } catch (e) {
+    searchStatus.textContent = '';
+    searchErr.textContent = t('errBuilding', e.message);
+    searchErr.style.display = 'block';
+  }
+});
+uniInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById('uniSearchBtn').click(); }
+});
 // 탭 전환 (주소로 검색 ↔ 간편 검색)
 const tabStruct = document.getElementById('tabStruct');
 const tabSimple = document.getElementById('tabSimple');
@@ -1554,9 +1585,9 @@ async function proceedWithLocation(lat, lon) {
    ============================================================ */
 // 공개 Overpass 서버는 종종 504를 반환하므로 미러 순차 폴백 + 1회 재시도
 const OVERPASS_URLS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
+  'https://overpass.osm.ch/api/interpreter',      // ~1s
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter', // ~2.6s
+  'https://overpass-api.de/api/interpreter',      // 본가 (느릴 때 있음)
 ];
 async function overpass(query) {
   let lastErr = null;
@@ -1564,7 +1595,7 @@ async function overpass(query) {
     for (const url of OVERPASS_URLS) {
       // 응답 없는 미러가 전체를 막지 않도록 요청별 12초 타임아웃 필수
       const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 12000);
+      const timer = setTimeout(() => ac.abort(), 9000);
       try {
         const res = await fetch(url, {
           method: 'POST',
