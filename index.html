@@ -672,6 +672,7 @@
     <button id="viewMapBtn" class="secondary" style="opacity:0.5" data-i18n="btnGeoMap"></button>
     <button id="viewGlobeBtn" class="secondary" style="opacity:0.5" data-i18n="btnGlobe"></button>
     <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
+    <button id="unshareBoardBtn" class="secondary" data-i18n="btnUnshareBoard"></button>
   </div>
   <div class="status" id="shareStatus" style="margin:0 0 8px; user-select:text; -webkit-user-select:text"></div>
   <div class="status" id="mapStatus" style="margin:0 0 8px"></div>
@@ -784,10 +785,17 @@ const I18N = {
     readMore: 'Read more',
     s96Sub: '확정한 건물 매스가 여기에 보관됩니다. 이름을 바꾸면 맵에도 반영됩니다.',
     confirmDelete: '이 기록을 삭제할까요?', btnEdit: '수정', editWord: '한 단어를 수정해주세요', editThought: '이 순간에 대한 생각을 수정해주세요',
-    btnShareBoard: '보드 공유', shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
+    btnShareBoard: '보드 공유', btnUnshareBoard: '공유 취소',
+    unshareDone: '공유를 내렸습니다 — 링크가 더 이상 열리지 않습니다', unshareFail: '공유 취소 실패',
+    shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
     phPw: '비밀번호 (6자 이상)', btnPwLogin: '로그인 / 가입',
     s0PwHint: '처음이면 이 이메일·비밀번호로 바로 가입됩니다.',
     errPwEmpty: '이메일과 비밀번호를 입력해주세요', errPwShort: '비밀번호는 6자 이상이어야 합니다',
+    errFileTooBig: mb => `파일이 너무 큽니다 (최대 ${mb}MB). 더 작은 파일을 올려주세요.`,
+    errEmailInvalid: '이메일 형식을 확인해주세요',
+    errPwWrong: '비밀번호가 올바르지 않습니다',
+    errNeedSignup: '가입되지 않은 이메일입니다 — 비밀번호를 정하면 가입됩니다',
+    saveFailSync: '저장됨 (서버 동기화 대기 — 연결되면 자동 업로드)',
     errPwWrongOrConfirm: '비밀번호가 다르거나 이미 가입된 이메일입니다',
     askLinkPw: '사용할 비밀번호를 정해주세요 (6자 이상)', stLinked: '계정이 연결되었습니다',
     btnSetPw: '비밀번호 설정', stPwSet: '비밀번호가 설정되었습니다 — 이제 이메일+비밀번호로 로그인할 수 있습니다',
@@ -925,10 +933,17 @@ const I18N = {
     readMore: 'Read more',
     s96Sub: 'Confirmed building masses live here. Renaming also updates the map.',
     confirmDelete: 'Delete this record?', btnEdit: 'Edit', editWord: 'Edit your one word', editThought: 'Edit your thoughts on this moment',
-    btnShareBoard: 'Share board', shareReady: 'Share link:', shareCopied: 'Link copied:',
+    btnShareBoard: 'Share board', btnUnshareBoard: 'Unshare',
+    unshareDone: 'Board unshared — the link no longer opens', unshareFail: 'Unshare failed',
+    shareReady: 'Share link:', shareCopied: 'Link copied:',
     phPw: 'Password (6+ chars)', btnPwLogin: 'Log in / Sign up',
     s0PwHint: 'New here? This email and password will create your account instantly.',
     errPwEmpty: 'Enter email and password', errPwShort: 'Password must be 6+ characters',
+    errFileTooBig: mb => `File too large (max ${mb}MB). Please upload a smaller file.`,
+    errEmailInvalid: 'Please check the email format',
+    errPwWrong: 'Incorrect password',
+    errNeedSignup: 'No account for this email — setting a password will create one',
+    saveFailSync: 'Saved (waiting to sync — will upload when connected)',
     errPwWrongOrConfirm: 'Wrong password, or this email is already registered',
     askLinkPw: 'Choose a password (6+ chars)', stLinked: 'Account linked',
     btnSetPw: 'Set password', stPwSet: 'Password set — you can now log in with email + password',
@@ -2120,6 +2135,15 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   if (!file) return;
   const err = document.getElementById('mediaErr');
   err.style.display = 'none';
+  // 파일 크기 제한 — 너무 큰 파일은 브라우저 크래시·업로드 실패 유발
+  const isVid = file.type.startsWith('video/');
+  const MAX = isVid ? 100 * 1024 * 1024 : 20 * 1024 * 1024; // 영상 100MB / 이미지 20MB
+  if (file.size > MAX) {
+    err.textContent = t('errFileTooBig', isVid ? 100 : 20);
+    err.style.display = 'block';
+    e.target.value = '';
+    return;
+  }
   // 새 미디어 = 새 기록 세션 — 이전 작품의 상태를 전부 초기화
   state._recordSaved = false;
   state._recordSavedAt = null;
@@ -2686,6 +2710,7 @@ document.getElementById('pwLoginBtn').addEventListener('click', async () => {
   const st = document.getElementById('loginStatus');
   if (!sb) return;
   if (!email || !pw) { st.textContent = t('errPwEmpty'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { st.textContent = t('errEmailInvalid'); return; }
   if (pw.length < 6) { st.textContent = t('errPwShort'); return; }
   st.textContent = '…';
   // 1) 기존 계정 로그인 시도
@@ -2694,20 +2719,19 @@ document.getElementById('pwLoginBtn').addEventListener('click', async () => {
   // 2) 계정이 없으면 즉시 가입 (Confirm email OFF 필요 — 즉시 세션 발급)
   if (/invalid/i.test(r1.error.message || '')) {
     const r2 = await sb.auth.signUp({ email, password: pw });
-    if (!r2.error && r2.data && r2.data.session) { st.textContent = ''; return; }
+    if (!r2.error && r2.data && r2.data.session) { st.textContent = ''; return; } // 신규 가입 성공
+    // 이미 가입된 이메일 = 로그인 실패의 진짜 원인은 비밀번호 오류
+    if (r2.error && /already registered|already exists/i.test(r2.error.message || '')) {
+      st.textContent = t('errPwWrong'); return;
+    }
+    // user는 생겼는데 session이 없음 = 이메일 확인(Confirm email)이 켜진 경우
     if (!r2.error && r2.data && r2.data.user && !r2.data.session) {
-      // 이미 있는 이메일(비번 틀림) 또는 확인 메일이 켜져 있는 경우
-      st.textContent = t('errPwWrongOrConfirm');
-      return;
+      st.textContent = t('errPwWrongOrConfirm'); return;
     }
-    // 이미 가입된 이메일에 틀린 비밀번호를 넣은 경우 — 친절한 안내로
-    if (r2.error && /already registered/i.test(r2.error.message || '')) {
-      st.textContent = t('errPwWrongOrConfirm');
-    } else {
-      st.textContent = t('sbFail') + ' — ' + (r2.error ? r2.error.message : '?');
-    }
+    st.textContent = t('sbFail') + ' — ' + (r2.error ? r2.error.message : '?');
     return;
   }
+  // invalid가 아닌 다른 로그인 에러 (예: 확인 안 된 이메일)
   st.textContent = t('sbFail') + ' — ' + r1.error.message;
 });
 document.getElementById('logoutBtn').addEventListener('click', async () => {
@@ -2718,6 +2742,7 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
     localStorage.removeItem(REC_KEY);         // 기록
     localStorage.removeItem(LS_KEY);          // 건물 매스
     localStorage.removeItem('lc_mass_names'); // 매스 이름
+    localStorage.removeItem('lc_owner_uid');  // 캐시 소유자 표식
     indexedDB.deleteDatabase('lc-media');     // 산출물(out1~4) 로컬 캐시
   } catch (e) {}
   // 화면 목록 즉시 비우기
@@ -2741,6 +2766,22 @@ document.getElementById('accPwBtn').addEventListener('click', async () => {
 async function pullServerRecords() {
   if (!sb) return;
   try {
+    // 공용 PC 격리 — 이 기기 로컬 캐시의 소유자와 현재 로그인 계정이 다르면
+    // 이전 사용자의 데이터가 섞이지 않게 로컬을 비운다 (진짜 데이터는 서버에 있음).
+    try {
+      const { data: u } = await sb.auth.getUser();
+      const uid = u && u.user && u.user.id;
+      if (uid) {
+        const owner = localStorage.getItem('lc_owner_uid');
+        if (owner && owner !== uid) {
+          localStorage.removeItem(REC_KEY);
+          localStorage.removeItem(LS_KEY);
+          localStorage.removeItem('lc_mass_names');
+          try { indexedDB.deleteDatabase('lc-media'); } catch (e) {}
+        }
+        localStorage.setItem('lc_owner_uid', uid);
+      }
+    } catch (e) {}
     const { data, error } = await sb.from('records').select('id, payload').order('created_at', { ascending: true });
     if (error) throw error;
     if (!data || !data.length) return;
@@ -3584,7 +3625,11 @@ function saveRecord() {
   }
   // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
   syncRecordToServer(rec).then(ok => {
-    if (!ok) return;
+    if (!ok) {
+      // 서버가 있는데 실패 = 사용자에게 조용히 알림 (로컬엔 저장됨, 다음에 재전송)
+      if (sb) { const s = document.getElementById('detectStatus'); if (s) s.textContent = t('saveFailSync'); }
+      return;
+    }
     const l = getRecords();
     const r2 = l.find(x => x.savedAt === rec.savedAt);
     if (r2) { r2.synced = true; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
@@ -4241,6 +4286,21 @@ document.getElementById('shareBoardBtn').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(link); st.textContent = t('shareCopied') + ' ' + link; } catch (e) {}
   } catch (e) {
     st.textContent = t('shareFail') + ' — ' + e.message;
+  }
+});
+// 공유 취소 — shared_boards에서 내 스냅샷 삭제. 링크가 더 이상 안 열림.
+document.getElementById('unshareBoardBtn').addEventListener('click', async () => {
+  const st = document.getElementById('shareStatus');
+  if (!sb) { st.textContent = t('shareNeedServer'); return; }
+  try {
+    const { data: u } = await sb.auth.getUser();
+    const uid = u && u.user && u.user.id;
+    if (!uid) { st.textContent = t('shareNeedServer'); return; }
+    const { error } = await sb.from('shared_boards').delete().eq('user_id', uid);
+    if (error) throw error;
+    st.textContent = t('unshareDone');
+  } catch (e) {
+    st.textContent = t('unshareFail') + ' — ' + e.message;
   }
 });
 // 뷰어 모드: ?board=<uid> 로 열리면 로그인 없이 그 사용자의 보드만 표시
