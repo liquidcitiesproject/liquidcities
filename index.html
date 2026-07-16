@@ -329,9 +329,12 @@
 <section class="step flow" id="step0">
   <h1>Liquidcities</h1>
   <p class="sub direction" data-i18n="s0Sub"></p>
-  <input type="text" inputmode="email" id="loginEmail" data-ph="phCEmail"
-    autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false">
-  <input type="password" id="loginPw" data-ph="phPw" autocomplete="current-password" style="margin-top:8px">
+  <!-- Email·Password를 한 셀로 묶어 그리드가 둘 사이를 벌리지 않게 -->
+  <div style="max-width:640px">
+    <input type="text" inputmode="email" id="loginEmail" data-ph="phCEmail"
+      autocomplete="email" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input type="password" id="loginPw" data-ph="phPw" autocomplete="current-password" style="margin-top:8px">
+  </div>
   <div class="row">
     <button id="pwLoginBtn" data-i18n="btnPwLogin"></button>
   </div>
