@@ -4135,26 +4135,6 @@ function stopGlobeLoop() {
   if (gRaf) { cancelAnimationFrame(gRaf); gRaf = null; }
 }
 
-let gFlyRaf = null;
-// 노드 위치로 카메라를 부드럽게 회전·확대 (target은 구 중심 고정, 거리만 좁힘)
-function flyToNode(nodePos) {
-  if (gFlyRaf) cancelAnimationFrame(gFlyRaf);
-  const dir = nodePos.clone().normalize();          // 노드 방향 (구 중심→노드)
-  const targetDist = Math.max(gControls.minDistance, 1.6); // 가까이 확대
-  const from = gCamera.position.clone();
-  const to = dir.multiplyScalar(targetDist);         // 노드를 정면으로 보는 카메라 위치
-  const t0 = { v: 0 };
-  const step = () => {
-    t0.v = Math.min(1, t0.v + 0.06);
-    const e = 1 - Math.pow(1 - t0.v, 3);              // easeOutCubic
-    gCamera.position.lerpVectors(from, to, e);
-    gCamera.lookAt(0, 0, 0);
-    gControls.update();
-    if (t0.v < 1) gFlyRaf = requestAnimationFrame(step);
-    else gFlyRaf = null;
-  };
-  step();
-}
 function onGlobePick(ev) {
   if (!globeReady || !gNodePickables.length) return;
   const rect = gRenderer.domElement.getBoundingClientRect();
@@ -4164,7 +4144,7 @@ function onGlobePick(ev) {
   const hits = gRaycaster.intersectObjects(gNodePickables.map(p => p.obj), false);
   if (hits.length) {
     const found = gNodePickables.find(p => p.obj === hits[0].object);
-    if (found) flyToNode(found.obj.position); // 클릭 → 그 노드로 카메라 확대(줌)
+    if (found) openRecordDetail(found.rec); // 클릭 → 기록 상세
   }
 }
 
