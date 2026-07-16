@@ -4014,7 +4014,7 @@ function setMapMode(mode) {
   const gauge = document.getElementById('scaleGauge');
   if (gauge) gauge.style.display = globeOn ? 'none' : '';
   if (wf && globeOn) wf.innerHTML = '';
-  if (globeOn) { ensureGlobe(); startGlobeLoop(); setTimeout(resizeGlobe, 60); }
+  if (globeOn) { ensureGlobe(); startGlobeLoop(); setTimeout(resizeGlobe, 60); lcFitted = false; }
   else { stopGlobeLoop(); if (lcMap) setTimeout(() => lcMap.invalidateSize(), 60); }
   renderMapMarkers();
 }
@@ -4151,6 +4151,33 @@ function onGlobePick(ev) {
 // nodes/edges(평면과 공통)를 지구본에 반영. 매번 그룹 비우고 다시 배치.
 const GLOBE_NODE_H = 0.07;    // 노드 화면상 높이 (sizeAttenuation=false → 줌 무관 고정)
 const GLOBE_LIFT = 1.04;      // 구 표면에서 띄우는 반지름 배율 (파묻힘 방지)
+// 노드 무리의 평균 방향으로 카메라를 부드럽게 회전·확대 (보드의 flyToBounds에 대응)
+let gFitRaf = null;
+let gNodePositions = []; // renderGlobeNodes가 채우는 노드 3D 위치 (fit용)
+function fitGlobeToPositions(positions, animate) {
+  if (!globeReady || !positions.length) return;
+  const center = new THREE.Vector3();
+  positions.forEach(p => center.add(p));
+  center.normalize(); // 노드 무리의 평균 방향
+  // 퍼진 정도(최대 각도)에 따라 거리 결정 — 넓게 퍼지면 멀리, 모여 있으면 가까이
+  let maxAng = 0;
+  positions.forEach(p => { maxAng = Math.max(maxAng, center.angleTo(p.clone().normalize())); });
+  const dist = Math.min(gControls.maxDistance,
+    Math.max(gControls.minDistance, 1.5 + maxAng * 1.6));
+  const to = center.multiplyScalar(dist);
+  const from = gCamera.position.clone();
+  if (gFitRaf) cancelAnimationFrame(gFitRaf);
+  if (!animate) { gCamera.position.copy(to); gCamera.lookAt(0, 0, 0); gControls.update(); return; }
+  const s = { v: 0 };
+  const step = () => {
+    s.v = Math.min(1, s.v + 0.04);
+    const e = 1 - Math.pow(1 - s.v, 3);
+    gCamera.position.lerpVectors(from, to, e);
+    gCamera.lookAt(0, 0, 0); gControls.update();
+    if (s.v < 1) gFitRaf = requestAnimationFrame(step); else gFitRaf = null;
+  };
+  step();
+}
 function renderGlobeNodes(nodes, edges) {
   if (!globeReady) return;
   while (gNodeGroup.children.length) gNodeGroup.remove(gNodeGroup.children[0]);
@@ -4201,14 +4228,26 @@ function renderGlobeNodes(nodes, edges) {
     gNodePickables.push({ obj, rec: n.rec });
   }
 
-  // 엣지: 두 노드를 잇는 얇은 선 (노드와 같은 높이라 구에 안 묻힘)
+  // 엣지: 두 노드를 잇는 곡선 — 구 표면을 따라 바깥으로 살짝 띄운 호로 그려
+  // 직선이 흰 구를 관통해 가려지는 문제를 피하고, 색을 진하게 해 잘 보이게.
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x9aa0a6, transparent: true, opacity: 0.9 });
   for (const e of edges) {
     const pa = posOf.get(e.a), pb = posOf.get(e.b);
     if (!pa || !pb) continue;
-    const geo = new THREE.BufferGeometry().setFromPoints([pa, pb]);
-    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xc9c9cd }));
-    gEdgeGroup.add(line);
+    // 두 점 사이를 구면을 따라 보간(slerp 유사) + 중간을 바깥으로 부풀린 호
+    const pts = [];
+    const SEG = 24;
+    const lift = GLOBE_R * GLOBE_LIFT;
+    for (let i = 0; i <= SEG; i++) {
+      const t = i / SEG;
+      const p = pa.clone().lerp(pb, t).normalize();          // 구 표면 방향
+      const bulge = 1 + 0.12 * Math.sin(Math.PI * t);         // 중간을 살짝 바깥으로
+      pts.push(p.multiplyScalar(lift * bulge));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    gEdgeGroup.add(new THREE.Line(geo, edgeMat));
   }
+  gNodePositions = [...posOf.values()]; // fit(카메라 맞춤)용 노드 위치 목록
 }
 
 // 한 지도(layerGroup)에 노드·연결선을 그린다. 왼쪽 보드·오른쪽 지도가 공유.
@@ -4311,6 +4350,8 @@ async function renderMapMarkers() {
       } else {
         lcMap.fitBounds(pts, { padding: [80, 80], maxZoom: 17 });
       }
+      // 지구본도 같은 노드 무리로 카메라 맞춤 (보드 flyToBounds에 대응)
+      if (boardMode === 'globe' && globeReady) fitGlobeToPositions(gNodePositions, lcEverFitted);
       lcEverFitted = true;
     } else {
       lcMap.setView([37.5665, 126.978], 11);
