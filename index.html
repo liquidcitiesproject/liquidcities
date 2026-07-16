@@ -111,13 +111,11 @@
   .board-card .bc-label { font-size: 9px; color: #555; padding: 1px 2px 3px; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
   .board-card img { width: 100%; display: block; border-radius: 2px; background: #000; }
-  /* 매스 실루엣 노드 — 검정 배경 (지도/보드/지구본 노드만). 매스 원본 비율 유지 */
+  /* 매스 실루엣 노드 — 배경 없이 투명 PNG 그대로 (매스만) */
   .board-mass { position: absolute; width: 120px; cursor: pointer; text-align: center; }
-  .board-mass img { width: 100%; display: block; background: #000; border-radius: 4px; }
+  .board-mass img { width: 100%; display: block; background: transparent; }
   .board-mass .bm-label { font-size: 10px; color: #444; margin-bottom: 2px; }
   .lc-node { background: none; border: none; cursor: pointer; text-align: center; }
-  /* 지도/보드 노드 이미지 검정 배경 (사진 매핑이 검정 위에 얹힘) */
-  .lc-node img { background: #000; border-radius: 4px; }
   .lc-node .bm-label { font-size: 11px; color: #444; margin-bottom: 2px; white-space: nowrap; }
   .lc-edge-label { font-size: 10px; color: #a5a8ad; background: rgba(255,255,255,0.85);
     padding: 0 4px; border-radius: 2px; white-space: nowrap; }
@@ -4064,7 +4062,7 @@ function paintGraph(layer, nodes, edges) {
   for (const n of nodes) {
     posOf.set(n.rec.savedAt, n.pos);
     const html = n.iconUrl
-      ? `<div class="bm-label">${escHtml(n.labelText)}</div><img src="${n.iconUrl}" style="width:110px; background:#000; border-radius:4px; display:block">`
+      ? `<div class="bm-label">${escHtml(n.labelText)}</div><img src="${n.iconUrl}" style="width:110px; display:block">`
       : `<div class="bm-label" style="font-size:14px">${escHtml(n.labelText)}</div>`;
     const marker = L.marker(n.pos, {
       icon: L.divIcon({ html, className: 'lc-node', iconSize: [110, n.iconUrl ? 120 : 20], iconAnchor: [55, n.iconUrl ? 60 : 10] }),
