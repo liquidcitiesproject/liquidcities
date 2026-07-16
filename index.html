@@ -1214,7 +1214,7 @@ function saveCurrentBuilding(view) {
   if (prev && prev.serverId) deleteBuildingFromServer(prev); // 같은 건물 갱신 — 서버 구본 제거
   const list = getSavedBuildings().filter(x => x.id !== entry.id);
   list.unshift(entry);
-  localStorage.setItem(LS_KEY, JSON.stringify(list.slice(0, 10))); // 최근 10개까지
+  localStorage.setItem(LS_KEY, JSON.stringify(list.slice(0, 100))); // 최근 100개까지 (기기 간 동기화)
   syncBuildingToServer(entry);
   renderSavedList();
 }
@@ -2786,7 +2786,7 @@ async function pullServerRecords() {
     }
     if (bAdded > 0) {
       blds.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
-      localStorage.setItem(LS_KEY, JSON.stringify(blds.slice(0, 10)));
+      localStorage.setItem(LS_KEY, JSON.stringify(blds.slice(0, 100)));
     }
     if (added > 0 || bAdded > 0) renderSavedList();
   } catch (e) { console.warn('pull records failed:', e.message); }
@@ -3417,6 +3417,36 @@ function getRecords() {
   try { return JSON.parse(localStorage.getItem(REC_KEY)) || []; } catch (e) { return []; }
 }
 
+// 기존 기록의 out4 이미지가 이 기기 IndexedDB엔 있는데 서버에 안 올라간 경우
+// (예전엔 다운로드해야만 올라갔음) 조용히 서버로 소급 업로드 → 다른 기기에서도 보이게.
+// upsert라 중복 안전. _out4Uploaded 플래그로 1회만 시도.
+let backfillRunning = false;
+function queueBackfillOutputs() {
+  if (!sb || backfillRunning) return;
+  backfillRunning = true;
+  (async () => {
+    try {
+      const { data: u } = await sb.auth.getUser();
+      const uid = u && u.user && u.user.id;
+      if (!uid) return;
+      const recs = getRecords();
+      for (const rec of recs) {
+        if (rec._out4Uploaded) continue;
+        const blob = await idbGet(rec.savedAt + ':out4').catch(() => null);
+        if (!blob) { continue; } // 로컬에 이미지가 없으면 이 기기는 소급 대상 아님(플래그 안 세움)
+        try {
+          await sb.storage.from('outputs').upload(`${uid}/${rec.savedAt}-out4`, blob,
+            { upsert: true, contentType: blob.type || 'image/png' });
+          rec._out4Uploaded = true;
+          const l = getRecords(); const r2 = l.find(x => x.savedAt === rec.savedAt);
+          if (r2) { r2._out4Uploaded = true; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
+        } catch (e) { /* 실패 — 다음 기회에 재시도(플래그 안 세움) */ }
+        await sleep(400);
+      }
+    } catch (e) { /* getUser 실패 등 */ } finally { backfillRunning = false; }
+  })();
+}
+
 /* ---- 산출물 파일 보관 (IndexedDB — localStorage 용량 한계 회피) ---- */
 function idbOpen() {
   return new Promise((ok, no) => {
@@ -3531,7 +3561,11 @@ function saveRecord() {
       Object.assign(r, buildRecFields(), { savedAt: r.savedAt, serverId: r.serverId });
       r.synced = false;
       localStorage.setItem(REC_KEY, JSON.stringify(list));
-      if (state._autoOut4) idbPut(r.savedAt + ':out4', state._autoOut4).catch(() => {});
+      if (state._autoOut4) {
+        idbPut(r.savedAt + ':out4', state._autoOut4).catch(() => {});
+        uploadOutputToStorage(r.savedAt, 'out4', state._autoOut4); // 기기 간 동기화용 자동 업로드
+        r._out4Uploaded = true;
+      }
       resyncRecord(r);
       renderSavedList();
     }
@@ -3543,7 +3577,11 @@ function saveRecord() {
   const list = getRecords();
   list.push(rec);
   localStorage.setItem(REC_KEY, JSON.stringify(list));
-  if (state._autoOut4) idbPut(rec.savedAt + ':out4', state._autoOut4).catch(() => {});
+  if (state._autoOut4) {
+    idbPut(rec.savedAt + ':out4', state._autoOut4).catch(() => {});
+    uploadOutputToStorage(rec.savedAt, 'out4', state._autoOut4); // 기기 간 동기화용 자동 업로드
+    rec._out4Uploaded = true;
+  }
   // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
   syncRecordToServer(rec).then(ok => {
     if (!ok) return;
@@ -3651,6 +3689,7 @@ function renderRecCats() {
 }
 async function renderRecList() {
   queueAddressEnglishization(); // 한글 주소 기록을 백그라운드로 영어화 (초당 1건)
+  queueBackfillOutputs();       // 서버에 없는 out4 이미지를 조용히 소급 업로드
   renderRecCats();
   const wrap = document.getElementById('recList');
   let list = getRecords().slice().reverse(); // 최신이 위
@@ -4087,6 +4126,7 @@ function paintGraph(layer, nodes, edges) {
 async function renderMapMarkers() {
   if (!window.L) return;
   queueAddressEnglishization(); // 한글 주소 기록을 백그라운드로 영어화 (초당 1건)
+  queueBackfillOutputs();       // 서버에 없는 out4 이미지를 조용히 소급 업로드
   // 왼쪽 보드 (타일 없음)
   if (!lcMap) {
     lcMap = L.map('mapView', { zoomControl: true });
