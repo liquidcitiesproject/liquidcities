@@ -146,6 +146,11 @@
   body.map-full #shareStatus { position: fixed; bottom: 32px; left: 12px; right: 12px; z-index: 1200; margin: 0; }
   body.map-full #scaleGauge { position: fixed !important; z-index: 1200; }
   body.map-full #back97Row { display: none; }
+  /* ---- 지구본 뷰: 평면(#mapView)과 같은 풀스크린 영역을 차지 ---- */
+  body.map-full #globeView {
+    position: fixed !important; left: 0; right: 0; bottom: 0; top: var(--hdrH, 112px);
+    width: 100vw !important; height: auto !important; z-index: 1; background: #fff;
+  }
   /* ---- 보드 공유 뷰어 (?board=) — 풀스크린 보드 + 떠 있는 카테고리 ---- */
   body.board-viewer #step97 { max-width: none; width: 100%; padding: 0; margin: 0; }
   body.board-viewer #step97 > h1,
@@ -648,6 +653,7 @@
   <div class="row" id="mapCtrlRow" style="margin-top:0; margin-bottom:8px">
     <button id="viewBoardBtn" class="secondary" style="opacity:1" data-i18n="btnBoard"></button>
     <button id="viewMapBtn" class="secondary" style="opacity:0.5" data-i18n="btnGeoMap"></button>
+    <button id="viewGlobeBtn" class="secondary" style="opacity:0.5" data-i18n="btnGlobe"></button>
     <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
   </div>
   <div class="status" id="shareStatus" style="margin:0 0 8px; user-select:text; -webkit-user-select:text"></div>
@@ -667,7 +673,10 @@
     </div>
     <!-- 떠다니는 단어 오버레이 -->
     <div id="wordFloat" style="position:absolute; inset:0; overflow:hidden; z-index:499; pointer-events:none"></div>
+    <!-- 3D 지구본 뷰 (평면과 토글) — 기본 숨김 -->
+    <div id="globeView" style="display:none; width:100%; height:560px; background:#fff"></div>
   </div>
+
   <div class="row">
     <button id="backMapBtn" class="secondary back-arrow">&lt;</button>
   </div>
@@ -719,6 +728,7 @@ import * as THREE from 'three';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 /* ============================================================
    레이아웃 상수 (handoff-prompt.md 실측 확정값)
@@ -830,7 +840,7 @@ const I18N = {
     btnMap: '맵',
     mapTitle: '맵',
     renamePrompt: '이 매스의 이름을 정해주세요',
-    btnBoard: '보드', btnGeoMap: '지도',
+    btnBoard: '보드', btnGeoMap: '지도', btnGlobe: '지구본',
     edgeSameMass: '같은 매스', edgeScale: '비슷한 스케일',
     mapNoGps: n => `${n}건은 미디어에 위치 정보가 없어 지도에 표시되지 않습니다`,
     mapSub: '미디어가 촬영된 위치에 매스가 놓입니다. 위(카테고리)에서 매스를 고르면 그 매스로 만든 미디어만 보이고, 우측 게이지는 평균 스케일입니다.',
@@ -970,7 +980,7 @@ const I18N = {
     btnMap: 'Map',
     mapTitle: 'Map',
     renamePrompt: 'Name this mass',
-    btnBoard: 'Board', btnGeoMap: 'Map',
+    btnBoard: 'Board', btnGeoMap: 'Map', btnGlobe: 'Globe',
     edgeSameMass: 'same mass', edgeScale: 'similar scale',
     mapNoGps: n => `${n} record(s) have no media location and are not shown on the map`,
     mapSub: 'Masses sit where the media was captured. Pick a mass above to filter its media; the gauge shows the average scale.',
@@ -3750,24 +3760,231 @@ function boardRelations(recs) {
   return edges;
 }
 
-// 보드 = 지도와 완전히 같은 인터랙션(팬·줌·핀치), 타일만 숨긴 흰 지도.
-// 지도 = 같은 화면에 타일을 켠 것. 노드·연결선은 두 모드 공통.
+// 맵 뷰 3종: 'board'(타일 없는 흰 보드) / 'map'(실제 지도 타일) / 'globe'(3D 지구본).
+// 노드·연결선은 세 뷰 공통 데이터(renderMapMarkers가 계산).
 function setMapMode(mode) {
-  boardMode = mode;
-  document.getElementById('viewBoardBtn').style.opacity = mode === 'board' ? '1' : '0.5';
-  document.getElementById('viewMapBtn').style.opacity = mode === 'map' ? '1' : '0.5';
+  boardMode = mode || 'board';
+  const on = k => (boardMode === k ? '1' : '0.5');
+  const set = (id, k) => { const el = document.getElementById(id); if (el) el.style.opacity = on(k); };
+  set('viewBoardBtn', 'board');
+  set('viewMapBtn', 'map');
+  set('viewGlobeBtn', 'globe');
+  // 지구본은 별도 Three.js 뷰 — Leaflet 지도/오버레이와 표시 전환
+  const globeOn = boardMode === 'globe';
+  const gv = document.getElementById('globeView');
+  const mapEl = document.getElementById('mapView');
+  const wf = document.getElementById('wordFloat');
+  if (gv) gv.style.display = globeOn ? 'block' : 'none';
+  if (mapEl) mapEl.style.visibility = globeOn ? 'hidden' : 'visible';
+  // 스케일 게이지·떠다니는 단어는 Leaflet 뷰에서만
+  const gauge = document.getElementById('scaleGauge');
+  if (gauge) gauge.style.display = globeOn ? 'none' : '';
+  if (wf && globeOn) wf.innerHTML = '';
+  if (globeOn) { ensureGlobe(); startGlobeLoop(); setTimeout(resizeGlobe, 60); }
+  else { stopGlobeLoop(); if (lcMap) setTimeout(() => lcMap.invalidateSize(), 60); }
   renderMapMarkers();
 }
 document.getElementById('viewBoardBtn').addEventListener('click', () => setMapMode('board'));
 document.getElementById('viewMapBtn').addEventListener('click', () => setMapMode('map'));
+document.getElementById('viewGlobeBtn').addEventListener('click', () => setMapMode('globe'));
 
 let lcTileLayer = null;
 let lcFitted = false; // 모드 전환마다 뷰를 리셋하지 않도록 1회만 fit
 let lcEverFitted = false; // 첫 진입 이후에는 부드러운 flyTo 사용
 const escHtml = str => String(str).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ============================================================
+   3D 지구본 뷰 (Three.js) — 무채색 위경선 그리드 구 위에
+   노드(매스 실루엣 스프라이트)를 GPS 좌표대로 배치. 드래그로 회전.
+   노드/엣지 데이터는 renderMapMarkers()가 만든 것을 그대로 공유.
+   ============================================================ */
+let globeReady = false;
+const GLOBE_R = 1;            // 구 반지름
+let gScene, gCamera, gRenderer, gControls, gRaf = null;
+let gNodeGroup, gEdgeGroup;  // 매 렌더마다 교체
+let gNodePickables = [];     // Raycaster 대상 [{ obj, rec }]
+const gRaycaster = new THREE.Raycaster();
+const gPointer = new THREE.Vector2();
+const gTexLoader = new THREE.TextureLoader();
+
+// 위도·경도(도) → 구 표면 3D 좌표. lat: -90..90, lon: -180..180
+function latLonToVec3(lat, lon, r) {
+  const phi = (90 - lat) * Math.PI / 180;   // 극각
+  const theta = (lon + 180) * Math.PI / 180; // 방위각
+  return new THREE.Vector3(
+    -r * Math.sin(phi) * Math.cos(theta),
+     r * Math.cos(phi),
+     r * Math.sin(phi) * Math.sin(theta),
+  );
+}
+
+function globeEl() { return document.getElementById('globeView'); }
+
+function ensureGlobe() {
+  if (globeReady) return;
+  const host = globeEl();
+  if (!host || !THREE) return;
+  const w = host.clientWidth || 640, h = host.clientHeight || 560;
+
+  gScene = new THREE.Scene();
+  gScene.background = new THREE.Color(0xffffff);
+
+  gCamera = new THREE.PerspectiveCamera(45, w / h, 0.01, 100);
+  gCamera.position.set(0, 0.6, 3.2);
+
+  gRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  gRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  gRenderer.setSize(w, h);
+  host.appendChild(gRenderer.domElement);
+
+  gControls = new OrbitControls(gCamera, gRenderer.domElement);
+  gControls.enablePan = false;         // 회전·줌만
+  gControls.enableDamping = true;
+  gControls.dampingFactor = 0.08;
+  gControls.rotateSpeed = 0.6;
+  gControls.minDistance = 1.35;
+  gControls.maxDistance = 6;
+
+  // 구: 아주 옅은 면 + 위경선 그리드(무채색)
+  const sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(GLOBE_R, 48, 48),
+    new THREE.MeshBasicMaterial({ color: 0xffffff }),
+  );
+  gScene.add(sphere);
+  const grid = new THREE.LineSegments(
+    new THREE.WireframeGeometry(new THREE.SphereGeometry(GLOBE_R * 1.001, 24, 18)),
+    new THREE.LineBasicMaterial({ color: 0xdadadd }),
+  );
+  gScene.add(grid);
+
+  gNodeGroup = new THREE.Group();
+  gEdgeGroup = new THREE.Group();
+  gScene.add(gEdgeGroup);
+  gScene.add(gNodeGroup);
+
+  // 노드 클릭 → 기록 상세 (드래그 회전과 구분: 이동량이 작을 때만 클릭 처리)
+  let downX = 0, downY = 0, downT = 0;
+  gRenderer.domElement.addEventListener('pointerdown', ev => {
+    downX = ev.clientX; downY = ev.clientY; downT = ev.timeStamp;
+  });
+  gRenderer.domElement.addEventListener('pointerup', ev => {
+    const moved = Math.hypot(ev.clientX - downX, ev.clientY - downY);
+    if (moved < 6 && ev.timeStamp - downT < 500) onGlobePick(ev);
+  });
+  window.addEventListener('resize', resizeGlobe);
+
+  globeReady = true;
+}
+
+function resizeGlobe() {
+  if (!globeReady) return;
+  const host = globeEl();
+  if (!host || host.style.display === 'none') return;
+  const w = host.clientWidth || 640, h = host.clientHeight || 560;
+  gCamera.aspect = w / h;
+  gCamera.updateProjectionMatrix();
+  gRenderer.setSize(w, h);
+}
+
+function startGlobeLoop() {
+  if (!globeReady || gRaf) return;
+  resizeGlobe();
+  const tick = () => {
+    gRaf = requestAnimationFrame(tick);
+    gControls.update();
+    gRenderer.render(gScene, gCamera);
+  };
+  tick();
+}
+function stopGlobeLoop() {
+  if (gRaf) { cancelAnimationFrame(gRaf); gRaf = null; }
+}
+
+function onGlobePick(ev) {
+  if (!globeReady || !gNodePickables.length) return;
+  const rect = gRenderer.domElement.getBoundingClientRect();
+  gPointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+  gPointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+  gRaycaster.setFromCamera(gPointer, gCamera);
+  const hits = gRaycaster.intersectObjects(gNodePickables.map(p => p.obj), false);
+  if (hits.length) {
+    const found = gNodePickables.find(p => p.obj === hits[0].object);
+    if (found) openRecordDetail(found.rec);
+  }
+}
+
+// nodes/edges(평면과 공통)를 지구본에 반영. 매번 그룹 비우고 다시 배치.
+function renderGlobeNodes(nodes, edges) {
+  if (!globeReady) return;
+  while (gNodeGroup.children.length) gNodeGroup.remove(gNodeGroup.children[0]);
+  while (gEdgeGroup.children.length) gEdgeGroup.remove(gEdgeGroup.children[0]);
+  gNodePickables = [];
+  const posOf = new Map(); // savedAt → Vec3 (엣지용)
+
+  for (const n of nodes) {
+    const v = latLonToVec3(n.pos[0], n.pos[1], GLOBE_R * 1.02);
+    posOf.set(n.rec.savedAt, v);
+    let obj;
+    if (n.iconUrl) {
+      const tex = gTexLoader.load(n.iconUrl);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+      obj = new THREE.Sprite(mat);
+      obj.scale.set(0.16, 0.28, 1); // 매스 세로 비율
+    } else {
+      const mat = new THREE.SpriteMaterial({ color: 0x111111 });
+      obj = new THREE.Sprite(mat);
+      obj.scale.set(0.05, 0.05, 1);
+    }
+    obj.position.copy(v);
+    gNodeGroup.add(obj);
+    gNodePickables.push({ obj, rec: n.rec });
+  }
+
+  // 엣지: 두 노드를 잇는 얇은 선(구 바깥으로 살짝 띄움)
+  for (const e of edges) {
+    const pa = posOf.get(e.a), pb = posOf.get(e.b);
+    if (!pa || !pb) continue;
+    const geo = new THREE.BufferGeometry().setFromPoints([pa, pb]);
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: 0xc9c9cd }));
+    gEdgeGroup.add(line);
+  }
+}
+
+// 한 지도(layerGroup)에 노드·연결선을 그린다. 왼쪽 보드·오른쪽 지도가 공유.
+// nodes: [{ pos:[la,lo], rec, iconUrl, labelText }], edges: boardRelations() 결과
+function paintGraph(layer, nodes, edges) {
+  layer.clearLayers();
+  const posOf = new Map();
+  for (const n of nodes) {
+    posOf.set(n.rec.savedAt, n.pos);
+    const html = n.iconUrl
+      ? `<div class="bm-label">${escHtml(n.labelText)}</div><img src="${n.iconUrl}" style="width:110px; display:block">`
+      : `<div class="bm-label" style="font-size:14px">${escHtml(n.labelText)}</div>`;
+    const marker = L.marker(n.pos, {
+      icon: L.divIcon({ html, className: 'lc-node', iconSize: [110, n.iconUrl ? 120 : 20], iconAnchor: [55, n.iconUrl ? 60 : 10] }),
+    });
+    const when = n.rec.mediaDate ? fmtDate(new Date(n.rec.mediaDate)) : '';
+    marker.bindTooltip(`${when}${n.rec.momentWord ? ' · ' + n.rec.momentWord : ''}`);
+    marker.on('click', () => openRecordDetail(n.rec));
+    marker.addTo(layer);
+  }
+  for (const e of edges) {
+    const pa = posOf.get(e.a), pb = posOf.get(e.b);
+    if (!pa || !pb) continue;
+    L.polyline([pa, pb], { color: '#c9c9cd', weight: 1, interactive: false }).addTo(layer);
+    L.marker([(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2], {
+      icon: L.divIcon({ html: `<span class="lc-edge-label">${escHtml(e.label)}</span>`,
+        className: 'lc-node', iconSize: [120, 14], iconAnchor: [60, 7] }),
+      interactive: false,
+    }).addTo(layer);
+  }
+}
+
 async function renderMapMarkers() {
   if (!window.L) return;
+  // 왼쪽 보드 (타일 없음)
   if (!lcMap) {
     lcMap = L.map('mapView', { zoomControl: true });
     lcMap.zoomControl.setPosition('bottomright'); // 좌상단 카테고리 칩과 겹치지 않게
@@ -3777,20 +3994,22 @@ async function renderMapMarkers() {
     });
     lcMapLayer = L.layerGroup().addTo(lcMap);
   }
-  // 보드 = 타일 없는 흰 지도 / 지도 = 타일 표시 (인터랙션은 동일)
+  // Map 모드 = 타일 표시 / Board·Globe = 타일 없음 (지구본은 Leaflet을 아예 숨김)
   if (boardMode === 'map') {
     if (!lcMap.hasLayer(lcTileLayer)) lcMap.addLayer(lcTileLayer);
   } else if (lcMap.hasLayer(lcTileLayer)) {
     lcMap.removeLayer(lcTileLayer);
   }
-  lcMapLayer.clearLayers();
+
   const all = boardRecords();
   const recs = lcMapSelKey ? all.filter(r => massKeyOf(r) === lcMapSelKey) : all;
   updateGauge(recs);
   if (boardMode === 'map') renderFloatWords(recs);
   else document.getElementById('wordFloat').innerHTML = '';
+
+  // 노드 좌표·아이콘을 한 번만 계산해 세 뷰에서 공유
+  const nodes = [];
   const pts = [];
-  const posOf = new Map(); // savedAt → LatLng (연결선용)
   const used = [];
   for (const rec of recs) {
     // 위치 = 미디어 GPS 우선, 없으면 매스 주소 좌표
@@ -3805,7 +4024,6 @@ async function renderMapMarkers() {
     }
     used.push([la, lo]);
     pts.push([la, lo]);
-    posOf.set(rec.savedAt, [la, lo]);
     const labelText = rec.momentWordEn || rec.momentWord
       || (rec.mediaDate ? fmtDate(new Date(rec.mediaDate)).split(' ')[0] : '');
     let iconUrl = rec.massThumb || null;
@@ -3813,38 +4031,24 @@ async function renderMapMarkers() {
       const b4 = await fetchOutputBlob(rec.savedAt, 'out4');
       if (b4) iconUrl = URL.createObjectURL(b4);
     }
-    // 매스 실루엣 노드 (프레임 없음) — 이미지가 없는 옛 기록은 단어 텍스트만
-    const html = iconUrl
-      ? `<div class="bm-label">${escHtml(labelText)}</div><img src="${iconUrl}" style="width:110px; display:block">`
-      : `<div class="bm-label" style="font-size:14px">${escHtml(labelText)}</div>`;
-    const marker = L.marker([la, lo], {
-      icon: L.divIcon({ html, className: 'lc-node', iconSize: [110, iconUrl ? 120 : 20], iconAnchor: [55, iconUrl ? 60 : 10] }),
-    });
-    const when = rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '';
-    marker.bindTooltip(`${when}${rec.momentWord ? ' · ' + rec.momentWord : ''}`);
-    marker.on('click', () => openRecordDetail(rec));
-    marker.addTo(lcMapLayer);
+    nodes.push({ pos: [la, lo], rec, iconUrl, labelText });
   }
-  // 연결선 + 관계 라벨 (보드의 콘텐츠 그대로 — 두 모드 공통)
-  for (const e of boardRelations(recs)) {
-    const pa = posOf.get(e.a), pb = posOf.get(e.b);
-    if (!pa || !pb) continue;
-    L.polyline([pa, pb], { color: '#c9c9cd', weight: 1, interactive: false }).addTo(lcMapLayer);
-    L.marker([(pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2], {
-      icon: L.divIcon({ html: `<span class="lc-edge-label">${escHtml(e.label)}</span>`,
-        className: 'lc-node', iconSize: [120, 14], iconAnchor: [60, 7] }),
-      interactive: false,
-    }).addTo(lcMapLayer);
-  }
+  const edges = boardRelations(recs);
+
+  paintGraph(lcMapLayer, nodes, edges);
+  // 지구본 뷰가 준비돼 있으면 같은 노드/엣지로 갱신 (표시 여부와 무관하게 최신 유지)
+  if (typeof renderGlobeNodes === 'function' && globeReady) renderGlobeNodes(nodes, edges);
+
   const noGps = recs.length - pts.length;
   document.getElementById('mapStatus').textContent = noGps > 0 ? t('mapNoGps', noGps) : '';
+
+  // 보드 뷰 맞춤 (첫 진입/카테고리 전환)
   if (!lcFitted) {
     if (pts.length) {
       if (lcEverFitted) {
-        // 카테고리 전환 — 뚝 끊기는 점프 대신 부드러운 비행 줌 (사용자 확정)
         lcMap.flyToBounds(pts, { padding: [80, 80], maxZoom: 17, duration: 0.9 });
       } else {
-        lcMap.fitBounds(pts, { padding: [80, 80], maxZoom: 17 }); // 첫 진입은 즉시
+        lcMap.fitBounds(pts, { padding: [80, 80], maxZoom: 17 });
       }
       lcEverFitted = true;
     } else {
@@ -3852,7 +4056,7 @@ async function renderMapMarkers() {
     }
     lcFitted = pts.length > 0;
   }
-  setTimeout(() => lcMap.invalidateSize(), 60);
+  setTimeout(() => { if (lcMap) lcMap.invalidateSize(); }, 60);
 }
 
 // ---- 보드 공유 ----
