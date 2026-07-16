@@ -505,6 +505,23 @@
   <h1 data-i18n="thoughtTitle"></h1>
   <p class="sub direction" data-i18n="thoughtSub"></p>
   <textarea id="momentThought" data-ph="phThought"></textarea>
+  <div class="row">
+    <button id="thoughtTranslateBtn" class="secondary" data-i18n="btnTranslate"></button>
+  </div>
+  <div id="thoughtTranslateResult" style="display:none; margin-top:12px; padding:14px; border:1px dashed var(--line); border-radius:8px">
+    <p class="hint" id="thoughtTranslatedLines" style="margin:0 0 10px; color:var(--ink); line-height:1.7"></p>
+    <div class="row" style="margin-top:0">
+      <label style="flex:1; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer">
+        <input type="radio" name="thoughtLang" value="original" checked style="width:auto">
+        <span data-i18n="lblUseOriginal"></span>
+      </label>
+      <label style="flex:1; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); cursor:pointer">
+        <input type="radio" name="thoughtLang" value="en" style="width:auto">
+        <span data-i18n="lblUseEnglish"></span>
+      </label>
+    </div>
+  </div>
+  <div class="status" id="thoughtTranslateStatus"></div>
   <div class="status" id="thoughtErr" style="color:#c0392b"></div>
   <div class="row">
     <button id="next51Btn" data-i18n="btnNext"></button>
@@ -2155,6 +2172,7 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   state.thumbFrac = 0.5;
   state.momentScale = 0;
   state.momentThought = '';
+  state._thoughtEn = null;
   state.momentWord = '';
   state.momentWordEn = null;
   state._finalEn = null;
@@ -2168,6 +2186,7 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   });
   const sc = document.getElementById('scaleSlider'); if (sc) { sc.value = 0; sc.dispatchEvent(new Event('input')); }
   const tr = document.getElementById('translateResult'); if (tr) tr.style.display = 'none';
+  const ttr = document.getElementById('thoughtTranslateResult'); if (ttr) ttr.style.display = 'none';
   const cap = await readCaptureDate(file);
   state.mediaDate = cap.date;
   state.mediaDateSource = cap.source; // 'exif' | 'video-meta' | 'file' | 'now'
@@ -2530,6 +2549,26 @@ translateBtn.addEventListener('click', async () => {
     tStatus.textContent = t('errTranslate');
   } finally {
     translateBtn.disabled = false;
+  }
+});
+
+// STEP 51 '이 순간에 대한 생각' 영어 변환 (기록에만 저장, 이미지엔 안 새겨짐)
+const thoughtTranslateBtn = document.getElementById('thoughtTranslateBtn');
+thoughtTranslateBtn.addEventListener('click', async () => {
+  const text = document.getElementById('momentThought').value.trim();
+  if (!text) return;
+  const tStatus = document.getElementById('thoughtTranslateStatus');
+  thoughtTranslateBtn.disabled = true;
+  tStatus.textContent = t('stTranslating');
+  try {
+    state._thoughtEn = await translateToEn(text);
+    document.getElementById('thoughtTranslatedLines').textContent = state._thoughtEn;
+    document.getElementById('thoughtTranslateResult').style.display = '';
+    tStatus.textContent = '';
+  } catch (e) {
+    tStatus.textContent = t('errTranslate');
+  } finally {
+    thoughtTranslateBtn.disabled = false;
   }
 });
 
@@ -3010,7 +3049,10 @@ scaleSlider.addEventListener('input', () => {
 });
 function collectMoment() {
   state.momentScale = parseInt(scaleSlider.value, 10) || 0;
-  state.momentThought = document.getElementById('momentThought').value.trim();
+  const thoughtRaw = document.getElementById('momentThought').value.trim();
+  const useThoughtEn = document.querySelector('input[name="thoughtLang"]:checked')?.value === 'en'
+    && state._thoughtEn;
+  state.momentThought = useThoughtEn ? state._thoughtEn : thoughtRaw; // 선택 언어로 저장
   const word = document.getElementById('momentWord').value.trim().split(/\s+/)[0] || '';
   const useEn = document.querySelector('input[name="reasonLang"]:checked')?.value === 'en'
     && state._finalEn;
@@ -3028,7 +3070,9 @@ document.getElementById('next51Btn').addEventListener('click', () => {
   const err = document.getElementById('thoughtErr');
   if (!v) { err.textContent = t('errRequired'); return; }
   err.textContent = '';
-  state.momentThought = v;
+  const useThoughtEn = document.querySelector('input[name="thoughtLang"]:checked')?.value === 'en'
+    && state._thoughtEn;
+  state.momentThought = useThoughtEn ? state._thoughtEn : v; // 선택 언어로 저장
   goto(52);
 });
 // 한 단어 (필수) → 인상 3가지(step55)
@@ -3755,9 +3799,13 @@ async function renderRecList() {
     const th = document.createElement('div');
     th.className = 'rec-thumb';
     if (rec.massThumb) {
+      // 작은 massThumb를 즉시 표시(placeholder)하고, 선명한 out4 원본(960)으로 교체
       const img = document.createElement('img');
       img.src = rec.massThumb;
       th.appendChild(img);
+      fetchOutputBlob(rec.savedAt, 'out4').then(b => {
+        if (b) img.src = URL.createObjectURL(b);
+      }).catch(() => {});
     } else {
       const ph = document.createElement('div');
       ph.className = 'rec-noimg';
@@ -4101,6 +4149,8 @@ function onGlobePick(ev) {
 }
 
 // nodes/edges(평면과 공통)를 지구본에 반영. 매번 그룹 비우고 다시 배치.
+const GLOBE_NODE_H = 0.13;    // 노드 화면상 높이 (sizeAttenuation=false → 줌 무관 고정)
+const GLOBE_LIFT = 1.04;      // 구 표면에서 띄우는 반지름 배율 (파묻힘 방지)
 function renderGlobeNodes(nodes, edges) {
   if (!globeReady) return;
   while (gNodeGroup.children.length) gNodeGroup.remove(gNodeGroup.children[0]);
@@ -4108,27 +4158,50 @@ function renderGlobeNodes(nodes, edges) {
   gNodePickables = [];
   const posOf = new Map(); // savedAt → Vec3 (엣지용)
 
+  // 밀집 분산 — 근접 좌표를 격자로 묶어 그룹 내 인덱스를 센다(지구본 스케일에 맞는 각도로 벌림)
+  const cellOf = r => Math.round(r.pos[0] * 40) + ':' + Math.round(r.pos[1] * 40); // ≈2.5km 격자
+  const groupCount = new Map();
+  nodes.forEach(n => { const c = cellOf(n); groupCount.set(c, (groupCount.get(c) || 0) + 1); });
+  const seen = new Map();
+
   for (const n of nodes) {
-    const v = latLonToVec3(n.pos[0], n.pos[1], GLOBE_R * 1.02);
+    // 같은 격자에 여러 개면 황금각 나선으로 위경도를 살짝 벌린다 (지구본에서 보이게 ~1.5도)
+    const c = cellOf(n);
+    const idx = seen.get(c) || 0; seen.set(c, idx + 1);
+    let lat = n.pos[0], lon = n.pos[1];
+    if (groupCount.get(c) > 1 && idx > 0) {
+      const ga = idx * 2.399963; // 황금각(rad)
+      const rad = 0.9 * Math.sqrt(idx);  // 도 단위 반경
+      lat += rad * Math.cos(ga);
+      lon += rad * Math.sin(ga) / Math.max(0.2, Math.cos(lat * Math.PI / 180));
+    }
+    const v = latLonToVec3(lat, lon, GLOBE_R * GLOBE_LIFT);
     posOf.set(n.rec.savedAt, v);
     let obj;
     if (n.iconUrl) {
-      const tex = gTexLoader.load(n.iconUrl);
+      const tex = gTexLoader.load(n.iconUrl, () => {
+        // 실제 이미지 비율로 스케일 재설정 → 찌그러짐 방지
+        const img = tex.image;
+        if (img && img.width && obj) {
+          const ar = img.width / img.height;
+          obj.scale.set(GLOBE_NODE_H * ar, GLOBE_NODE_H, 1);
+        }
+      });
       tex.colorSpace = THREE.SRGBColorSpace;
-      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, sizeAttenuation: false });
       obj = new THREE.Sprite(mat);
-      obj.scale.set(0.16, 0.28, 1); // 매스 세로 비율
+      obj.scale.set(GLOBE_NODE_H * 0.6, GLOBE_NODE_H, 1); // 로드 전 임시(대략 세로 비율)
     } else {
-      const mat = new THREE.SpriteMaterial({ color: 0x111111 });
+      const mat = new THREE.SpriteMaterial({ color: 0x111111, sizeAttenuation: false });
       obj = new THREE.Sprite(mat);
-      obj.scale.set(0.05, 0.05, 1);
+      obj.scale.set(0.02, 0.02, 1);
     }
     obj.position.copy(v);
     gNodeGroup.add(obj);
     gNodePickables.push({ obj, rec: n.rec });
   }
 
-  // 엣지: 두 노드를 잇는 얇은 선(구 바깥으로 살짝 띄움)
+  // 엣지: 두 노드를 잇는 얇은 선 (노드와 같은 높이라 구에 안 묻힘)
   for (const e of edges) {
     const pa = posOf.get(e.a), pb = posOf.get(e.b);
     if (!pa || !pb) continue;
@@ -4400,6 +4473,8 @@ function renderInfoTable(rows) {
 }
 async function openRecordDetail(rec) {
   state._detailRec = rec; // 상세의 삭제 버튼용
+  // 산출물 비동기 로드 도중 다른 기록으로 넘어가면 이전 렌더를 버리기 위한 세대 카운터
+  const gen = (state._detailGen = (state._detailGen || 0) + 1);
   // 뒤로 버튼이 진입한 화면(맵 97 또는 내 기록 99)으로 돌아가게 출처를 기억
   const cur = document.querySelector('.step.active');
   state._detailFrom = cur && cur.id === 'step97' ? 97 : 99;
@@ -4413,9 +4488,13 @@ async function openRecordDetail(rec) {
     const th = document.createElement('div');
     th.className = 'rec-thumb';
     if (rec.massThumb) {
+      // massThumb 즉시 표시 후 선명한 out4 원본으로 교체
       const img = document.createElement('img');
       img.src = rec.massThumb;
       th.appendChild(img);
+      fetchOutputBlob(rec.savedAt, 'out4').then(b => {
+        if (b) img.src = URL.createObjectURL(b);
+      }).catch(() => {});
     } else {
       fetchOutputBlob(rec.savedAt, 'out4').then(b => {
         if (!b) return;
