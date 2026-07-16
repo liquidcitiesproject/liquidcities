@@ -803,7 +803,7 @@ const I18N = {
     btnSave: '저장',
     cfgKeyHint: 'Claude API 키 — AI 제안이 장면을 실제로 해석하는 데 사용됩니다. 이 브라우저에만 저장되며 Anthropic API 호출에만 쓰입니다.',
     keySet: '키 저장됨 — 장면 해석 활성', keyUnset: '키 없음 — 기본 제안 사용',
-    cfgSbHint: 'Supabase 동기화 — URL과 anon key를 넣으면 접속 시 익명 계정이 자동 생성되고 기록이 사용자별로 서버에 쌓입니다. 비워두면 이 브라우저에만 저장됩니다.',
+    cfgSbHint: 'Supabase 동기화 — URL과 anon key를 넣으면 이메일 로그인으로 기록이 계정별로 서버에 쌓이고 다른 기기에서도 이어집니다. 비워두면 이 브라우저에만 저장됩니다.',
     sbOff: '동기화 꺼짐 — 이 브라우저에만 저장 중',
     sbAnon: id => `동기화 켜짐 — 익명 계정 …${id}`,
     sbLinked: e => `동기화 켜짐 — 연결됨: ${e}`,
@@ -944,7 +944,7 @@ const I18N = {
     btnSave: 'Save',
     cfgKeyHint: 'Claude API key — used so AI suggestions can actually read the scene. Stored only in this browser, sent only to the Anthropic API.',
     keySet: 'Key saved — scene reading on', keyUnset: 'No key — basic suggestions',
-    cfgSbHint: 'Supabase sync — with URL and anon key, an anonymous account is created on visit and records accumulate per user. Leave empty to keep data in this browser only.',
+    cfgSbHint: 'Supabase sync — with URL and anon key, email sign-in accumulates records per account on the server and continues across devices. Leave empty to keep data in this browser only.',
     sbOff: 'Sync off — saving to this browser only',
     sbAnon: id => `Sync on — anonymous account …${id}`,
     sbLinked: e => `Sync on — linked: ${e}`,
@@ -2571,6 +2571,7 @@ async function initSupabase() {
         updateAccountBar();
         updateSbStatus();
         pullServerRecords().then(() => {
+          syncPendingRecords(); // 로그인 전 로컬에만 있던 미전송분을 계정으로 올림
           if (document.getElementById('step0').classList.contains('active')) goto(1);
         });
       }
@@ -2582,7 +2583,7 @@ async function initSupabase() {
       syncPendingRecords();
       updateAccountBar();
     } else {
-      // 세션 없음 → 로그인 화면 게이트 (이메일 또는 게스트 선택)
+      // 세션 없음 → 이메일 로그인 화면으로 (익명 계정은 만들지 않음)
       goto(0);
     }
   } catch (e) {
@@ -2624,6 +2625,16 @@ document.getElementById('pwLoginBtn').addEventListener('click', async () => {
 });
 document.getElementById('logoutBtn').addEventListener('click', async () => {
   if (sb) await sb.auth.signOut().catch(() => {});
+  // 로컬은 캐시일 뿐 — 로그아웃하면 이전 사용자 데이터가 화면에 남지 않게 비운다.
+  // 진짜 데이터는 클라우드에 안전하며, 다시 로그인하면 pullServerRecords()로 복원됨.
+  try {
+    localStorage.removeItem(REC_KEY);         // 기록
+    localStorage.removeItem(LS_KEY);          // 건물 매스
+    localStorage.removeItem('lc_mass_names'); // 매스 이름
+    indexedDB.deleteDatabase('lc-media');     // 산출물(out1~4) 로컬 캐시
+  } catch (e) {}
+  // 화면 목록 즉시 비우기
+  try { renderRecList(); renderSavedList(); } catch (e) {}
   updateAccountBar();
   updateSbStatus();
   goto(0);
