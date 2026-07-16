@@ -262,6 +262,20 @@
   @media (pointer: coarse) {
     input[type=text], input[type=number], input[type=email], input[type=password], textarea { font-size: 16px; }
   }
+
+  /* ============================================================
+     로그인 게이트 — 로그인 전(body.lc-locked)에는 로그인 화면(step0)만
+     보이고 헤더·푸터·다른 모든 step·설정 패널을 전부 숨긴다.
+     초기 로드부터 잠겨 있어 async 세션 확인 중에도 앱이 노출되지 않는다.
+     로그인 성공/기존 세션 확인 시 JS가 lc-locked를 제거한다.
+     (공유 뷰어 ?board= 는 board-viewer 클래스로 별도 처리되며 잠금 해제됨)
+     ============================================================ */
+  body.lc-locked #appHeader,
+  body.lc-locked #appFooter,
+  body.lc-locked #cfgPanel { display: none !important; }
+  body.lc-locked .step { display: none !important; }
+  body.lc-locked #step0 { display: block !important; }
+  body.lc-locked #step0.flow.active { display: block !important; } /* 그리드 대신 단순 블록으로 */
 </style>
 <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -279,7 +293,7 @@
 }
 </script>
 </head>
-<body>
+<body class="lc-locked">
 
 <!-- 언어 전환 (향후 언어 추가는 I18N 딕셔너리에 항목만 추가하면 됨) -->
 
@@ -2559,10 +2573,22 @@ async function updateAccountBar() {
 // 운영자가 설정 패널(빌드 표시 5연타)에서 다른 값을 저장하면 그것이 우선.
 const DEFAULT_SB_URL = 'https://yntccmzrayqbvzusdlud.supabase.co';
 const DEFAULT_SB_KEY = 'sb_publishable_JyyBBJXaB2KW15biPR-8tA_ar3M3KO4'; // 공개 가능 키 (RLS가 데이터 보호)
+// 로그인 게이트 해제 — 로그인 성공/기존 세션 확인 시에만 호출.
+// lc-locked 제거로 헤더·앱 전체가 드러나고 앱 본화면(step1)으로 진입.
+function unlockApp() {
+  document.body.classList.remove('lc-locked');
+  if (document.getElementById('step0').classList.contains('active')) goto(1);
+}
+// 게이트 잠금(=step0로) — 세션 없음/로그아웃/연결 실패 시.
+function lockApp() {
+  document.body.classList.add('lc-locked');
+  goto(0);
+}
 async function initSupabase() {
   const url = localStorage.getItem('lc_sb_url') || DEFAULT_SB_URL;
   const key = localStorage.getItem('lc_sb_key') || DEFAULT_SB_KEY;
-  if (!url || !key || !window.supabase) { sb = null; return; }
+  // 설정/라이브러리 없음 → 서버 없이 로그인 불가 → 잠금 유지(사용자 확정: 연결 실패해도 로그인 필수)
+  if (!url || !key || !window.supabase) { sb = null; lockApp(); return; }
   try {
     sb = window.supabase.createClient(url, key);
     // 매직링크로 돌아온 경우 세션이 자동 수립됨 — 복원 후 화면 진입
@@ -2572,23 +2598,25 @@ async function initSupabase() {
         updateSbStatus();
         pullServerRecords().then(() => {
           syncPendingRecords(); // 로그인 전 로컬에만 있던 미전송분을 계정으로 올림
-          if (document.getElementById('step0').classList.contains('active')) goto(1);
+          unlockApp();
         });
       }
     });
     const { data } = await sb.auth.getSession();
     if (data && data.session) {
-      // 기존 로그인 유지 — 서버 기록 복원 + 미전송분 업로드
+      // 기존 로그인 유지 — 잠금 해제 + 서버 기록 복원 + 미전송분 업로드
+      unlockApp();
       await pullServerRecords();
       syncPendingRecords();
       updateAccountBar();
     } else {
-      // 세션 없음 → 이메일 로그인 화면으로 (익명 계정은 만들지 않음)
-      goto(0);
+      // 세션 없음 → 로그인 화면 (익명 계정은 만들지 않음, 잠금 유지)
+      lockApp();
     }
   } catch (e) {
     console.warn('supabase init failed:', e.message);
     sb = null;
+    lockApp(); // 연결 실패해도 로그인 없이는 진입 불가 (사용자 확정)
   }
   updateSbStatus();
 }
@@ -2637,7 +2665,7 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   try { renderRecList(); renderSavedList(); } catch (e) {}
   updateAccountBar();
   updateSbStatus();
-  goto(0);
+  lockApp(); // 로그아웃 → 다시 로그인 게이트로 잠금
 });
 // 이메일 계정에 비밀번호 설정/변경 — 매직링크 시절 계정에 비밀번호를 붙일 때 사용
 document.getElementById('accPwBtn').addEventListener('click', async () => {
@@ -4126,6 +4154,7 @@ async function initBoardViewer(uid) {
     viewerRecords = (data.payload && data.payload.records) || [];
     viewerMassNames = (data.payload && data.payload.massNames) || {};
     // 풀스크린 보드 뷰어 — 지도 토글·공유·계정 등 앱 UI 없이 보드만
+    document.body.classList.remove('lc-locked'); // 공유 뷰어는 로그인 게이트 예외
     document.body.classList.add('board-viewer');
     document.getElementById('accountBar') && (document.getElementById('accountBar').style.display = 'none');
     goto(97);
