@@ -75,14 +75,14 @@
   .saved-item span { flex: 1; font-size: 13px; color: var(--ink); overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
   .saved-item button { flex: none; padding: 8px 14px; font-size: 12px; }
-  .saved-item img { width: 36px; height: 64px; object-fit: cover; flex: none;
+  .saved-item img { width: 56px; height: 56px; object-fit: contain; flex: none;
     border-radius: 4px; border: 1px solid var(--line); background: #000; }
   #recOutputs img, #recOutputs video { width: 100%; max-width: 300px; display: block;
     border: 1px solid var(--line); border-radius: 6px; background: #000; margin-top: 16px; }
   .mass-cat { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px;
     background: #fff; border: 1px solid var(--line); border-radius: 3px; color: var(--ink);
     font-size: 12px; cursor: pointer; }
-  .mass-cat img { width: 28px; height: 50px; object-fit: cover; border-radius: 4px; background: #000; }
+  .mass-cat img { width: 40px; height: 40px; object-fit: contain; border-radius: 4px; background: #000; }
   .mass-cat.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
   .ai-chip { background: #fff; color: var(--ink); border: 1px solid var(--line);
     padding: 8px 14px; border-radius: 3px; font-size: 13px; font-weight: 400; }
@@ -111,11 +111,14 @@
   .board-card .bc-label { font-size: 9px; color: #555; padding: 1px 2px 3px; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
   .board-card img { width: 100%; display: block; border-radius: 2px; background: #000; }
-  /* 매스 실루엣 노드 — 프레임 없이 산출물 4(투명 PNG) 그대로 */
+  /* 매스 실루엣 노드 — 검정 배경 정사각으로 통일 (투명 PNG를 검정 위에 얹음) */
   .board-mass { position: absolute; width: 120px; cursor: pointer; text-align: center; }
-  .board-mass img { width: 100%; display: block; background: transparent; }
+  .board-mass img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; display: block;
+    background: #000; border-radius: 4px; }
   .board-mass .bm-label { font-size: 10px; color: #444; margin-bottom: 2px; }
   .lc-node { background: none; border: none; cursor: pointer; text-align: center; }
+  /* 지도/보드 노드 이미지도 검정 배경 정사각 */
+  .lc-node img { aspect-ratio: 1 / 1; object-fit: contain; background: #000; border-radius: 4px; }
   .lc-node .bm-label { font-size: 11px; color: #444; margin-bottom: 2px; white-space: nowrap; }
   .lc-edge-label { font-size: 10px; color: #a5a8ad; background: rgba(255,255,255,0.85);
     padding: 0 4px; border-radius: 2px; white-space: nowrap; }
@@ -176,7 +179,8 @@
   .rec-row { display: flex; gap: 28px; padding: 26px 0; border-bottom: 1px solid var(--line);
     align-items: flex-start; cursor: pointer; }
   .rec-thumb { flex: 0 0 240px; }
-  .rec-thumb img { width: 100%; display: block; }
+  .rec-thumb img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain;
+    background: #000; border-radius: 6px; display: block; }
   .rec-thumb .rec-noimg { width: 100%; height: 150px; background: var(--panel);
     display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 12px; }
   .rec-mid { flex: 0 0 180px; min-width: 0; }
@@ -1229,7 +1233,7 @@ function renderQuickMasses() {
     if (item.thumb) {
       const img = document.createElement('img');
       img.src = item.thumb;
-      img.style.cssText = 'width:64px; height:114px; object-fit:cover; border-radius:6px; display:block';
+      img.style.cssText = 'width:64px; height:64px; object-fit:contain; background:#000; border-radius:6px; display:block';
       cell.appendChild(img);
     }
     const lb = document.createElement('div');
@@ -1291,7 +1295,7 @@ async function coordsToW3w(lat, lon) {
 // Nominatim 1회 조회 (limit=3, 첫 결과 사용)
 async function nominatim(q) {
   const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=3&q=' + encodeURIComponent(q);
-  const res = await fetch(url, { headers: { 'Accept-Language': 'ko,en' } });
+  const res = await fetch(url, { headers: { 'Accept-Language': lang === 'ko' ? 'ko,en' : 'en' } });
   if (!res.ok) throw new Error('Nominatim ' + res.status);
   const list = await res.json();
   return list.length ? list[0] : null;
@@ -1301,12 +1305,71 @@ async function nominatim(q) {
 async function nominatimStruct(params) {
   const usp = new URLSearchParams({ format: 'json', addressdetails: '1', limit: '3', ...params });
   const res = await fetch('https://nominatim.openstreetmap.org/search?' + usp.toString(),
-    { headers: { 'Accept-Language': 'ko,en' } });
+    { headers: { 'Accept-Language': lang === 'ko' ? 'ko,en' : 'en' } });
   if (!res.ok) throw new Error('Nominatim ' + res.status);
   const list = await res.json();
   return list.length ? list[0] : null;
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// 좌표 → 영어 주소 (reverse geocoding). 실패 시 null.
+async function reverseGeocodeEn(lat, lon) {
+  if (!isFinite(lat) || !isFinite(lon)) return null;
+  const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`;
+  const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+  if (!res.ok) throw new Error('Nominatim ' + res.status);
+  const data = await res.json();
+  return (data && data.display_name) || null;
+}
+// 기존 기록의 한글 주소를 조용히 영어로 재변환.
+// Nominatim 이용약관: 초당 1회 → 큐로 1건씩 1초 간격. 한 번만 시도(_addrEn 플래그).
+const HANGUL = /[가-힣]/;
+let addrQueueRunning = false;
+function queueAddressEnglishization() {
+  if (lang === 'ko') return;           // 한글 UI에서는 굳이 영어화하지 않음
+  if (addrQueueRunning) return;
+  addrQueueRunning = true;
+  (async () => {
+    try {
+      // 기록(records)
+      const recs = getRecords();
+      for (const rec of recs) {
+        if (rec._addrEn) continue;
+        if (!rec.address || !HANGUL.test(rec.address)) { rec._addrEn = true; continue; }
+        if (!isFinite(rec.lat) || !isFinite(rec.lon)) { rec._addrEn = true; continue; }
+        try {
+          const en = await reverseGeocodeEn(rec.lat, rec.lon);
+          if (en) {
+            // 접두 표기(동·호수 · )는 유지
+            const prefix = rec.address.includes(' · ') ? rec.address.split(' · ')[0] + ' · ' : '';
+            rec.address = prefix + en;
+          }
+          rec._addrEn = true;
+          const l = getRecords(); const r2 = l.find(x => x.savedAt === rec.savedAt);
+          if (r2) { r2.address = rec.address; r2._addrEn = true; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
+          if (en) { resyncRecord(r2 || rec); try { renderRecList(); } catch (e) {} try { renderMapMarkers(); } catch (e) {} }
+        } catch (e) { /* rate limit 등 — 다음 기회에 재시도(플래그 안 세움) */ }
+        await sleep(1100);
+      }
+      // 건물 매스(buildings)
+      const blds = getSavedBuildings();
+      for (const b of blds) {
+        if (b._addrEn) continue;
+        if (!b.address || !HANGUL.test(b.address)) { b._addrEn = true; continue; }
+        if (!isFinite(b.lat) || !isFinite(b.lon)) { b._addrEn = true; continue; }
+        try {
+          const en = await reverseGeocodeEn(b.lat, b.lon);
+          if (en) b.address = en;
+          b._addrEn = true;
+          const l = getSavedBuildings(); const b2 = l.find(x => x.id === b.id);
+          if (b2) { b2.address = b.address; b2._addrEn = true; localStorage.setItem(LS_KEY, JSON.stringify(l)); }
+          if (en) { resyncBuilding(b2 || b); try { renderSavedList(); } catch (e) {} }
+        } catch (e) {}
+        await sleep(1100);
+      }
+    } finally { addrQueueRunning = false; }
+  })();
+}
 
 // 검색 성공 공통 처리: 동·호수는 검색에 쓰지 않고 주소 표기에만 접두
 async function finishSearch(hit, usedLabel) {
@@ -3591,6 +3654,7 @@ function renderRecCats() {
   }
 }
 async function renderRecList() {
+  queueAddressEnglishization(); // 한글 주소 기록을 백그라운드로 영어화 (초당 1건)
   renderRecCats();
   const wrap = document.getElementById('recList');
   let list = getRecords().slice().reverse(); // 최신이 위
@@ -4002,10 +4066,10 @@ function paintGraph(layer, nodes, edges) {
   for (const n of nodes) {
     posOf.set(n.rec.savedAt, n.pos);
     const html = n.iconUrl
-      ? `<div class="bm-label">${escHtml(n.labelText)}</div><img src="${n.iconUrl}" style="width:110px; display:block">`
+      ? `<div class="bm-label">${escHtml(n.labelText)}</div><img src="${n.iconUrl}" style="width:110px; height:110px; object-fit:contain; background:#000; border-radius:4px; display:block">`
       : `<div class="bm-label" style="font-size:14px">${escHtml(n.labelText)}</div>`;
     const marker = L.marker(n.pos, {
-      icon: L.divIcon({ html, className: 'lc-node', iconSize: [110, n.iconUrl ? 120 : 20], iconAnchor: [55, n.iconUrl ? 60 : 10] }),
+      icon: L.divIcon({ html, className: 'lc-node', iconSize: [110, n.iconUrl ? 128 : 20], iconAnchor: [55, n.iconUrl ? 64 : 10] }),
     });
     const when = n.rec.mediaDate ? fmtDate(new Date(n.rec.mediaDate)) : '';
     marker.bindTooltip(`${when}${n.rec.momentWord ? ' · ' + n.rec.momentWord : ''}`);
@@ -4026,6 +4090,7 @@ function paintGraph(layer, nodes, edges) {
 
 async function renderMapMarkers() {
   if (!window.L) return;
+  queueAddressEnglishization(); // 한글 주소 기록을 백그라운드로 영어화 (초당 1건)
   // 왼쪽 보드 (타일 없음)
   if (!lcMap) {
     lcMap = L.map('mapView', { zoomControl: true });
