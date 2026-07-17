@@ -3573,6 +3573,28 @@ function getRecords() {
   try { return JSON.parse(localStorage.getItem(REC_KEY)) || []; } catch (e) { return []; }
 }
 
+// 기존 기록엔 massOsmId가 없다(뒤늦게 추가된 필드). 로컬 저장 건물의 좌표와 맞춰
+// 같은 건물의 osmId를 record.massOsmId로 소급 채운다 → 옛 기록도 같은 건물끼리 합쳐짐.
+// 1회성·저비용(로컬만). 매칭 실패한 옛 기록은 좌표 폴백 그대로.
+function backfillMassOsmIds() {
+  try {
+    const recs = getRecords();
+    if (!recs.length) return;
+    const blds = getSavedBuildings().filter(b => b.building && b.building.osmId != null);
+    if (!blds.length) return;
+    let changed = false;
+    for (const rec of recs) {
+      if (rec.massOsmId != null && rec.massOsmId !== '') continue; // 이미 있음
+      if (!isFinite(rec.lat) || !isFinite(rec.lon)) continue;
+      // 같은 좌표(소수점 4자리 ≈ 11m)의 저장 건물을 찾아 그 osmId를 붙인다
+      const hit = blds.find(b => isFinite(b.lat) && isFinite(b.lon)
+        && b.lat.toFixed(4) === rec.lat.toFixed(4) && b.lon.toFixed(4) === rec.lon.toFixed(4));
+      if (hit) { rec.massOsmId = String(hit.building.osmId); changed = true; }
+    }
+    if (changed) localStorage.setItem(REC_KEY, JSON.stringify(recs));
+  } catch (e) { /* 소급 실패는 무시 — 좌표 폴백으로 동작 */ }
+}
+
 // 기존 기록의 out4 이미지가 이 기기 IndexedDB엔 있는데 서버에 안 올라간 경우
 // (예전엔 다운로드해야만 올라갔음) 조용히 서버로 소급 업로드 → 다른 기기에서도 보이게.
 // upsert라 중복 안전. _out4Uploaded 플래그로 1회만 시도.
@@ -3695,6 +3717,7 @@ function buildRecFields() {
     userContact: state.userText || '',
     contact: state.contact || null,     // {name, instagram, email, website} 또는 {anonymous:true}
     massThumb: state._massThumb || null, // 매핑된 매스 축소 PNG (보드/지도 노드용)
+    massOsmId: (state.building && state.building.osmId != null) ? String(state.building.osmId) : null, // 건물 매스 식별자(OSM) — 같은 건물 그룹핑용
   };
 }
 async function resyncRecord(rec) {
@@ -3968,9 +3991,16 @@ function renderEmotionFilter() {
 
 // 기록을 "매스(건물)" 단위로 그룹화 — 주소+좌표 반올림을 키로
 function massKeyOf(rec) {
+  // 같은 건물이면 같은 매스 — OSM 건물 ID가 있으면 그것으로 그룹핑(주소·좌표 오차 무관).
+  // record는 massOsmId, 저장된 건물 객체는 building.osmId 필드를 쓰므로 둘 다 지원.
+  const raw = (rec.massOsmId != null && rec.massOsmId !== '') ? rec.massOsmId
+            : (rec.building && rec.building.osmId != null && rec.building.osmId !== '') ? rec.building.osmId
+            : null;
+  if (raw != null) return 'osm:' + raw;
+  // 폴백(옛 기록): 좌표만으로. 주소 첫줄은 빼서(같은 건물을 다른 주소로 입력한 경우도 합쳐지게).
   const la = isFinite(rec.lat) ? rec.lat.toFixed(4) : '?';
   const lo = isFinite(rec.lon) ? rec.lon.toFixed(4) : '?';
-  return `${(rec.address || '').split(',')[0].trim()}|${la},${lo}`;
+  return `geo:${la},${lo}`;
 }
 function groupByMass() {
   const groups = new Map();
@@ -3985,6 +4015,7 @@ function groupByMass() {
 async function renderMassCats() {
   const box = document.getElementById('massCats');
   box.innerHTML = '';
+  if (!viewerRecords) backfillMassOsmIds(); // 본인 데이터일 때만 옛 기록 osmId 소급(뷰어는 snapshot값 사용)
   const groups = groupByMass();
   let savedThumbs = [];
   try { savedThumbs = JSON.parse(localStorage.getItem('lc_saved_buildings')) || []; } catch (e) {}
@@ -4504,6 +4535,7 @@ document.getElementById('shareBoardBtn').addEventListener('click', async () => {
       mediaDate: r.mediaDate,
       address: r.address, lat: r.lat, lon: r.lon, mediaGps: r.mediaGps,
       segments: r.segments, massThumb: r.massThumb, gpsDistM: r.gpsDistM,
+      massOsmId: r.massOsmId || null, // 같은 건물 그룹핑용
     }));
     // 사용자가 지정한 매스 이름도 함께 담는다 (뷰어에서 동일하게 표시)
     const massNames = {};
