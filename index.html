@@ -4557,12 +4557,18 @@ async function initBoardViewer(uid) {
     goto(97);
     renderMassCats();
     setMapMode('board');
-    setTimeout(() => {
-      if (lcMap) {
-        lcMap.invalidateSize();
-        lcMap.zoomControl.setPosition('bottomright'); // 좌상단 카테고리와 겹치지 않게
-      }
-    }, 200);
+    // iframe 임베드 시 컨테이너 크기가 늦게 잡혀 지도가 빈 화면으로 뜨는 문제 방지:
+    // invalidateSize를 여러 시점(즉시·짧게·load 후)에 부르고, 크기가 잡히면 노드에 맞춰 다시 fit.
+    const refitViewer = () => {
+      if (!lcMap) return;
+      lcMap.invalidateSize();
+      lcMap.zoomControl.setPosition('bottomright'); // 좌상단 카테고리와 겹치지 않게
+      lcFitted = false; // 새 크기 기준으로 노드 무리에 다시 맞춤
+      renderMapMarkers();
+    };
+    [60, 250, 600, 1200].forEach(ms => setTimeout(refitViewer, ms));
+    window.addEventListener('load', refitViewer);
+    window.addEventListener('resize', () => { if (lcMap) lcMap.invalidateSize(); });
     return true;
   } catch (e) {
     console.warn('board viewer failed:', e.message);
