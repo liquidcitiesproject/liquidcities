@@ -157,8 +157,11 @@
   body.board-viewer #step97 > .sub,
   body.board-viewer #step97 .row,
   body.board-viewer #step97 .status { display: none !important; }
+  /* iframe 임베드 시 세로 스크롤바가 생기면 100vw가 스크롤바까지 포함해 지도가
+     오른쪽으로 넘쳐 줌 버튼/로고가 잘린다 → 100%(부모 폭, 스크롤바 제외)로. */
+  body.board-viewer { overflow: hidden !important; }
   body.board-viewer #mapView {
-    position: fixed !important; inset: 0; width: 100vw !important; height: 100vh !important;
+    position: fixed !important; inset: 0; width: 100% !important; height: 100% !important;
     border: none !important; border-radius: 0 !important; z-index: 1;
   }
   body.board-viewer #massCats {
@@ -4556,7 +4559,7 @@ async function initBoardViewer(uid) {
     document.getElementById('accountBar') && (document.getElementById('accountBar').style.display = 'none');
     goto(97);
     renderMassCats();
-    setMapMode('board');
+    setMapMode('map'); // 방문자용 뷰어 — 실제 지도 타일 배경 위에 노드 표시
     // iframe 임베드 시 컨테이너 크기가 늦게 잡혀 지도가 빈 화면으로 뜨는 문제 방지:
     // invalidateSize를 여러 시점(즉시·짧게·load 후)에 부르고, 크기가 잡히면 노드에 맞춰 다시 fit.
     const refitViewer = () => {
