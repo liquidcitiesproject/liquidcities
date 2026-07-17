@@ -4043,8 +4043,13 @@ async function renderMassCats() {
     const match = savedThumbs.find(b =>
       isFinite(b.lat) && isFinite(recs[0].lat) &&
       Math.abs(b.lat - recs[0].lat) < 0.001 && Math.abs(b.lon - recs[0].lon) < 0.001);
-    // 이름: 맵에서 지정한 이름 → 검색 기록(아카이브)에서 지정한 이름 → 주소 첫 부분
-    const name = customNames[key] || (match && match.customName) || key.split('|')[0];
+    // 이름: 맵에서 지정한 이름(현재 키 또는 좌표 기반 옛 키) → 저장 건물 이름
+    //       → 공유자 이름 → 주소 첫 부분. (key가 'osm:'/'geo:'라 split('|')로 라벨을 만들면 안 됨)
+    const legacyKey = `${(recs[0].address || '').split(',')[0].trim()}|` +
+      `${isFinite(recs[0].lat) ? recs[0].lat.toFixed(4) : '?'},${isFinite(recs[0].lon) ? recs[0].lon.toFixed(4) : '?'}`;
+    const name = customNames[key] || customNames[legacyKey] || (match && match.customName)
+      || (recs[0].address ? recs[0].address.split(',')[0].trim() : '')
+      || '(unnamed)';
     let thumbUrl = match && match.thumb;
     if (!thumbUrl) {
       const b4 = await idbGet(recs[0].savedAt + ':out4');
