@@ -2967,6 +2967,7 @@ async function deleteRecord(savedAt) {
   }
   renderRecList();
   renderSavedList(); // 내보내기/관리 버튼 표시 갱신
+  autoShareBoard(); // 공유 중이면 삭제도 홈페이지 맵에 즉시 반영
 }
 async function syncPendingBuildings() {
   if (!sb) return;
@@ -3749,6 +3750,7 @@ function saveRecord() {
       }
       resyncRecord(r);
       renderSavedList();
+      autoShareBoard(); // 공유 중이면 홈페이지 맵에 즉시 반영
     }
     return;
   }
@@ -3774,6 +3776,7 @@ function saveRecord() {
     const r2 = l.find(x => x.savedAt === rec.savedAt);
     if (r2) { r2.synced = true; localStorage.setItem(REC_KEY, JSON.stringify(l)); }
   });
+  autoShareBoard(); // 공유 중이면 새 기록을 홈페이지 맵에 즉시 반영
   // 자유 입력 세그먼트를 집계용 카테고리로 백그라운드 분류 (Claude 키 있을 때만, 실패 무시)
   const segs = rec.segments || [];
   const key = localStorage.getItem('lc_api_key');
@@ -4527,36 +4530,70 @@ async function renderMapMarkers() {
 let viewerRecords = null; // ?board= 뷰어 모드일 때 이 목록을 데이터 소스로 사용
 let viewerMassNames = {};  // 공유자가 지정한 매스 이름
 function boardRecords() { return viewerRecords || getRecords(); }
+
+// 현재 로컬 기록으로 공유 스냅샷(payload)을 만든다 — 공유/자동갱신 공통.
+function buildBoardSnapshot() {
+  const snapshot = getRecords().map(r => ({
+    savedAt: r.savedAt, momentWord: r.momentWord, momentWordEn: r.momentWordEn,
+    momentScale: r.momentScale, momentEmotion: r.momentEmotion, momentEmotionPct: r.momentEmotionPct,
+    mediaDate: r.mediaDate,
+    address: r.address, lat: r.lat, lon: r.lon, mediaGps: r.mediaGps,
+    segments: r.segments, massThumb: r.massThumb, gpsDistM: r.gpsDistM,
+    massOsmId: r.massOsmId || null, // 같은 건물 그룹핑용
+  }));
+  // 사용자가 지정한 매스 이름도 함께 담는다 (뷰어에서 동일하게 표시)
+  const massNames = {};
+  try { Object.assign(massNames, JSON.parse(localStorage.getItem('lc_mass_names')) || {}); } catch (e) {}
+  const savedB = getSavedBuildings();
+  for (const r of getRecords()) {
+    const k = massKeyOf(r);
+    if (!massNames[k]) {
+      const m = savedB.find(b => isFinite(b.lat) && isFinite(r.lat)
+        && Math.abs(b.lat - r.lat) < 0.001 && Math.abs(b.lon - r.lon) < 0.001);
+      if (m && m.customName) massNames[k] = m.customName;
+    }
+  }
+  return { records: snapshot, massNames };
+}
+
+// 공유 스냅샷을 서버에 upsert. 성공하면 uid 반환.
+async function pushBoardSnapshot() {
+  if (!sb) return null;
+  const { data: u } = await sb.auth.getUser();
+  const uid = u && u.user && u.user.id;
+  if (!uid) return null;
+  const { error } = await sb.from('shared_boards')
+    .upsert({ user_id: uid, payload: buildBoardSnapshot(), updated_at: new Date().toISOString() });
+  if (error) throw error;
+  return uid;
+}
+
+// 자동 공유: 이미 한 번이라도 공유한 사용자(shared_boards에 행이 있음)면
+// 기록 저장/수정/삭제 시 조용히 최신 스냅샷으로 갱신 → 홈페이지 맵에 즉시 반영.
+// 아직 공유 안 한 사용자는 건드리지 않음(자동으로 공개되지 않게). 연타 방지 디바운스.
+let _autoShareTimer = null;
+function autoShareBoard() {
+  if (!sb || viewerRecords) return; // 뷰어 모드에선 안 함
+  clearTimeout(_autoShareTimer);
+  _autoShareTimer = setTimeout(async () => {
+    try {
+      const { data: u } = await sb.auth.getUser();
+      const uid = u && u.user && u.user.id;
+      if (!uid) return;
+      // 이미 공유 중일 때만 자동 갱신 (최초 공유는 사용자가 '보드 공유' 버튼으로)
+      const { data: existing } = await sb.from('shared_boards').select('user_id').eq('user_id', uid).maybeSingle();
+      if (!existing) return;
+      await pushBoardSnapshot();
+    } catch (e) { /* 자동 갱신 실패는 조용히 무시 — 다음 저장 때 재시도 */ }
+  }, 1200);
+}
+
 document.getElementById('shareBoardBtn').addEventListener('click', async () => {
   const st = document.getElementById('shareStatus');
   if (!sb) { st.textContent = t('shareNeedServer'); return; }
   try {
-    const { data: u } = await sb.auth.getUser();
-    const uid = u && u.user && u.user.id;
+    const uid = await pushBoardSnapshot();
     if (!uid) { st.textContent = t('shareNeedServer'); return; }
-    const snapshot = getRecords().map(r => ({
-      savedAt: r.savedAt, momentWord: r.momentWord, momentWordEn: r.momentWordEn,
-      momentScale: r.momentScale, momentEmotion: r.momentEmotion, momentEmotionPct: r.momentEmotionPct,
-      mediaDate: r.mediaDate,
-      address: r.address, lat: r.lat, lon: r.lon, mediaGps: r.mediaGps,
-      segments: r.segments, massThumb: r.massThumb, gpsDistM: r.gpsDistM,
-      massOsmId: r.massOsmId || null, // 같은 건물 그룹핑용
-    }));
-    // 사용자가 지정한 매스 이름도 함께 담는다 (뷰어에서 동일하게 표시)
-    const massNames = {};
-    try { Object.assign(massNames, JSON.parse(localStorage.getItem('lc_mass_names')) || {}); } catch (e) {}
-    const savedB = getSavedBuildings();
-    for (const r of getRecords()) {
-      const k = massKeyOf(r);
-      if (!massNames[k]) {
-        const m = savedB.find(b => isFinite(b.lat) && isFinite(r.lat)
-          && Math.abs(b.lat - r.lat) < 0.001 && Math.abs(b.lon - r.lon) < 0.001);
-        if (m && m.customName) massNames[k] = m.customName;
-      }
-    }
-    const { error } = await sb.from('shared_boards')
-      .upsert({ user_id: uid, payload: { records: snapshot, massNames }, updated_at: new Date().toISOString() });
-    if (error) throw error;
     const link = location.origin + location.pathname + '?board=' + uid;
     st.textContent = t('shareReady') + ' ' + link;
     try { await navigator.clipboard.writeText(link); st.textContent = t('shareCopied') + ' ' + link; } catch (e) {}
@@ -4609,6 +4646,36 @@ async function initBoardViewer(uid) {
     [60, 250, 600, 1200].forEach(ms => setTimeout(refitViewer, ms));
     window.addEventListener('load', refitViewer);
     window.addEventListener('resize', () => { if (lcMap) lcMap.invalidateSize(); });
+
+    // 공유 보드가 갱신되면 뷰어를 자동으로 최신화 (새로고침 없이 즉시 반영).
+    // 공유자가 앱에서 기록을 올리면 → shared_boards 갱신 → 여기서 감지 → 노드 갱신.
+    let lastStamp = (data.payload && JSON.stringify(data.payload).length) || 0;
+    const applyPayload = (payload) => {
+      if (!payload) return;
+      viewerRecords = payload.records || [];
+      viewerMassNames = payload.massNames || {};
+      lcFitted = false;             // 새 노드 무리에 맞춰 다시 확대
+      renderMassCats();
+      renderMapMarkers();
+    };
+    // (a) Supabase Realtime 구독 — publication에 shared_boards가 있으면 즉시 반영
+    try {
+      client.channel('board-' + uid)
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'shared_boards', filter: 'user_id=eq.' + uid },
+          (msg) => { const p = msg.new && msg.new.payload; if (p) applyPayload(p); })
+        .subscribe();
+    } catch (e) { /* Realtime 미설정이어도 아래 폴링이 커버 */ }
+    // (b) 폴링 폴백 — Realtime 설정과 무관하게 20초마다 변경 확인(가볍게 payload만)
+    setInterval(async () => {
+      try {
+        const { data: d2 } = await client.from('shared_boards').select('payload').eq('user_id', uid).single();
+        if (!d2 || !d2.payload) return;
+        const stamp = JSON.stringify(d2.payload).length;
+        if (stamp !== lastStamp) { lastStamp = stamp; applyPayload(d2.payload); }
+      } catch (e) { /* 일시 오류 무시 */ }
+    }, 20000);
+
     return true;
   } catch (e) {
     console.warn('board viewer failed:', e.message);
@@ -4831,6 +4898,7 @@ document.getElementById('clearAllBtn').addEventListener('click', async () => {
   }
   renderRecList();
   renderSavedList();
+  autoShareBoard(); // 공유 중이면 전체 삭제도 홈페이지 맵에 반영(빈 보드)
 });
 
 document.getElementById('exportBtn').addEventListener('click', () => {
