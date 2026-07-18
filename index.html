@@ -103,6 +103,28 @@
   .emo-dot { position: absolute; width: 16px; height: 16px; border-radius: 50%;
     background: var(--ink); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--ink);
     transform: translate(-50%, -50%); display: none; pointer-events: none; }
+  /* ---- 감정 좌표 사분면 뷰 (#mapView 위 오버레이) ---- */
+  #quadView { display: none; position: absolute; inset: 0; border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden;
+    background: linear-gradient(135deg, #f2f6f5 0%, #faf7f2 100%); }
+  #quadView.on { display: block; }
+  .quad-axis-x { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line); }
+  .quad-axis-y { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line); }
+  .quad-lbl { position: absolute; font-size: 11px; color: var(--dim); pointer-events: none; z-index: 2; }
+  .quad-lbl-top { top: 10px; left: 50%; transform: translateX(-50%); }
+  .quad-lbl-bottom { bottom: 10px; left: 50%; transform: translateX(-50%); }
+  .quad-lbl-left { left: 10px; top: 50%; transform: translateY(-50%); }
+  .quad-lbl-right { right: 10px; top: 50%; transform: translateY(-50%); }
+  .quad-node { position: absolute; transform: translate(-50%, -50%); cursor: pointer;
+    width: 46px; height: 46px; z-index: 3; transition: transform .15s; }
+  .quad-node:hover { transform: translate(-50%, -50%) scale(1.15); z-index: 4; }
+  .quad-node img { width: 100%; height: 100%; object-fit: cover; display: block;
+    border: 1px solid rgba(0,0,0,0.15); background: #fff; }
+  .quad-node .quad-cap { position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    margin-top: 2px; font-size: 9px; white-space: nowrap; color: var(--ink);
+    text-shadow: 0 1px 4px rgba(255,255,255,0.9); pointer-events: none; }
+  .quad-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: var(--dim); text-align: center; padding: 0 24px; }
   /* ---- 오늘의 기분 정렬 패널 (기본 숨김, 열리면 지도 위 오버레이 시트) ---- */
   #moodSortPanel { display: none; }
   #moodSortPanel.open { display: block; }
@@ -829,6 +851,7 @@
     <button id="viewBoardBtn" class="secondary" style="opacity:1" data-i18n="btnBoard"></button>
     <button id="viewMapBtn" class="secondary" style="opacity:0.5" data-i18n="btnGeoMap"></button>
     <button id="viewGlobeBtn" class="secondary" style="opacity:0.5" data-i18n="btnGlobe"></button>
+    <button id="viewQuadBtn" class="secondary" style="opacity:0.5" data-i18n="btnQuad"></button>
     <button id="moodSortBtn" class="secondary" data-i18n="moodSortLabel"></button>
     <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
     <button id="unshareBoardBtn" class="secondary" data-i18n="btnUnshareBoard"></button>
@@ -861,6 +884,17 @@
   <div class="status" id="mapStatus" style="margin:0 0 8px"></div>
   <div style="position:relative">
     <div id="mapView" style="width:100%; height:560px; border:1px solid var(--line); border-radius:8px; background:#fff"></div>
+    <!-- 감정 좌표 사분면 뷰 (노드를 x:낯섦↔편안, y:고요↔격렬 평면에 배치) -->
+    <div id="quadView">
+      <div class="quad-axis-x"></div>
+      <div class="quad-axis-y"></div>
+      <span class="quad-lbl quad-lbl-top" data-i18n="emoAxisYPos"></span>
+      <span class="quad-lbl quad-lbl-bottom" data-i18n="emoAxisYNeg"></span>
+      <span class="quad-lbl quad-lbl-left" data-i18n="emoAxisXNeg"></span>
+      <span class="quad-lbl quad-lbl-right" data-i18n="emoAxisXPos"></span>
+      <div id="quadNodes"></div>
+      <div class="quad-empty" id="quadEmpty" data-i18n="quadEmpty"></div>
+    </div>
     <!-- 평균 스케일 세로 게이지 (스케치의 우측 scale 바) -->
     <div id="scaleGauge" style="display:none; position:absolute; top:50%; right:10px; transform:translateY(-50%);
       width:34px; height:260px; background:rgba(255,255,255,0.94); border:1px solid var(--line); box-shadow:0 2px 8px rgba(0,0,0,0.15);
@@ -1063,7 +1097,8 @@ const I18N = {
     btnMap: '맵',
     mapTitle: '맵',
     renamePrompt: '이 매스의 이름을 정해주세요',
-    btnBoard: '보드', btnGeoMap: '지도', btnGlobe: '지구본',
+    btnBoard: '보드', btnGeoMap: '지도', btnGlobe: '지구본', btnQuad: '감정 좌표',
+    quadEmpty: '아직 감정 좌표가 있는 기록이 없어요. 새 기록은 감정 평면에서 위치가 정해집니다.',
     edgeSameMass: '같은 매스', edgeScale: '비슷한 스케일',
     mapNoGps: n => `${n}건은 미디어에 위치 정보가 없어 지도에 표시되지 않습니다`,
     mapSub: '미디어가 촬영된 위치에 매스가 놓입니다. 위(카테고리)에서 매스를 고르면 그 매스로 만든 미디어만 보이고, 우측 게이지는 평균 스케일입니다.',
@@ -1233,7 +1268,8 @@ const I18N = {
     btnMap: 'Map',
     mapTitle: 'Map',
     renamePrompt: 'Name this mass',
-    btnBoard: 'Board', btnGeoMap: 'Map', btnGlobe: 'Globe',
+    btnBoard: 'Board', btnGeoMap: 'Map', btnGlobe: 'Globe', btnQuad: 'Emotion',
+    quadEmpty: 'No records with emotional coordinates yet. New moments get placed on the emotion plane.',
     edgeSameMass: 'same mass', edgeScale: 'similar scale',
     mapNoGps: n => `${n} record(s) have no media location and are not shown on the map`,
     mapSub: 'Masses sit where the media was captured. Pick a mass above to filter its media; the gauge shows the average scale.',
@@ -4728,24 +4764,68 @@ function setMapMode(mode) {
   set('viewBoardBtn', 'board');
   set('viewMapBtn', 'map');
   set('viewGlobeBtn', 'globe');
+  set('viewQuadBtn', 'quad');
   // 지구본은 별도 Three.js 뷰 — Leaflet 지도/오버레이와 표시 전환
   const globeOn = boardMode === 'globe';
+  const quadOn = boardMode === 'quad';
   const gv = document.getElementById('globeView');
   const mapEl = document.getElementById('mapView');
+  const qv = document.getElementById('quadView');
   const wf = document.getElementById('wordFloat');
   if (gv) gv.style.display = globeOn ? 'block' : 'none';
-  if (mapEl) mapEl.style.visibility = globeOn ? 'hidden' : 'visible';
+  if (qv) qv.classList.toggle('on', quadOn);
+  // 지도(Leaflet)는 지구본·사분면일 때 숨김
+  if (mapEl) mapEl.style.visibility = (globeOn || quadOn) ? 'hidden' : 'visible';
   // 스케일 게이지는 감정 도입으로 폐기 — 항상 숨김
   const gauge = document.getElementById('scaleGauge');
   if (gauge) gauge.style.display = 'none';
-  if (wf && globeOn) wf.innerHTML = '';
+  if (wf && (globeOn || quadOn)) wf.innerHTML = '';
   if (globeOn) { ensureGlobe(); startGlobeLoop(); setTimeout(resizeGlobe, 60); lcFitted = false; }
-  else { stopGlobeLoop(); if (lcMap) setTimeout(() => lcMap.invalidateSize(), 60); }
+  else { stopGlobeLoop(); if (lcMap && !quadOn) setTimeout(() => lcMap.invalidateSize(), 60); }
   renderMapMarkers();
 }
 document.getElementById('viewBoardBtn').addEventListener('click', () => setMapMode('board'));
 document.getElementById('viewMapBtn').addEventListener('click', () => setMapMode('map'));
 document.getElementById('viewGlobeBtn').addEventListener('click', () => setMapMode('globe'));
+document.getElementById('viewQuadBtn').addEventListener('click', () => setMapMode('quad'));
+
+// 감정 좌표 사분면 뷰 렌더 — 좌표(emoX,emoY)를 가진 기록을 평면 위에 노드로 배치.
+function renderQuad(recs) {
+  const box = document.getElementById('quadNodes');
+  const empty = document.getElementById('quadEmpty');
+  if (!box) return;
+  box.innerHTML = '';
+  const withCoord = recs.filter(hasCoord);
+  if (empty) empty.style.display = withCoord.length ? 'none' : 'flex';
+  const placed = []; // 겹침 살짝 분산용 [x%,y%]
+  for (const rec of withCoord) {
+    let xp = (rec.emoX + 1) / 2 * 100;
+    let yp = (1 - rec.emoY) / 2 * 100;
+    // 같은 자리 겹치면 나선으로 조금 벌림
+    let k = 0;
+    while (placed.some(p => Math.abs(p[0] - xp) < 4 && Math.abs(p[1] - yp) < 4) && k < 12) {
+      k++; xp += 3 * Math.cos(k * 2.4); yp += 3 * Math.sin(k * 2.4);
+    }
+    xp = Math.max(5, Math.min(95, xp)); yp = Math.max(6, Math.min(92, yp));
+    placed.push([xp, yp]);
+    const node = document.createElement('div');
+    node.className = 'quad-node';
+    node.style.left = xp + '%'; node.style.top = yp + '%';
+    const img = document.createElement('img');
+    if (rec.massThumb) {
+      img.src = rec.massThumb;
+      fetchOutputBlob(rec.savedAt, 'out4').then(b => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
+    } else {
+      fetchOutputBlob(rec.savedAt, 'out4').then(b => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
+    }
+    node.appendChild(img);
+    const word = rec.momentWordEn || rec.momentWord;
+    if (word) { const cap = document.createElement('div'); cap.className = 'quad-cap'; cap.textContent = word; node.appendChild(cap); }
+    node.title = (rec.emoTags || []).map(id => t('emo_' + id)).join(' · ');
+    node.addEventListener('click', () => openRecordDetail(rec));
+    box.appendChild(node);
+  }
+}
 
 let lcTileLayer = null;
 let lcFitted = false; // 모드 전환마다 뷰를 리셋하지 않도록 1회만 fit
@@ -5078,6 +5158,8 @@ async function renderMapMarkers() {
   updateGauge(recs);
   if (boardMode === 'map') renderFloatWords(recs);
   else document.getElementById('wordFloat').innerHTML = '';
+  // 사분면(감정 좌표) 뷰 — 노드를 x,y 평면에 배치. 별도 렌더 후 종료.
+  if (boardMode === 'quad') { renderQuad(recs); return; }
 
   // 노드 좌표·아이콘을 한 번만 계산해 세 뷰에서 공유
   const nodes = [];
