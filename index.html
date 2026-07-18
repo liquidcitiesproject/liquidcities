@@ -88,6 +88,21 @@
     padding: 8px 14px; border-radius: 3px; font-size: 13px; font-weight: 400; }
   .ai-chip:hover { border-color: #999; }
   .ai-chip.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
+  /* ---- 감정 좌표 평면 (STEP5b · 오늘의 기분 정렬 공용) ---- */
+  .emo-plane { position: relative; width: 100%; max-width: 360px; aspect-ratio: 1;
+    margin: 18px auto; border: 1px solid var(--line); border-radius: 8px;
+    background: linear-gradient(135deg, #f2f6f5 0%, #faf7f2 100%);
+    touch-action: none; cursor: crosshair; user-select: none; }
+  .emo-axis-x { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line); }
+  .emo-axis-y { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line); }
+  .emo-lbl { position: absolute; font-size: 10px; color: var(--dim); pointer-events: none; }
+  .emo-lbl-top { top: 6px; left: 50%; transform: translateX(-50%); }
+  .emo-lbl-bottom { bottom: 6px; left: 50%; transform: translateX(-50%); }
+  .emo-lbl-left { left: 6px; top: 50%; transform: translateY(-50%); }
+  .emo-lbl-right { right: 6px; top: 50%; transform: translateY(-50%); }
+  .emo-dot { position: absolute; width: 16px; height: 16px; border-radius: 50%;
+    background: var(--ink); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--ink);
+    transform: translate(-50%, -50%); display: none; pointer-events: none; }
   .float-word { position: absolute; color: rgba(17,17,17,0.85); font-size: 15px;
     text-shadow: 0 1px 6px rgba(255,255,255,0.9); animation: floatDrift 14s ease-in-out infinite alternate; }
   @keyframes floatDrift {
@@ -489,24 +504,34 @@
   </div>
 </section>
 
-<!-- STEP 5: 감정 (칩 선택 또는 직접 입력) + 크기 % -->
+<!-- STEP 5: 감정 태그 (최대 2개) -->
 <section class="step flow" id="step5">
   <h1 data-i18n="s5Title"></h1>
   <p class="sub direction" data-i18n="emotionSub"></p>
-  <!-- 감정 칩 (JS가 8개 렌더) -->
+  <!-- 감정 태그 칩 (JS가 7개 렌더, 최대 2개 선택) -->
   <div id="emotionChips" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; max-width:640px"></div>
-  <!-- 목록에 없으면 직접 입력 -->
-  <div class="row"><input type="text" id="emotionCustom" data-ph="phEmotionCustom" maxlength="20"></div>
-  <!-- 크기 % (슬라이더 + 숫자 동기화) -->
-  <p class="hint" data-i18n="emotionPctLabel" style="margin:18px 0 4px"></p>
-  <div class="row" style="align-items:center; margin-top:0">
-    <input type="range" id="emotionPct" min="0" max="100" step="1" value="50" style="flex:1">
-    <input type="number" id="emotionPctNum" min="0" max="100" value="50" style="flex:0 0 90px; text-align:center">
-    <span style="flex:0 0 auto; color:var(--dim)">%</span>
-  </div>
   <div class="status" id="emotionErr" style="color:#c0392b"></div>
   <div class="row">
     <button id="next5Btn" data-i18n="btnNext"></button>
+  </div>
+</section>
+
+<!-- STEP 5b: 감정 좌표 평면 (선택 태그 평균으로 점 자동 배치, 눌러서 조정) -->
+<section class="step flow" id="step5b">
+  <h1 data-i18n="planeTitle"></h1>
+  <p class="sub direction" data-i18n="planeSub"></p>
+  <div id="emoPlaneWrap" class="emo-plane">
+    <div class="emo-axis-x"></div>
+    <div class="emo-axis-y"></div>
+    <span class="emo-lbl emo-lbl-top" data-i18n="emoAxisYPos"></span>
+    <span class="emo-lbl emo-lbl-bottom" data-i18n="emoAxisYNeg"></span>
+    <span class="emo-lbl emo-lbl-left" data-i18n="emoAxisXNeg"></span>
+    <span class="emo-lbl emo-lbl-right" data-i18n="emoAxisXPos"></span>
+    <div id="emoPlaneDot" class="emo-dot"></div>
+  </div>
+  <div class="row" style="justify-content:space-between; max-width:360px; margin-left:auto; margin-right:auto">
+    <button id="back5bBtn" class="secondary" data-i18n="btnBack"></button>
+    <button id="next5bBtn" data-i18n="btnNext"></button>
   </div>
 </section>
 
@@ -698,11 +723,29 @@
     <button id="viewBoardBtn" class="secondary" style="opacity:1" data-i18n="btnBoard"></button>
     <button id="viewMapBtn" class="secondary" style="opacity:0.5" data-i18n="btnGeoMap"></button>
     <button id="viewGlobeBtn" class="secondary" style="opacity:0.5" data-i18n="btnGlobe"></button>
+    <button id="moodSortBtn" class="secondary" data-i18n="moodSortLabel"></button>
     <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
     <button id="unshareBoardBtn" class="secondary" data-i18n="btnUnshareBoard"></button>
   </div>
   <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
   <div id="emotionFilter" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; align-items:center"></div>
+  <!-- 오늘의 기분 정렬 패널 (평면에 오늘 점 찍기 → gap 가까운 순 리스트) -->
+  <div id="moodSortPanel" style="display:none; margin-bottom:12px; gap:20px; flex-wrap:wrap"
+       class="row">
+    <div style="flex:0 0 320px; max-width:100%">
+      <p class="hint" data-i18n="moodSortHint" style="margin:0 0 8px"></p>
+      <div id="moodPlaneWrap" class="emo-plane" style="max-width:320px; margin:0">
+        <div class="emo-axis-x"></div>
+        <div class="emo-axis-y"></div>
+        <span class="emo-lbl emo-lbl-top" data-i18n="emoAxisYPos"></span>
+        <span class="emo-lbl emo-lbl-bottom" data-i18n="emoAxisYNeg"></span>
+        <span class="emo-lbl emo-lbl-left" data-i18n="emoAxisXNeg"></span>
+        <span class="emo-lbl emo-lbl-right" data-i18n="emoAxisXPos"></span>
+        <div id="moodPlaneDot" class="emo-dot"></div>
+      </div>
+    </div>
+    <div id="moodList" style="flex:1; min-width:240px; display:flex; flex-direction:column; gap:6px"></div>
+  </div>
   <div class="status" id="shareStatus" style="margin:0 0 8px; user-select:text; -webkit-user-select:text"></div>
   <div class="status" id="mapStatus" style="margin:0 0 8px"></div>
   <div style="position:relative">
@@ -837,13 +880,19 @@ const I18N = {
     s5Title: '5. 이 순간', badgeOpt: '선택',
     scaleSub: '이 순간이 얼마나 좋았나요? 0을 기준으로 움직여주세요.',
     scaleBad: '-10 나쁨', scaleGood: '좋음 +10',
-    emotionSub: '이 순간의 감정을 골라주세요. 없으면 직접 적어도 됩니다.',
-    emotionPctLabel: '그 감정의 크기 (%)',
-    phEmotionCustom: '직접 입력 (예: 설렘)',
-    errEmotionRequired: '감정을 선택하거나 직접 입력해주세요',
+    emotionSub: '가장 가까운 감정을 최대 두 개 골라주세요.',
+    errEmotionRequired: '감정을 최소 하나 골라주세요',
     emotionFilterLabel: '감정으로 보기',
-    emo_excited: '설렘', emo_calm: '평온', emo_moved: '벅참', emo_longing: '그리움',
-    emo_lonely: '쓸쓸', emo_anxious: '불안', emo_weary: '지침', emo_cozy: '편안',
+    planeTitle: '감정 좌표', planeSub: '고른 단어로 위치를 잡았어요. 원하면 눌러서 옮겨보세요.',
+    emoAxisXNeg: '낯섦', emoAxisXPos: '편안함', emoAxisYNeg: '고요함', emoAxisYPos: '격렬함',
+    emoCoordLabel: '감정 좌표',
+    moodSortLabel: '오늘의 기분', moodSortHint: '평면을 눌러 오늘의 기분을 찍으면 가까운 순간부터 정렬돼요.',
+    moodSortEmpty: '아직 오늘의 위치를 찍지 않았어요.',
+    // 7 고정 태그 (2축 좌표)
+    emo_calm: '고요함', emo_overwhelmed: '벅참', emo_strangeness: '이질감', emo_relief: '안도',
+    emo_longing: '그리움', emo_unfamiliar: '낯섦', emo_comfort: '편안함',
+    // 옛 기록 라벨 하위호환 (표시용)
+    emo_excited: '설렘', emo_moved: '벅참', emo_lonely: '쓸쓸', emo_anxious: '불안', emo_weary: '지침', emo_cozy: '편안',
     s45Title: '썸네일 장면 선택', errRequired: '이 항목은 필수입니다.',
     thoughtTitle: '이 순간에 대한 생각',
     thoughtSub: '자유롭게 적어주세요 — 이미지에는 표시되지 않고 기록에만 남습니다.',
@@ -992,13 +1041,19 @@ const I18N = {
     s5Title: '5. This moment', badgeOpt: 'optional',
     scaleSub: 'How good was this moment? Move from 0.',
     scaleBad: '-10 bad', scaleGood: 'good +10',
-    emotionSub: 'Choose the emotion of this moment. Or write your own.',
-    emotionPctLabel: 'Intensity of that emotion (%)',
-    phEmotionCustom: 'Type your own (e.g. bittersweet)',
-    errEmotionRequired: 'Please choose or type an emotion',
+    emotionSub: 'Pick up to two feelings closest to this moment.',
+    errEmotionRequired: 'Please choose at least one feeling',
     emotionFilterLabel: 'By emotion',
-    emo_excited: 'Excited', emo_calm: 'Calm', emo_moved: 'Moved', emo_longing: 'Longing',
-    emo_lonely: 'Lonely', emo_anxious: 'Anxious', emo_weary: 'Weary', emo_cozy: 'Cozy',
+    planeTitle: 'Emotional coordinates', planeSub: 'Placed from your words. Tap to move it if you like.',
+    emoAxisXNeg: 'unfamiliar', emoAxisXPos: 'comfort', emoAxisYNeg: 'calm', emoAxisYPos: 'intense',
+    emoCoordLabel: 'Coordinates',
+    moodSortLabel: "Today's mood", moodSortHint: 'Tap the plane to mark today — past moments reorder by closeness.',
+    moodSortEmpty: "You haven't marked today's position yet.",
+    // 7 fixed tags (2-axis)
+    emo_calm: 'Calm', emo_overwhelmed: 'Overwhelmed', emo_strangeness: 'Strangeness', emo_relief: 'Relief',
+    emo_longing: 'Longing', emo_unfamiliar: 'Unfamiliar', emo_comfort: 'Comfort',
+    // legacy labels (display fallback)
+    emo_excited: 'Excited', emo_moved: 'Moved', emo_lonely: 'Lonely', emo_anxious: 'Anxious', emo_weary: 'Weary', emo_cozy: 'Cozy',
     s45Title: 'Pick the thumbnail scene', errRequired: 'This field is required.',
     thoughtTitle: 'Your thoughts on this moment',
     thoughtSub: 'Write freely (required) — kept in the record only, not shown on the image.',
@@ -1160,7 +1215,8 @@ function goto(n, opts) {
   const hdr = document.getElementById('appHeader');
   if (hdr) document.documentElement.style.setProperty('--hdrH', hdr.offsetHeight + 'px');
   if (n === 97 && lcMap) setTimeout(() => lcMap.invalidateSize(), 120);
-  if (n === 5) { try { renderEmotionChips(); } catch (e) {} } // 감정 칩 최신 상태로
+  if (n === 5) { try { renderEmotionChips(); } catch (e) {} } // 감정 태그 칩 최신 상태로
+  if (n === '5b') { try { avgPosition(); renderPlaneDot(); } catch (e) {} } // 평면 진입 시 점 배치
   // 브라우저 뒤로가기(스와이프 포함)로 단계를 되돌릴 수 있게 히스토리에 기록
   if (!opts || opts.push !== false) {
     if (!history.state || history.state.step !== n) history.pushState({ step: n }, '');
@@ -2198,7 +2254,8 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   state.clipStart = 0;
   state.thumbFrac = 0.5;
   state.momentScale = 0;
-  state.momentEmotion = null; state.momentEmotionLabel = ''; state.momentEmotionPct = 50;
+  state.emoTags = []; state.emoX = null; state.emoY = null; state._emoManual = false;
+  state.momentEmotionLabel = '';
   state.momentThought = '';
   state._thoughtEn = null;
   state.momentWord = '';
@@ -2209,14 +2266,12 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   state.contact = null; state.userText = '';
   state.weatherCode = null; state.w3w = null;
   // 입력 필드도 비우기 (이전 값 잔존 방지)
-  ['momentThought', 'momentWord', 'seg1', 'seg2', 'seg3', 'cName', 'cInsta', 'cEmail', 'cWeb', 'emotionCustom'].forEach(id => {
+  ['momentThought', 'momentWord', 'seg1', 'seg2', 'seg3', 'cName', 'cInsta', 'cEmail', 'cWeb'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
-  // 감정 UI 리셋 (% 50 기본)
-  const ep = document.getElementById('emotionPct'), epn = document.getElementById('emotionPctNum');
-  if (ep) ep.value = 50; if (epn) epn.value = 50;
+  // 감정 UI 리셋 (태그 해제 + 평면 점 숨김)
   const eerr = document.getElementById('emotionErr'); if (eerr) eerr.textContent = '';
-  try { renderEmotionChips(); } catch (e) {}
+  try { renderEmotionChips(); renderPlaneDot(); } catch (e) {}
   const tr = document.getElementById('translateResult'); if (tr) tr.style.display = 'none';
   const ttr = document.getElementById('thoughtTranslateResult'); if (ttr) ttr.style.display = 'none';
   const cap = await readCaptureDate(file);
@@ -3076,46 +3131,93 @@ function collectContact() {
 
 // step5: 스케일 슬라이더 + 생각(데이터 전용) + 한 단어(이미지 노출)
 // ---- STEP 5: 감정 선택 (칩 8개 + 직접 입력) + 크기 % ----
-const EMOTIONS = ['excited', 'calm', 'moved', 'longing', 'lonely', 'anxious', 'weary', 'cozy'];
+// ---- 감정 = 2축 좌표 (x: 낯섦-1↔편안+1, y: 고요-1↔격렬+1) ----
+// 7개 고정 태그, 각 좌표. 태그를 고르면 평균 좌표로 평면에 점이 놓이고, 눌러서 미세조정.
+const EMO_TAGS = [
+  { id: 'calm',        x: 0.32,  y: -0.72 },
+  { id: 'overwhelmed', x: 0.55,  y: 0.72  },
+  { id: 'strangeness', x: -0.55, y: 0.18  },
+  { id: 'relief',      x: 0.72,  y: -0.48 },
+  { id: 'longing',     x: 0.08,  y: 0.12  },
+  { id: 'unfamiliar',  x: -0.68, y: 0.42  },
+  { id: 'comfort',     x: 0.8,   y: -0.7  },
+];
+const EMO_BY_ID = Object.fromEntries(EMO_TAGS.map(tg => [tg.id, tg]));
+const MAX_DIST = Math.sqrt(8);            // [-1,1]×[-1,1] 대각선 = 감정 최대 거리
+const GAP_BUCKETS = [0, 1, 2, 3, 5, 8];   // 피보나치형: 가까우면 촘촘, 멀면 급격히 벌어짐
+const emoDist = (a, b) => Math.hypot(a.emoX - b.emoX, a.emoY - b.emoY);
+function toGap(d) {
+  const i = Math.round(d / MAX_DIST * (GAP_BUCKETS.length - 1));
+  return GAP_BUCKETS[Math.max(0, Math.min(GAP_BUCKETS.length - 1, i))];
+}
+const hasCoord = r => typeof r.emoX === 'number' && typeof r.emoY === 'number';
+const clamp1 = v => Math.max(-1, Math.min(1, v));
+
+// STEP5: 태그 칩 (최대 2개 OR 토글). 고르면 평균 좌표로 자동 배치.
 function renderEmotionChips() {
   const box = document.getElementById('emotionChips');
   if (!box) return;
   box.innerHTML = '';
-  EMOTIONS.forEach(key => {
+  EMO_TAGS.forEach(tg => {
     const chip = document.createElement('button');
     chip.type = 'button';
-    chip.className = 'ai-chip' + (state.momentEmotion === key ? ' sel' : '');
-    chip.textContent = t('emo_' + key);
+    chip.className = 'ai-chip' + (state.emoTags.includes(tg.id) ? ' sel' : '');
+    chip.textContent = t('emo_' + tg.id);
     chip.addEventListener('click', () => {
-      state.momentEmotion = key;
-      const ci = document.getElementById('emotionCustom'); if (ci) ci.value = '';
+      const sel = state.emoTags;
+      const i = sel.indexOf(tg.id);
+      if (i >= 0) sel.splice(i, 1);
+      else { if (sel.length >= 2) sel.shift(); sel.push(tg.id); } // 최대 2, 초과 시 가장 오래된 것 제거
+      state._emoManual = false;   // 태그 바뀌면 평면 점을 다시 평균으로
+      avgPosition();
       renderEmotionChips();
+      renderPlaneDot();
     });
     box.appendChild(chip);
   });
 }
-// 직접 입력 시 칩 선택 해제
-document.getElementById('emotionCustom').addEventListener('input', (e) => {
-  if (e.target.value.trim()) { state.momentEmotion = null; renderEmotionChips(); }
-});
-// % 슬라이더 ↔ 숫자 동기화
-const _epct = document.getElementById('emotionPct');
-const _epctNum = document.getElementById('emotionPctNum');
-_epct.addEventListener('input', () => { _epctNum.value = _epct.value; });
-_epctNum.addEventListener('input', () => {
-  let v = Math.max(0, Math.min(100, parseInt(_epctNum.value, 10) || 0));
-  _epct.value = v;
-});
-// 현재 선택된 감정(칩 또는 직접 입력) 반환
-function currentEmotion() {
-  const custom = document.getElementById('emotionCustom').value.trim();
-  if (custom) return custom;
-  return state.momentEmotion ? t('emo_' + state.momentEmotion) : '';
+// 선택 태그들의 평균 좌표를 state.emoX/emoY에 세팅 (사용자가 손대지 않았을 때만 자동)
+function avgPosition() {
+  if (state._emoManual) return;
+  if (!state.emoTags.length) { state.emoX = null; state.emoY = null; return; }
+  const pts = state.emoTags.map(id => EMO_BY_ID[id]).filter(Boolean);
+  state.emoX = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+  state.emoY = pts.reduce((s, p) => s + p.y, 0) / pts.length;
 }
+// 평면에서 점 위치 계산 (픽셀 → [-1,1])
+function placePoint(clientX, clientY, wrap, setter) {
+  const rect = wrap.getBoundingClientRect();
+  const px = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
+  const py = Math.min(Math.max((clientY - rect.top) / rect.height, 0), 1);
+  setter(clamp1(px * 2 - 1), clamp1(1 - py * 2));
+}
+// STEP5b 평면 점 렌더
+function renderPlaneDot() {
+  const dot = document.getElementById('emoPlaneDot');
+  if (!dot) return;
+  if (hasCoord(state)) {
+    dot.style.left = ((state.emoX + 1) / 2 * 100) + '%';
+    dot.style.top = ((1 - state.emoY) / 2 * 100) + '%';
+    dot.style.display = 'block';
+  } else {
+    dot.style.display = 'none';
+  }
+}
+// STEP5b 평면 상호작용 (클릭/드래그로 점 이동)
+(function initEmoPlane() {
+  const wrap = document.getElementById('emoPlaneWrap');
+  if (!wrap) return;
+  let dragging = false;
+  const set = (cx, cy) => placePoint(cx, cy, wrap, (x, y) => {
+    state.emoX = x; state.emoY = y; state._emoManual = true; renderPlaneDot();
+  });
+  wrap.addEventListener('pointerdown', (e) => { dragging = true; wrap.setPointerCapture(e.pointerId); set(e.clientX, e.clientY); });
+  wrap.addEventListener('pointermove', (e) => { if (dragging) set(e.clientX, e.clientY); });
+  wrap.addEventListener('pointerup', () => { dragging = false; });
+  wrap.addEventListener('pointercancel', () => { dragging = false; });
+})();
 function collectMoment() {
-  state.momentEmotion = state.momentEmotion || null;
-  state.momentEmotionLabel = currentEmotion();               // 저장·표시용 최종 라벨
-  state.momentEmotionPct = Math.max(0, Math.min(100, parseInt(_epct.value, 10) || 0));
+  state.momentEmotionLabel = state.emoTags.map(id => t('emo_' + id)).join(' · '); // 파생 라벨(하위호환)
   const thoughtRaw = document.getElementById('momentThought').value.trim();
   const useThoughtEn = document.querySelector('input[name="thoughtLang"]:checked')?.value === 'en'
     && state._thoughtEn;
@@ -3126,16 +3228,20 @@ function collectMoment() {
   state.momentWord = word;
   state.userReasons = word ? [useEn ? state._finalEn : word] : []; // 하위 호환: 상단 렌더가 이 배열 사용
 }
-// 감정(필수) → 생각
+// STEP5(태그) → STEP5b(평면)
 document.getElementById('next5Btn').addEventListener('click', () => {
-  const emo = currentEmotion();
   const err = document.getElementById('emotionErr');
-  if (!emo) { err.textContent = t('errEmotionRequired'); return; }
+  if (!state.emoTags.length) { err.textContent = t('errEmotionRequired'); return; }
   err.textContent = '';
-  state.momentEmotionLabel = emo;
-  state.momentEmotionPct = Math.max(0, Math.min(100, parseInt(_epct.value, 10) || 0));
+  avgPosition();
+  goto('5b');
+});
+// STEP5b(평면) → 생각
+document.getElementById('next5bBtn').addEventListener('click', () => {
+  state.momentEmotionLabel = state.emoTags.map(id => t('emo_' + id)).join(' · ');
   goto(51);
 });
+document.getElementById('back5bBtn').addEventListener('click', () => goto(5));
 // 생각 (필수)
 document.getElementById('next51Btn').addEventListener('click', () => {
   const v = document.getElementById('momentThought').value.trim();
@@ -3701,8 +3807,11 @@ function buildRecFields() {
     gpsDistM: state.gpsDistM,
     userReasons: state.userReasons || [],          // 산출물에 실제 쓰인 버전 (하위 호환)
     momentScale: (typeof state.momentScale === 'number') ? state.momentScale : null, // -10~+10 (레거시)
-    momentEmotion: state.momentEmotionLabel || null,   // 감정 라벨(칩 또는 직접 입력)
-    momentEmotionPct: (typeof state.momentEmotionPct === 'number') ? state.momentEmotionPct : null, // 0~100
+    emoTags: state.emoTags || [],                      // 감정 태그 id 배열 (0~2)
+    emoX: (typeof state.emoX === 'number') ? state.emoX : null, // 감정 좌표 x (-1~1)
+    emoY: (typeof state.emoY === 'number') ? state.emoY : null, // 감정 좌표 y (-1~1)
+    momentEmotion: state.momentEmotionLabel || null,   // 파생 라벨(하위호환 표시용)
+    momentEmotionPct: null,                            // 폐기 (좌표가 대체)
     momentThought: state.momentThought || '',      // 순간에 대한 생각 (데이터 전용)
     momentWord: state.momentWord || '',            // 이미지에 새겨진 한 단어 (원문)
     momentWordEn: state._finalEn || '',            // 영문 변환본 (있다면)
@@ -3961,29 +4070,28 @@ async function renderRecList() {
    위치는 미디어 GPS 우선, 없으면 입력 주소 좌표. 클릭 시 기록 상세로.
    ============================================================ */
 let lcMap = null, lcMapLayer = null, lcMapSelKey = null;
-const emotionSel = new Set(); // 감정 필터 선택(최대 2개, OR). 비면 전체.
-// 감정 필터 칩 렌더 — 데이터에 실제 존재하는 감정만
+const emotionSel = new Set(); // 감정 필터 선택 태그 id(최대 2개, OR). 비면 전체.
+// 감정 필터 칩 렌더 — 데이터에 실제 등장한 태그만 (라벨은 t('emo_'+id))
 function renderEmotionFilter() {
   const box = document.getElementById('emotionFilter');
   if (!box) return;
   box.innerHTML = '';
-  const present = [];
-  const seen = new Set();
-  boardRecords().forEach(r => { if (r.momentEmotion && !seen.has(r.momentEmotion)) { seen.add(r.momentEmotion); present.push(r.momentEmotion); } });
-  if (!present.length) return;
+  const present = new Set();
+  boardRecords().forEach(r => (r.emoTags || []).forEach(id => { if (EMO_BY_ID[id]) present.add(id); }));
+  if (!present.size) return;
   const lab = document.createElement('span');
   lab.textContent = t('emotionFilterLabel');
   lab.style.cssText = 'font-size:12px; color:var(--dim); margin-right:4px';
   box.appendChild(lab);
-  present.forEach(emo => {
+  EMO_TAGS.filter(tg => present.has(tg.id)).forEach(tg => {
     const chip = document.createElement('button');
     chip.type = 'button';
-    chip.className = 'ai-chip' + (emotionSel.has(emo) ? ' sel' : '');
+    chip.className = 'ai-chip' + (emotionSel.has(tg.id) ? ' sel' : '');
     chip.style.cssText = 'padding:4px 12px; font-size:12px';
-    chip.textContent = emo;
+    chip.textContent = t('emo_' + tg.id);
     chip.addEventListener('click', () => {
-      if (emotionSel.has(emo)) emotionSel.delete(emo);
-      else { if (emotionSel.size >= 2) emotionSel.delete([...emotionSel][0]); emotionSel.add(emo); }
+      if (emotionSel.has(tg.id)) emotionSel.delete(tg.id);
+      else { if (emotionSel.size >= 2) emotionSel.delete([...emotionSel][0]); emotionSel.add(tg.id); }
       renderEmotionFilter();
       lcFitted = false;
       renderMapMarkers();
@@ -3991,6 +4099,74 @@ function renderEmotionFilter() {
     box.appendChild(chip);
   });
 }
+
+// ---- 오늘의 기분 정렬 (프로토타입 B) ----
+let todayMood = null;   // {emoX, emoY} — 평면에 찍은 오늘 위치
+let moodSortOpen = false;
+function renderMoodDot() {
+  const dot = document.getElementById('moodPlaneDot');
+  if (!dot) return;
+  if (todayMood) {
+    dot.style.left = ((todayMood.emoX + 1) / 2 * 100) + '%';
+    dot.style.top = ((1 - todayMood.emoY) / 2 * 100) + '%';
+    dot.style.display = 'block';
+  } else dot.style.display = 'none';
+}
+function renderMoodSort() {
+  const list = document.getElementById('moodList');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!todayMood) {
+    const p = document.createElement('p');
+    p.className = 'hint'; p.textContent = t('moodSortEmpty');
+    list.appendChild(p); return;
+  }
+  const ranked = boardRecords().filter(hasCoord)
+    .map(r => ({ r, d: emoDist(r, todayMood) }))
+    .sort((a, b) => a.d - b.d);
+  ranked.forEach(({ r, d }) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex; align-items:center; gap:12px; padding:8px; border:1px solid var(--line); border-radius:6px; cursor:pointer';
+    const th = document.createElement('div');
+    th.style.cssText = 'flex:0 0 44px; width:44px; height:44px; background:#f0f0f0; border-radius:4px; overflow:hidden';
+    if (r.massThumb) {
+      const img = document.createElement('img');
+      img.src = r.massThumb; img.style.cssText = 'width:100%; height:100%; object-fit:cover';
+      th.appendChild(img);
+      fetchOutputBlob(r.savedAt, 'out4').then(b => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
+    }
+    const mid = document.createElement('div');
+    mid.style.cssText = 'flex:1; min-width:0';
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis';
+    title.textContent = (r.momentWordEn || r.momentWord || '—');
+    mid.appendChild(title);
+    const gap = document.createElement('div');
+    gap.style.cssText = 'flex:0 0 auto; font-size:11px; color:var(--dim); border:1px solid var(--line); padding:2px 8px; border-radius:4px';
+    gap.textContent = 'gap ' + toGap(d);
+    row.append(th, mid, gap);
+    row.addEventListener('click', () => openRecordDetail(r));
+    list.appendChild(row);
+  });
+}
+(function initMoodPlane() {
+  const wrap = document.getElementById('moodPlaneWrap');
+  if (!wrap) return;
+  let dragging = false;
+  const set = (cx, cy) => placePoint(cx, cy, wrap, (x, y) => {
+    todayMood = { emoX: x, emoY: y }; renderMoodDot(); renderMoodSort();
+  });
+  wrap.addEventListener('pointerdown', (e) => { dragging = true; wrap.setPointerCapture(e.pointerId); set(e.clientX, e.clientY); });
+  wrap.addEventListener('pointermove', (e) => { if (dragging) set(e.clientX, e.clientY); });
+  wrap.addEventListener('pointerup', () => { dragging = false; });
+  wrap.addEventListener('pointercancel', () => { dragging = false; });
+})();
+document.getElementById('moodSortBtn').addEventListener('click', () => {
+  moodSortOpen = !moodSortOpen;
+  const panel = document.getElementById('moodSortPanel');
+  panel.style.display = moodSortOpen ? 'flex' : 'none';
+  if (moodSortOpen) { renderMoodDot(); renderMoodSort(); }
+});
 
 // 기록을 "매스(건물)" 단위로 그룹화 — 주소+좌표 반올림을 키로
 function massKeyOf(rec) {
@@ -4135,20 +4311,25 @@ function boardRelations(recs) {
   }
   return edges;
 }
-// 감정 필터용 관계선 — 같은 감정(momentEmotion)을 가진 노드끼리 연결. 노드당 최대 3연결.
+// 감정 관계선 — 좌표(x,y)가 가까운 노드끼리 연결(정서적 거리 gap). 노드당 최대 3연결.
+// 가까운 쌍부터 채택하고, gap이 큰(멀리 떨어진) 쌍은 잇지 않는다(toGap<=2).
 function emotionEdges(recs) {
+  const nodes = recs.filter(hasCoord);
+  const pairs = [];
+  for (let i = 0; i < nodes.length; i++)
+    for (let j = i + 1; j < nodes.length; j++)
+      pairs.push({ a: nodes[i], b: nodes[j], d: emoDist(nodes[i], nodes[j]) });
+  pairs.sort((p, q) => p.d - q.d); // 가까운 감정 거리부터
   const edges = [];
   const degree = new Map();
   const deg = r => degree.get(r.savedAt) || 0;
-  for (let i = 0; i < recs.length; i++) {
-    for (let j = i + 1; j < recs.length; j++) {
-      const a = recs[i], b = recs[j];
-      if (!a.momentEmotion || a.momentEmotion !== b.momentEmotion) continue;
-      if (deg(a) >= 3 || deg(b) >= 3) continue;
-      edges.push({ a: a.savedAt, b: b.savedAt, label: a.momentEmotion });
-      degree.set(a.savedAt, deg(a) + 1);
-      degree.set(b.savedAt, deg(b) + 1);
-    }
+  for (const p of pairs) {
+    const g = toGap(p.d);
+    if (g > 2) break;                       // 이후는 더 멀기만 하므로 중단
+    if (deg(p.a) >= 3 || deg(p.b) >= 3) continue;
+    edges.push({ a: p.a.savedAt, b: p.b.savedAt, label: 'gap ' + g });
+    degree.set(p.a.savedAt, deg(p.a) + 1);
+    degree.set(p.b.savedAt, deg(p.b) + 1);
   }
   return edges;
 }
@@ -4462,8 +4643,8 @@ async function renderMapMarkers() {
 
   const all = boardRecords();
   let recs = lcMapSelKey ? all.filter(r => massKeyOf(r) === lcMapSelKey) : all;
-  // 감정 필터 (선택 시 OR — 선택한 감정 중 하나라도 가진 기록만)
-  if (emotionSel.size) recs = recs.filter(r => r.momentEmotion && emotionSel.has(r.momentEmotion));
+  // 감정 필터 (선택 시 OR — 선택한 태그 중 하나라도 가진 기록만)
+  if (emotionSel.size) recs = recs.filter(r => (r.emoTags || []).some(id => emotionSel.has(id)));
   renderEmotionFilter();
   updateGauge(recs);
   if (boardMode === 'map') renderFloatWords(recs);
@@ -4535,7 +4716,8 @@ function boardRecords() { return viewerRecords || getRecords(); }
 function buildBoardSnapshot() {
   const snapshot = getRecords().map(r => ({
     savedAt: r.savedAt, momentWord: r.momentWord, momentWordEn: r.momentWordEn,
-    momentScale: r.momentScale, momentEmotion: r.momentEmotion, momentEmotionPct: r.momentEmotionPct,
+    momentScale: r.momentScale, momentEmotion: r.momentEmotion,
+    emoTags: r.emoTags || [], emoX: r.emoX, emoY: r.emoY,   // 감정 좌표(뷰어 gap/정렬용)
     mediaDate: r.mediaDate,
     address: r.address, lat: r.lat, lon: r.lon, mediaGps: r.mediaGps,
     segments: r.segments, massThumb: r.massThumb, gpsDistM: r.gpsDistM,
@@ -4710,8 +4892,9 @@ document.getElementById('backMapBtn').addEventListener('click', () => goto(1));
 function buildInfoRows(rec, full) {
   const rows = [];
   const add = (k, v) => { if (v !== null && v !== undefined && v !== '') rows.push([k, v]); };
-  if (rec.momentEmotion) add(t('emotionFilterLabel'),
-    rec.momentEmotion + (typeof rec.momentEmotionPct === 'number' ? ' · ' + rec.momentEmotionPct + '%' : ''));
+  if ((rec.emoTags || []).length) add(t('emotionFilterLabel'), rec.emoTags.map(id => t('emo_' + id)).join(' · '));
+  else if (rec.momentEmotion) add(t('emotionFilterLabel'), rec.momentEmotion); // 옛 기록 폴백
+  if (hasCoord(rec)) add(t('emoCoordLabel'), 'x ' + rec.emoX.toFixed(2) + ' · y ' + rec.emoY.toFixed(2));
   if (typeof rec.momentScale === 'number') add('Scale', (rec.momentScale > 0 ? '+' : '') + rec.momentScale);
   add('Captured', rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '');
   add('Mass address', rec.address);
