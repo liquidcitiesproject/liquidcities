@@ -4675,7 +4675,21 @@ function paintGraph(layer, nodes, edges) {
     });
     const when = n.rec.mediaDate ? fmtDate(new Date(n.rec.mediaDate)) : '';
     marker.bindTooltip(`${when}${n.rec.momentWord ? ' · ' + n.rec.momentWord : ''}`);
-    marker.on('click', () => openRecordDetail(n.rec));
+    // 겹쳐 뭉친 노드를 누르면 그 지점으로 줌인해 펼친다. 충분히 벌어졌으면 상세 열기.
+    marker.on('click', () => {
+      if (!lcMap) { openRecordDetail(n.rec); return; }
+      const maxZ = lcMap.getMaxZoom ? lcMap.getMaxZoom() : 19;
+      const p0 = lcMap.latLngToContainerPoint(n.pos);
+      // 화면상 이 노드와 60px 이내에 다른 노드가 겹쳐 있나?
+      const crowded = nodes.some(o => o !== n &&
+        lcMap.latLngToContainerPoint(o.pos).distanceTo(p0) < 60);
+      if (crowded && lcMap.getZoom() < maxZ) {
+        lcFitted = true; // 자동 재fit이 이 줌을 덮어쓰지 않게
+        lcMap.flyTo(n.pos, Math.min(lcMap.getZoom() + 3, maxZ), { duration: 0.6 });
+      } else {
+        openRecordDetail(n.rec);
+      }
+    });
     marker.addTo(layer);
   }
   for (const e of edges) {
