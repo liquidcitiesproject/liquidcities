@@ -121,6 +121,26 @@
     border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);
     padding: 16px; top: calc(var(--hdrH, 96px) + 12px); right: 12px; width: 620px; max-width: calc(100vw - 24px);
     max-height: calc(100vh - var(--hdrH, 96px) - 24px); overflow-y: auto; }
+  /* ---- 건물 직접 그리기 오버레이 ---- */
+  #drawOverlay { display: none; position: fixed; inset: 0; z-index: 3000; background: var(--bg);
+    flex-direction: column; }
+  #drawOverlay.open { display: flex; }
+  .draw-top { display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px 8px; }
+  .draw-title { font-size: 13px; font-weight: 500; }
+  .draw-x { background: none; border: 1px solid var(--line); border-radius: 4px;
+    width: 32px; height: 32px; font-size: 15px; cursor: pointer; padding: 0; }
+  .draw-hint { font-size: 12px; color: var(--dim); margin: 0 16px 8px; line-height: 1.5; }
+  #drawMap { flex: 1; min-height: 0; width: 100%; }
+  #drawMap { cursor: crosshair; }
+  .draw-bottom { padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line); background: var(--bg); }
+  .draw-levels { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .draw-levels label { font-size: 13px; color: var(--dim); flex: 0 0 auto; }
+  .draw-levels-unit { font-size: 13px; color: var(--dim); flex: 0 0 auto; }
+  .draw-actions { display: flex; gap: 10px; }
+  .draw-actions > * { flex: 1; min-height: 44px; }
+  .draw-err { color: #c0392b; font-size: 12px; margin-top: 8px; min-height: 16px; }
   .float-word { position: absolute; color: rgba(17,17,17,0.85); font-size: 15px;
     text-shadow: 0 1px 6px rgba(255,255,255,0.9); animation: floatDrift 14s ease-in-out infinite alternate; }
   @keyframes floatDrift {
@@ -504,9 +524,33 @@
   <div class="canvas-wrap square"><canvas id="massCanvas" width="1080" height="1920" style="cursor:grab"></canvas></div>
   <div class="row">
     <button id="backToSearchBtn" class="secondary" data-i18n="btnAgain"></button>
+    <button id="drawMassBtn" class="secondary" data-i18n="btnDrawMass"></button>
     <button id="confirmMassBtn" data-i18n="btnConfirm"></button>
   </div>
 </section>
+
+<!-- 건물 직접 그리기 오버레이 (위성 위에서 외곽선을 점으로 찍기) -->
+<div id="drawOverlay">
+  <div class="draw-top">
+    <span class="draw-title" data-i18n="drawTitle"></span>
+    <button id="drawCloseBtn" class="draw-x" aria-label="close">✕</button>
+  </div>
+  <p class="draw-hint" data-i18n="drawHint"></p>
+  <div id="drawMap"></div>
+  <div class="draw-bottom">
+    <div class="draw-levels">
+      <label data-i18n="drawLevelsLabel"></label>
+      <input type="range" id="drawLevels" min="1" max="60" step="1" value="3" style="flex:1">
+      <input type="number" id="drawLevelsNum" min="1" max="60" value="3" style="flex:0 0 70px; text-align:center">
+      <span class="draw-levels-unit" data-i18n="drawLevelsUnit"></span>
+    </div>
+    <div class="draw-actions">
+      <button id="drawUndoBtn" class="secondary" data-i18n="btnUndo"></button>
+      <button id="drawDoneBtn" data-i18n="btnDrawDone"></button>
+    </div>
+    <div class="draw-err" id="drawErr"></div>
+  </div>
+</div>
 
 <!-- STEP 3: 미디어 업로드 -->
 <section class="step flow" id="step3">
@@ -1026,7 +1070,12 @@ const I18N = {
     stRender: '건물 렌더링 중...',
     postcodeLoc: '우편번호 기준 위치', approxLoc: '근사 위치', manualLoc: '직접 입력',
     infoLevels: n => `${n}층 추정`, unnamedBuilding: '이름 없는 건물',
-    synthMass: '이 지역엔 건물 데이터가 없어 기본 매스로 표시합니다 (드래그로 각도 조절)',
+    drawnMass: '직접 그린 매스',
+    btnDrawMass: '직접 그리기', btnDrawDone: '완료', btnUndo: '점 취소',
+    drawTitle: '건물 외곽 그리기',
+    drawHint: '위성 지도에서 건물 모서리를 순서대로 눌러 외곽선을 그려주세요. 최소 3점.',
+    drawLevelsLabel: '층수', drawLevelsUnit: '층',
+    errDrawMin: '점을 3개 이상 찍어주세요',
     errSearch: m => '검색 중 오류가 발생했습니다: ' + m,
     errBuilding: m => '건물 조회 실패: ' + m,
     errNoResult: '검색 결과가 없습니다. 다르게 입력해보세요.', errNoBuilding: '이 위치 주변에서 건물 폴리곤을 찾지 못했습니다. 좌표를 조금 옮겨보세요.',
@@ -1187,7 +1236,12 @@ const I18N = {
     stRender: 'Rendering building...',
     postcodeLoc: 'postcode-based location', approxLoc: 'approximate location', manualLoc: 'manual input',
     infoLevels: n => `est. ${n} floors`, unnamedBuilding: 'Unnamed building',
-    synthMass: 'No building data here — showing a default mass (drag to set the angle)',
+    drawnMass: 'Hand-drawn mass',
+    btnDrawMass: 'Draw it', btnDrawDone: 'Done', btnUndo: 'Undo point',
+    drawTitle: 'Draw the building outline',
+    drawHint: 'Tap the building corners in order on the satellite map to trace its outline. At least 3 points.',
+    drawLevelsLabel: 'Floors', drawLevelsUnit: 'floors',
+    errDrawMin: 'Please place at least 3 points',
     errSearch: m => 'Search error: ' + m,
     errBuilding: m => 'Building lookup failed: ' + m,
     errNoResult: 'No results. Try a different query.', errNoBuilding: 'No building polygon found near this point. Try moving the coordinates slightly.',
@@ -1845,10 +1899,9 @@ async function proceedWithLocation(lat, lon) {
   try {
     const building = await fetchBuilding(lat, lon);
     if (!building) {
-      searchErr.textContent = t('errNoBuilding');
-      searchErr.style.display = 'block';
-      manualBox.classList.add('show');
+      // OSM에 건물이 없는 지역 — 위성 위에서 직접 그리도록 유도
       searchStatus.textContent = '';
+      openDrawMass(lat, lon);
       return;
     }
     state.building = building;
@@ -1861,7 +1914,7 @@ async function proceedWithLocation(lat, lon) {
     searchStatus.textContent = t('stRender');
     startMassViewer(building);
     document.getElementById('buildingInfo').textContent = building.synthetic
-      ? `${t('synthMass')} · ${state.address}`   // 대체 매스 안내
+      ? `${t('drawnMass')} · ${t('infoLevels', building.levels)} · ${state.address}`
       : `${building.name || t('unnamedBuilding')} · ${t('infoLevels', building.levels)} · ${state.address}`;
     searchStatus.textContent = '';
     goto(2);
@@ -1906,22 +1959,6 @@ async function overpass(query) {
   throw lastErr || new Error('Overpass unreachable');
 }
 
-// OSM에 건물 데이터가 없는 지역(시골·신축 등)을 위한 대체 매스 —
-// 검색 좌표를 중심으로 한 기본 사각형 박스. 이후 크기·회전은 매스 뷰어에서 조절 가능.
-// coords는 로컬 미터 좌표(중심 0,0), building 실물과 동일한 구조를 반환한다.
-const FALLBACK_SIZE_M = 12;   // 한 변 길이(m)
-const FALLBACK_LEVELS = 3;
-function fallbackMass(lat, lon) {
-  const h = FALLBACK_SIZE_M / 2;
-  const coords = [[-h, -h], [h, -h], [h, h], [-h, h]]; // 정사각 (로컬 미터)
-  return {
-    coords, levels: FALLBACK_LEVELS, height: FALLBACK_LEVELS * 3.5,
-    name: null,
-    osmId: 'synth:' + lat.toFixed(6) + ',' + lon.toFixed(6), // 합성 id (같은 지점 재검색 시 동일 그룹)
-    parts: null,
-    synthetic: true,          // 대체 매스 표시 (안내·향후 편집용)
-  };
-}
 async function fetchBuilding(lat, lon) {
   // 본체(building)와 부분(building:part)을 함께 조회. 지오코더 좌표가 큰 건물의
   // 중심에서 벗어날 수 있어 반경을 넓게(80→150→300m) 재시도한다.
@@ -1939,7 +1976,7 @@ async function fetchBuilding(lat, lon) {
   }
   const partWays = allWays.filter(e => e.tags && e.tags['building:part']);
   const ways = allWays.filter(e => e.tags && e.tags.building);
-  if (!ways.length) return fallbackMass(lat, lon); // OSM에 건물이 없는 지역 → 대체 매스
+  if (!ways.length) return null; // OSM에 건물 없음 → 호출부에서 '직접 그리기'로 유도
 
   // 포인트를 포함하는 폴리곤 우선, 없으면 중심점이 가장 가까운 것
   const inside = ways.find(w => pointInPolygon(lat, lon, w.geometry));
@@ -1956,13 +1993,9 @@ async function fetchBuilding(lat, lon) {
   if (!levels) levels = 3;             // 태그가 전혀 없으면 3층 가정
   if (!height) height = levels * 3.5;
 
-  // 로컬 미터 좌표 변환 (centroid 기준 equirectangular 근사)
+  // 로컬 미터 좌표 변환 (centroid 기준 equirectangular 근사) — 공유 헬퍼 사용
   const c = centroidLatLon(pick.geometry);
-  const R = 6378137;
-  const toLocal = g => [
-    (g.lon - c.lon) * Math.PI / 180 * R * Math.cos(c.lat * Math.PI / 180),
-    (g.lat - c.lat) * Math.PI / 180 * R,
-  ];
+  const toLocal = g => llToLocal(c, g);
   const closeTrim = arr => {
     const [fx, fy] = arr[0], [lx2, ly2] = arr[arr.length - 1];
     if (Math.abs(fx - lx2) < 0.01 && Math.abs(fy - ly2) < 0.01) arr.pop();
@@ -2025,6 +2058,15 @@ function centroidLatLon(geom) {
   let lat = 0, lon = 0;
   geom.forEach(g => { lat += g.lat; lon += g.lon; });
   return { lat: lat / geom.length, lon: lon / geom.length };
+}
+// 위경도 → 중심(center) 기준 로컬 미터 좌표 [x, y] (equirectangular 근사).
+// building.coords와 startMassViewer가 쓰는 좌표계. fetchBuilding·그리기 공용.
+function llToLocal(center, g) {
+  const R = 6378137;
+  return [
+    (g.lon - center.lon) * Math.PI / 180 * R * Math.cos(center.lat * Math.PI / 180),
+    (g.lat - center.lat) * Math.PI / 180 * R,
+  ];
 }
 function haversine(la1, lo1, la2, lo2) {
   const R = 6371000, r = Math.PI / 180;
@@ -2185,6 +2227,90 @@ function buildAlphaMask(srcCanvas) {
   ctx.putImageData(img, 0, 0);
   return c;
 }
+
+// ---- 건물 직접 그리기 (위성 위 폴리곤) ----
+// OSM에 건물이 없는 지역, 또는 STEP2에서 직접 그리고 싶을 때. 위성 타일 위에서
+// 외곽선을 점으로 찍어 폴리곤을 만들고, 로컬 미터 좌표로 변환해 startMassViewer로 압출.
+let drawMap = null, drawSatLayer = null, drawPolygon = null;
+let drawVerts = [];        // 찍은 정점 [{lat,lng}]
+let drawVertMarkers = [];  // 정점 표시 마커
+let drawCenter = null;     // {lat, lon} 검색 좌표 (합성 id·중심용)
+function renderDrawPolygon() {
+  const latlngs = drawVerts.map(v => [v.lat, v.lng]);
+  if (drawPolygon) drawMap.removeLayer(drawPolygon);
+  drawPolygon = null;
+  if (latlngs.length >= 2) {
+    drawPolygon = L.polygon(latlngs, { color: '#111', weight: 2, fillColor: '#111', fillOpacity: 0.12 }).addTo(drawMap);
+  }
+}
+function openDrawMass(lat, lon) {
+  drawCenter = { lat, lon };
+  drawVerts = [];
+  const ov = document.getElementById('drawOverlay');
+  ov.classList.add('open');
+  const err = document.getElementById('drawErr'); if (err) err.textContent = '';
+  if (!drawMap) {
+    drawMap = L.map('drawMap', { zoomControl: true });
+    drawSatLayer = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 21, maxNativeZoom: 19, attribution: 'Esri, Maxar, Earthstar Geographics' }
+    ).addTo(drawMap);
+    drawMap.on('click', (e) => {
+      drawVerts.push(e.latlng);
+      L.circleMarker(e.latlng, { radius: 4, color: '#111', fillColor: '#fff', fillOpacity: 1, weight: 2 })
+        .addTo(drawMap);
+      drawVertMarkers.push(drawVertMarkers.length); // 개수만 추적(레이어는 clearLayers로 정리)
+      renderDrawPolygon();
+    });
+  }
+  // 이전 그림 정리 (마커·폴리곤 제거, 타일은 유지)
+  drawMap.eachLayer(l => { if (l !== drawSatLayer) drawMap.removeLayer(l); });
+  drawPolygon = null; drawVertMarkers = [];
+  drawMap.setView([lat, lon], 19);
+  setTimeout(() => drawMap.invalidateSize(), 100);
+}
+function closeDrawMass() {
+  document.getElementById('drawOverlay').classList.remove('open');
+}
+document.getElementById('drawMassBtn').addEventListener('click', () => {
+  if (isFinite(state.lat) && isFinite(state.lon)) openDrawMass(state.lat, state.lon);
+});
+document.getElementById('drawCloseBtn').addEventListener('click', closeDrawMass);
+document.getElementById('drawUndoBtn').addEventListener('click', () => {
+  drawVerts.pop();
+  // 마커 전부 지우고 남은 정점만 다시 그림
+  drawMap.eachLayer(l => { if (l !== drawSatLayer && l !== drawPolygon) drawMap.removeLayer(l); });
+  drawVerts.forEach(v => L.circleMarker(v, { radius: 4, color: '#111', fillColor: '#fff', fillOpacity: 1, weight: 2 }).addTo(drawMap));
+  renderDrawPolygon();
+});
+// 층수 슬라이더 ↔ 숫자 동기화
+(function () {
+  const s = document.getElementById('drawLevels'), n = document.getElementById('drawLevelsNum');
+  s.addEventListener('input', () => { n.value = s.value; });
+  n.addEventListener('input', () => {
+    let v = Math.max(1, Math.min(60, parseInt(n.value, 10) || 1)); s.value = v;
+  });
+})();
+document.getElementById('drawDoneBtn').addEventListener('click', () => {
+  const err = document.getElementById('drawErr');
+  if (drawVerts.length < 3) { err.textContent = t('errDrawMin'); return; }
+  err.textContent = '';
+  // 위경도 정점 → 중심 기준 로컬 미터 좌표
+  const geom = drawVerts.map(v => ({ lat: v.lat, lon: v.lng }));
+  const c = centroidLatLon(geom);
+  const coords = geom.map(g => llToLocal(c, g));
+  const levels = Math.max(1, Math.min(60, parseInt(document.getElementById('drawLevels').value, 10) || 3));
+  state.building = {
+    coords, levels, height: levels * 3.5, name: null,
+    osmId: 'synth:' + drawCenter.lat.toFixed(6) + ',' + drawCenter.lon.toFixed(6),
+    parts: null, synthetic: true,
+  };
+  closeDrawMass();
+  startMassViewer(state.building);
+  document.getElementById('buildingInfo').textContent =
+    `${t('drawnMass')} · ${t('infoLevels', levels)} · ${state.address}`;
+  goto(2);
+});
 
 document.getElementById('backToSearchBtn').addEventListener('click', () => {
   stopMassViewer();
