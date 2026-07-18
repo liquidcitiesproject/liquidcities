@@ -4545,6 +4545,11 @@ function stopGlobeLoop() {
   if (gRaf) { cancelAnimationFrame(gRaf); gRaf = null; }
 }
 
+// 노드 3D 위치를 화면 픽셀 좌표로 투영
+function globeToScreen(v, rect) {
+  const p = v.clone().project(gCamera);
+  return { x: (p.x * 0.5 + 0.5) * rect.width, y: (-p.y * 0.5 + 0.5) * rect.height };
+}
 function onGlobePick(ev) {
   if (!globeReady || !gNodePickables.length) return;
   const rect = gRenderer.domElement.getBoundingClientRect();
@@ -4552,10 +4557,35 @@ function onGlobePick(ev) {
   gPointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
   gRaycaster.setFromCamera(gPointer, gCamera);
   const hits = gRaycaster.intersectObjects(gNodePickables.map(p => p.obj), false);
-  if (hits.length) {
-    const found = gNodePickables.find(p => p.obj === hits[0].object);
-    if (found) openRecordDetail(found.rec); // 클릭 → 기록 상세
+  if (!hits.length) return;
+  const found = gNodePickables.find(p => p.obj === hits[0].object);
+  if (!found) return;
+  // 겹쳐 뭉친 노드면 그 방향으로 카메라 확대, 충분히 벌어졌으면 상세 열기
+  const sc = globeToScreen(found.obj.position, rect);
+  const crowded = gNodePickables.some(p => p !== found &&
+    Math.hypot(globeToScreen(p.obj.position, rect).x - sc.x,
+               globeToScreen(p.obj.position, rect).y - sc.y) < 60);
+  if (crowded && gControls.getDistance() > gControls.minDistance + 0.02) {
+    zoomGlobeToNode(found.obj.position);
+  } else {
+    openRecordDetail(found.rec); // 클릭 → 기록 상세
   }
+}
+// 카메라를 노드 방향으로 회전하며 한 단계 확대 (평면 flyTo(+3)에 대응)
+function zoomGlobeToNode(nodePos) {
+  const dir = nodePos.clone().normalize();
+  const targetDist = Math.max(gControls.minDistance, gControls.getDistance() * 0.55);
+  const to = dir.multiplyScalar(targetDist);
+  const from = gCamera.position.clone();
+  if (gFitRaf) cancelAnimationFrame(gFitRaf);
+  let t = 0;
+  (function step() {
+    t = Math.min(1, t + 0.06);
+    const e = 1 - Math.pow(1 - t, 3);
+    gCamera.position.lerpVectors(from, to, e);
+    gCamera.lookAt(0, 0, 0); gControls.update();
+    if (t < 1) gFitRaf = requestAnimationFrame(step);
+  })();
 }
 
 // nodes/edges(평면과 공통)를 지구본에 반영. 매번 그룹 비우고 다시 배치.
