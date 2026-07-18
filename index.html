@@ -260,6 +260,7 @@
   body.board-viewer #emotionFilter { display: none !important; }
   body.board-viewer #scaleGauge { position: fixed !important; z-index: 1200; }
   body.board-viewer #langBar, body.board-viewer #buildTag { display: none; }
+  body.board-viewer #recActions { display: none !important; } /* 방문자는 편집/삭제 불가 */
   .info-line { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
   .rec-info .info-line:first-child { padding-top: 0; } /* 제목·날짜와 상단 라인 정렬 */
   .info-k { flex: none; width: 110px; color: var(--dim); }
@@ -921,7 +922,7 @@
 <!-- 기록 상세: 저장된 산출물 미리보기 + 다운로드 -->
 <section class="step wide" id="step98">
   <div class="row" style="margin-top:0"><button id="backRecBtn" class="secondary back-arrow">&lt;</button></div>
-  <div class="row" style="justify-content:flex-end; max-width:none; margin:0 0 6px">
+  <div class="row" id="recActions" style="justify-content:flex-end; max-width:none; margin:0 0 6px">
     <button id="recEditBtn" class="secondary" data-i18n="btnEdit" style="flex:0 0 auto; padding:6px 14px"></button>
     <button id="recDelBtn" class="secondary" data-i18n="btnDelete" style="flex:0 0 auto; padding:6px 14px"></button>
   </div>
@@ -5427,7 +5428,7 @@ function buildInfoRows(rec, full) {
   if (hasCoord(rec)) add(t('emoCoordLabel'), emoCoordText(rec.emoX, rec.emoY));
   if (typeof rec.momentScale === 'number') add('Scale', (rec.momentScale > 0 ? '+' : '') + rec.momentScale);
   add('Captured', rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '');
-  add('Mass address', rec.address);
+  if (!viewerRecords) add('Mass address', rec.address); // 방문자 뷰어에는 주소 노출 안 함
   if (typeof rec.gpsDistM === 'number' && rec.gpsDistM !== null) {
     add('Distance', rec.gpsDistM >= 1000 ? (rec.gpsDistM / 1000).toFixed(1) + 'km' : rec.gpsDistM + 'm');
   }
