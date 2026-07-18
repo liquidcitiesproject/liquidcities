@@ -847,11 +847,13 @@
   <h1 data-i18n="mapTitle"></h1>
   <p class="sub" data-i18n="mapSub"></p>
   <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:6px"></div>
-  <div class="row" id="mapCtrlRow" style="margin-top:0; margin-bottom:8px">
-    <button id="viewBoardBtn" class="secondary" style="opacity:1" data-i18n="btnBoard"></button>
-    <button id="viewMapBtn" class="secondary" style="opacity:0.5" data-i18n="btnGeoMap"></button>
-    <button id="viewGlobeBtn" class="secondary" style="opacity:0.5" data-i18n="btnGlobe"></button>
-    <button id="viewQuadBtn" class="secondary" style="opacity:0.5" data-i18n="btnQuad"></button>
+  <div class="row" id="mapCtrlRow" style="margin-top:0; margin-bottom:8px; align-items:center">
+    <select id="viewSelect" class="secondary" style="flex:0 0 auto; width:auto; min-width:130px">
+      <option value="board" data-i18n="btnBoard"></option>
+      <option value="map" data-i18n="btnGeoMap"></option>
+      <option value="globe" data-i18n="btnGlobe"></option>
+      <option value="quad" data-i18n="btnQuad"></option>
+    </select>
     <button id="moodSortBtn" class="secondary" data-i18n="moodSortLabel"></button>
     <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
     <button id="unshareBoardBtn" class="secondary" data-i18n="btnUnshareBoard"></button>
@@ -4759,12 +4761,8 @@ function emotionEdges(recs) {
 // 노드·연결선은 세 뷰 공통 데이터(renderMapMarkers가 계산).
 function setMapMode(mode) {
   boardMode = mode || 'board';
-  const on = k => (boardMode === k ? '1' : '0.5');
-  const set = (id, k) => { const el = document.getElementById(id); if (el) el.style.opacity = on(k); };
-  set('viewBoardBtn', 'board');
-  set('viewMapBtn', 'map');
-  set('viewGlobeBtn', 'globe');
-  set('viewQuadBtn', 'quad');
+  const sel = document.getElementById('viewSelect');
+  if (sel && sel.value !== boardMode) sel.value = boardMode;
   // 지구본은 별도 Three.js 뷰 — Leaflet 지도/오버레이와 표시 전환
   const globeOn = boardMode === 'globe';
   const quadOn = boardMode === 'quad';
@@ -4784,10 +4782,7 @@ function setMapMode(mode) {
   else { stopGlobeLoop(); if (lcMap && !quadOn) setTimeout(() => lcMap.invalidateSize(), 60); }
   renderMapMarkers();
 }
-document.getElementById('viewBoardBtn').addEventListener('click', () => setMapMode('board'));
-document.getElementById('viewMapBtn').addEventListener('click', () => setMapMode('map'));
-document.getElementById('viewGlobeBtn').addEventListener('click', () => setMapMode('globe'));
-document.getElementById('viewQuadBtn').addEventListener('click', () => setMapMode('quad'));
+document.getElementById('viewSelect').addEventListener('change', (e) => setMapMode(e.target.value));
 
 // 감정 좌표 사분면 뷰 렌더 — 좌표(emoX,emoY)를 가진 기록을 평면 위에 노드로 배치.
 function renderQuad(recs) {
