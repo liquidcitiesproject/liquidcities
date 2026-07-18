@@ -103,6 +103,24 @@
   .emo-dot { position: absolute; width: 16px; height: 16px; border-radius: 50%;
     background: var(--ink); border: 2px solid #fff; box-shadow: 0 0 0 1px var(--ink);
     transform: translate(-50%, -50%); display: none; pointer-events: none; }
+  /* ---- 오늘의 기분 정렬 패널 (기본 숨김, 열리면 지도 위 오버레이 시트) ---- */
+  #moodSortPanel { display: none; }
+  #moodSortPanel.open { display: block; }
+  .mood-head { display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 0 10px; border-bottom: 1px solid var(--line); margin-bottom: 12px; }
+  .mood-title { font-size: 13px; font-weight: 500; }
+  .mood-close { background: none; border: 1px solid var(--line); border-radius: 4px;
+    width: 30px; height: 30px; font-size: 14px; line-height: 1; cursor: pointer; padding: 0; }
+  .mood-close:hover { background: var(--panel); }
+  .mood-body { display: flex; gap: 24px; align-items: flex-start; }
+  .mood-plane-col { flex: 0 0 300px; max-width: 100%; }
+  #moodList { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 6px; }
+  /* 맵 풀스크린일 때 패널을 지도 위 카드로 띄운다 (데스크톱·모바일 공통) */
+  body.map-full #moodSortPanel.open {
+    position: fixed; z-index: 1300; background: rgba(255,255,255,0.98);
+    border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+    padding: 16px; top: calc(var(--hdrH, 96px) + 12px); right: 12px; width: 620px; max-width: calc(100vw - 24px);
+    max-height: calc(100vh - var(--hdrH, 96px) - 24px); overflow-y: auto; }
   .float-word { position: absolute; color: rgba(17,17,17,0.85); font-size: 15px;
     text-shadow: 0 1px 6px rgba(255,255,255,0.9); animation: floatDrift 14s ease-in-out infinite alternate; }
   @keyframes floatDrift {
@@ -153,7 +171,8 @@
   body.map-full #massCats .mass-cat { box-shadow: 0 1px 6px rgba(0,0,0,0.10); }
   body.map-full #mapCtrlRow {
     position: fixed; top: calc(var(--hdrH, 112px) + 12px); right: 12px; z-index: 1200;
-    margin: 0; max-width: none; width: auto; display: flex; gap: 6px;
+    margin: 0; max-width: calc(100vw - 24px); width: auto; display: flex; gap: 6px;
+    flex-wrap: wrap; justify-content: flex-end; /* 좁아지면 겹치지 말고 줄바꿈 */
   }
   body.map-full #mapCtrlRow button { flex: 0 0 auto; padding: 8px 12px; font-size: 12px;
     box-shadow: 0 1px 6px rgba(0,0,0,0.10); background: #fff; }
@@ -269,19 +288,21 @@
       flex-wrap: wrap; justify-content: flex-start;
     }
     body.map-full #mapCtrlRow button { min-height: 40px; } /* 터치 타깃 확보 */
-    /* 감정 필터 · 오늘의 기분 패널: 지도(fixed) 위 하단 시트로 */
+    /* 감정 필터: 지도 위 하단 얇은 시트 */
     body.map-full #emotionFilter {
       position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 1200;
       background: rgba(255,255,255,0.96); padding: 8px; border-radius: 8px;
-      box-shadow: 0 -1px 8px rgba(0,0,0,0.12); max-height: 30vh; overflow-y: auto;
+      box-shadow: 0 -1px 8px rgba(0,0,0,0.12); max-height: 26vh; overflow-y: auto;
     }
-    body.map-full #moodSortPanel {
-      position: fixed !important; left: 8px; right: 8px; bottom: 8px; z-index: 1250;
-      background: rgba(255,255,255,0.98); padding: 12px; border-radius: 8px;
-      box-shadow: 0 -1px 12px rgba(0,0,0,0.18); max-height: 70vh; overflow-y: auto;
-      flex-direction: column;
+    /* 오늘의 기분 패널: 화면 하단에서 올라오는 바텀시트 (닫기 버튼 포함) */
+    body.map-full #moodSortPanel.open {
+      top: auto; right: 0; left: 0; width: 100%; max-width: 100%;
+      bottom: 0; border-radius: 14px 14px 0 0; padding: 14px 14px 20px;
+      max-height: 82vh; box-shadow: 0 -4px 24px rgba(0,0,0,0.22);
     }
-    body.map-full #moodSortPanel #moodPlaneWrap { max-width: 240px; }
+    #moodSortPanel .mood-body { flex-direction: column; gap: 14px; }
+    #moodSortPanel .mood-plane-col { flex: none; width: 100%; }
+    #moodSortPanel #moodPlaneWrap { max-width: 260px; margin: 0 auto; }
   }
 
   /* ============================================================
@@ -757,21 +778,26 @@
   <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
   <div id="emotionFilter" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; align-items:center"></div>
   <!-- 오늘의 기분 정렬 패널 (평면에 오늘 점 찍기 → gap 가까운 순 리스트) -->
-  <div id="moodSortPanel" style="display:none; margin-bottom:12px; gap:20px; flex-wrap:wrap"
-       class="row">
-    <div style="flex:0 0 320px; max-width:100%">
-      <p class="hint" data-i18n="moodSortHint" style="margin:0 0 8px"></p>
-      <div id="moodPlaneWrap" class="emo-plane" style="max-width:320px; margin:0">
-        <div class="emo-axis-x"></div>
-        <div class="emo-axis-y"></div>
-        <span class="emo-lbl emo-lbl-top" data-i18n="emoAxisYPos"></span>
-        <span class="emo-lbl emo-lbl-bottom" data-i18n="emoAxisYNeg"></span>
-        <span class="emo-lbl emo-lbl-left" data-i18n="emoAxisXNeg"></span>
-        <span class="emo-lbl emo-lbl-right" data-i18n="emoAxisXPos"></span>
-        <div id="moodPlaneDot" class="emo-dot"></div>
-      </div>
+  <div id="moodSortPanel">
+    <div class="mood-head">
+      <span class="mood-title" data-i18n="moodSortLabel"></span>
+      <button id="moodCloseBtn" class="mood-close" aria-label="close">✕</button>
     </div>
-    <div id="moodList" style="flex:1; min-width:240px; display:flex; flex-direction:column; gap:6px"></div>
+    <div class="mood-body">
+      <div class="mood-plane-col">
+        <p class="hint" data-i18n="moodSortHint" style="margin:0 0 8px"></p>
+        <div id="moodPlaneWrap" class="emo-plane" style="max-width:300px; margin:0">
+          <div class="emo-axis-x"></div>
+          <div class="emo-axis-y"></div>
+          <span class="emo-lbl emo-lbl-top" data-i18n="emoAxisYPos"></span>
+          <span class="emo-lbl emo-lbl-bottom" data-i18n="emoAxisYNeg"></span>
+          <span class="emo-lbl emo-lbl-left" data-i18n="emoAxisXNeg"></span>
+          <span class="emo-lbl emo-lbl-right" data-i18n="emoAxisXPos"></span>
+          <div id="moodPlaneDot" class="emo-dot"></div>
+        </div>
+      </div>
+      <div id="moodList"></div>
+    </div>
   </div>
   <div class="status" id="shareStatus" style="margin:0 0 8px; user-select:text; -webkit-user-select:text"></div>
   <div class="status" id="mapStatus" style="margin:0 0 8px"></div>
@@ -4198,12 +4224,19 @@ function renderMoodSort() {
 bindPlane('moodPlaneWrap', (x, y) => {
   todayMood = { emoX: x, emoY: y }; renderMoodDot(); renderMoodSort();
 });
-document.getElementById('moodSortBtn').addEventListener('click', () => {
-  moodSortOpen = !moodSortOpen;
+function setMoodSort(open) {
+  moodSortOpen = open;
   const panel = document.getElementById('moodSortPanel');
-  panel.style.display = moodSortOpen ? 'flex' : 'none';
-  if (moodSortOpen) { renderMoodDot(); renderMoodSort(); }
-});
+  panel.classList.toggle('open', open);
+  document.getElementById('moodSortBtn').classList.toggle('sel', open);
+  if (open) {
+    renderMoodDot(); renderMoodSort();
+    // 패널이 보이게 된 뒤에 레이아웃이 잡히도록 다음 프레임에 점 위치 재계산
+    requestAnimationFrame(renderMoodDot);
+  }
+}
+document.getElementById('moodSortBtn').addEventListener('click', () => setMoodSort(!moodSortOpen));
+document.getElementById('moodCloseBtn').addEventListener('click', () => setMoodSort(false));
 
 // 기록을 "매스(건물)" 단위로 그룹화 — 주소+좌표 반올림을 키로
 function massKeyOf(rec) {
