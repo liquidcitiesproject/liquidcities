@@ -578,6 +578,11 @@
   <p class="sub direction" data-i18n="s4Sub"></p>
   <div class="canvas-wrap square"><canvas id="editorCanvas" width="1080" height="1920"></canvas></div>
   <p class="hint" id="captureInfo" style="margin-top:10px"></p>
+  <!-- 촬영일 직접 수정 (EXIF가 없거나 틀렸을 때) -->
+  <div class="row" id="dateEditRow" style="align-items:center; margin-top:6px; gap:8px">
+    <label class="hint" data-i18n="editDateLabel" style="flex:0 0 auto; margin:0"></label>
+    <input type="date" id="mediaDateInput" style="flex:0 0 auto">
+  </div>
   <div id="clipRow" style="display:none; margin-top:12px">
     <p class="hint" data-i18n="clipHint" style="margin:0 0 6px"></p>
     <input type="range" id="clipSlider" min="0" max="0" step="0.1" value="0" style="width:100%">
@@ -1102,6 +1107,7 @@ const I18N = {
     capExif: '촬영 시각', capVideoMeta: '촬영 시각(영상 메타)',
     capFile: '파일 시각 — 원본 촬영 정보가 없는 파일입니다 (편집·전송 과정에서 제거됐을 수 있어요)',
     capNow: '현재 시각 — 파일에서 시간 정보를 읽지 못했습니다',
+    capManual: '직접 지정한 날짜', editDateLabel: '촬영 날짜 수정:',
     gpsFound: (la, lo, d) => `촬영 위치 ${la}, ${lo} — 주소에서 ${d}`,
     gpsNone: '위치 정보 없음 — 이 파일에는 GPS가 없어 거리 표시가 생략됩니다 (편집·전송 시 제거될 수 있어요)',
     dlAudioPrep: '소리 준비 중… (약 5초)',
@@ -1271,6 +1277,7 @@ const I18N = {
     capExif: 'Captured', capVideoMeta: 'Captured (video metadata)',
     capFile: 'File time — this file has no original capture info (may have been stripped in editing/transfer)',
     capNow: 'Current time — could not read time info from the file',
+    capManual: 'Date you set', editDateLabel: 'Edit capture date:',
     gpsFound: (la, lo, d) => `Captured at ${la}, ${lo} — ${d} from address`,
     gpsNone: 'No location info — this file has no GPS, so distance is omitted (often stripped by editing/transfer)',
     dlAudioPrep: 'Preparing sound… (~5s)',
@@ -2533,8 +2540,11 @@ async function readMediaGps(file) {
 async function readCaptureDate(file) {
   try {
     if (file.type.startsWith('image/') && window.exifr) {
-      const ex = await exifr.parse(file, { pick: ['DateTimeOriginal', 'CreateDate'] });
-      const d = ex && (ex.DateTimeOriginal || ex.CreateDate);
+      // HEIC·일부 기기는 DateTimeOriginal이 없고 다른 필드에 촬영일이 있어 넓게 시도
+      const ex = await exifr.parse(file, {
+        pick: ['DateTimeOriginal', 'CreateDate', 'DateTimeDigitized', 'ModifyDate', 'DateTime', 'GPSDateStamp'],
+      });
+      const d = ex && (ex.DateTimeOriginal || ex.CreateDate || ex.DateTimeDigitized || ex.ModifyDate || ex.DateTime);
       if (d instanceof Date && !isNaN(d)) return { date: d, source: 'exif' };
     } else if (file.type.startsWith('video/')) {
       const d = await readMp4CreationDate(file);
@@ -2676,6 +2686,12 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
     const ci = document.getElementById('captureInfo');
     ci.style.whiteSpace = 'pre-line';
     ci.textContent = line;
+    // 날짜 수정칸에 현재 촬영일 채우기 (로컬 날짜 기준)
+    const di = document.getElementById('mediaDateInput');
+    if (di && state.mediaDate) {
+      const d = state.mediaDate;
+      di.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
   }
   resetTransform();
   state.locked = false;
@@ -2683,6 +2699,19 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   startEditorLoop();
   detectObjects();     // 백그라운드로 객체 인식 시작
   goto(4);
+});
+
+// 촬영일 직접 수정 — EXIF가 없거나 틀렸을 때 사용자가 정확한 날짜로 고침
+document.getElementById('mediaDateInput').addEventListener('change', (e) => {
+  const v = e.target.value; // YYYY-MM-DD
+  if (!v) return;
+  const [y, m, d] = v.split('-').map(Number);
+  const picked = new Date(y, m - 1, d, 12, 0, 0); // 로컬 정오 (시간대 밀림 방지)
+  if (isNaN(picked)) return;
+  state.mediaDate = picked;
+  state.mediaDateSource = 'manual';
+  const ci = document.getElementById('captureInfo');
+  if (ci) ci.textContent = `${fmtDate(picked)} · ${t('capManual')}`;
 });
 
 /* ============================================================
