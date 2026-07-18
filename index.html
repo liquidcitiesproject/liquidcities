@@ -1519,7 +1519,7 @@ const DEFAULT_W3W_KEY = ''; // ← 운영자 w3w 키 내장 슬롯
 const w3wKey = () => localStorage.getItem('lc_w3w_key') || DEFAULT_W3W_KEY;
 // VWorld(한국 국토부 건물통합정보) 키 — OSM에 건물 없는 한국 주소의 실제 형태 자동 조회용.
 // vworld.kr 무료 발급(도메인 liquidcities.io 등록) 후 아래에 내장. 도메인 제한이라 노출 무해.
-const DEFAULT_VWORLD_KEY = ''; // ← 운영자 VWorld 키 내장 슬롯 (발급 후 채우기)
+const DEFAULT_VWORLD_KEY = '6E822EE8-CF89-3C28-9B0D-7330F3988388'; // 도메인(liquidcities.io) 제한 키
 const vworldKey = () => localStorage.getItem('lc_vworld_key') || DEFAULT_VWORLD_KEY;
 const W3W_RE = /^\s*\/{0,3}([^\s.\/]+)\.([^\s.\/]+)\.([^\s.\/]+)\s*$/u;
 async function w3wToCoords(words) {
@@ -2106,9 +2106,13 @@ async function fetchBuildingVWorld(lat, lon) {
   }, null);
   const ring = pick.ring;
   const props = pick.f.properties || {};
-  let levels = parseInt(props.gro_flo_co || props.GRO_FLO_CO) || null; // 지상 층수
+  // 실제 VWorld lt_c_bldginfo 필드: grnd_flr(지상층수), height(높이 m), bld_nm(건물명)
+  let levels = parseInt(props.grnd_flr) || null;
+  let height = parseFloat(props.height) || null;
+  if (!levels && height) levels = Math.max(1, Math.round(height / 3.5));
   if (!levels || levels < 1) levels = 3;
-  const name = props.bdtyp_cd_nm || props.buld_nm || props.BULD_NM || null;
+  if (!height || height < 1) height = levels * 3.5;
+  const name = props.bld_nm || null;
 
   // 로컬 미터 좌표 변환 (공유 헬퍼)
   const c = centroidLatLon(ring);
@@ -2119,7 +2123,7 @@ async function fetchBuildingVWorld(lat, lon) {
   };
   const coords = closeTrim(ring.map(g => llToLocal(c, g)));
   return {
-    coords, levels, height: levels * 3.5, name,
+    coords, levels, height, name,
     osmId: 'vworld:' + lat.toFixed(6) + ',' + lon.toFixed(6),
     parts: null, source: 'vworld', synthetic: true,
   };
