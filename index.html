@@ -143,7 +143,7 @@
   body.map-full #step97 > h1, body.map-full #step97 > .sub { display: none; }
   body.map-full #mapView {
     position: fixed !important; left: 0; right: 0; bottom: 0; top: var(--hdrH, 112px);
-    width: 100vw !important; height: auto !important;
+    width: 100% !important; height: auto !important;
     border: none !important; border-radius: 0 !important; z-index: 1;
   }
   body.map-full #massCats {
@@ -164,7 +164,7 @@
   /* ---- 지구본 뷰: 평면(#mapView)과 같은 풀스크린 영역을 차지 ---- */
   body.map-full #globeView {
     position: fixed !important; left: 0; right: 0; bottom: 0; top: var(--hdrH, 112px);
-    width: 100vw !important; height: auto !important; z-index: 1; background: #fff;
+    width: 100% !important; height: auto !important; z-index: 1; background: #fff;
   }
   /* ---- 보드 공유 뷰어 (?board=) — 풀스크린 보드 + 떠 있는 카테고리 ---- */
   body.board-viewer #step97 { max-width: none; width: 100%; padding: 0; margin: 0; }
@@ -255,6 +255,33 @@
     #mapView { height: min(560px, 62vh) !important; }
     .saved-item { flex-wrap: wrap; }
     .saved-item span { flex: 1 1 100%; }
+    /* ---- 맵 풀스크린 오버레이 모바일 재배치 (겹침 방지) ----
+       데스크톱은 카테고리(좌) / 컨트롤(우) 분리 배치지만, 좁은 폭에선 겹치므로
+       위→아래 세로로 쌓는다: 1행 카테고리(가로 스크롤) → 2행 컨트롤(줄바꿈). */
+    body.map-full #massCats {
+      left: 8px; right: 8px;                 /* 전체 폭 한 줄, 가로 스크롤 */
+      top: calc(var(--hdrH, 96px) + 8px);
+      flex-wrap: nowrap;
+    }
+    body.map-full #mapCtrlRow {
+      left: 8px; right: 8px; width: auto;
+      top: calc(var(--hdrH, 96px) + 62px);   /* 카테고리 줄 아래로 */
+      flex-wrap: wrap; justify-content: flex-start;
+    }
+    body.map-full #mapCtrlRow button { min-height: 40px; } /* 터치 타깃 확보 */
+    /* 감정 필터 · 오늘의 기분 패널: 지도(fixed) 위 하단 시트로 */
+    body.map-full #emotionFilter {
+      position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 1200;
+      background: rgba(255,255,255,0.96); padding: 8px; border-radius: 8px;
+      box-shadow: 0 -1px 8px rgba(0,0,0,0.12); max-height: 30vh; overflow-y: auto;
+    }
+    body.map-full #moodSortPanel {
+      position: fixed !important; left: 8px; right: 8px; bottom: 8px; z-index: 1250;
+      background: rgba(255,255,255,0.98); padding: 12px; border-radius: 8px;
+      box-shadow: 0 -1px 12px rgba(0,0,0,0.18); max-height: 70vh; overflow-y: auto;
+      flex-direction: column;
+    }
+    body.map-full #moodSortPanel #moodPlaneWrap { max-width: 240px; }
   }
 
   /* ============================================================
@@ -1179,6 +1206,7 @@ function applyLang() {
   document.getElementById('langEn2').style.opacity = lang === 'en' ? '1' : '0.4';
   document.getElementById('langKo2').style.opacity = lang === 'ko' ? '1' : '0.4';
   renderSavedList(); // 저장 목록 버튼 라벨도 언어 반영 (함수 선언은 호이스팅됨)
+  try { syncHdrH(); } catch (e) {} // 언어 전환으로 헤더 높이 변할 수 있음 (함수 선언 호이스팅)
 }
 document.getElementById('hdrLang').addEventListener('click', () => {
   lang = lang === 'en' ? 'ko' : 'en';
@@ -1208,12 +1236,19 @@ const state = {
 
 /* ============ 화면 전환 ============ */
 const steps = [...document.querySelectorAll('.step')];
+// 고정 헤더 높이를 CSS 변수로 반영 — 맵 오버레이(#mapView top, #massCats 등)가 이 값 기준.
+// 회전/폰트 로드/언어 전환으로 헤더 높이가 바뀌면 오버레이가 어긋나므로 그때마다 재계산.
+function syncHdrH() {
+  const hdr = document.getElementById('appHeader');
+  if (hdr && hdr.offsetHeight) document.documentElement.style.setProperty('--hdrH', hdr.offsetHeight + 'px');
+}
+window.addEventListener('resize', () => { syncHdrH(); if (lcMap) setTimeout(() => lcMap.invalidateSize(), 60); });
+window.addEventListener('orientationchange', () => { setTimeout(() => { syncHdrH(); if (lcMap) lcMap.invalidateSize(); }, 200); });
 function goto(n, opts) {
   steps.forEach(s => s.classList.toggle('active', s.id === 'step' + n));
   // 맵은 헤더 아래 풀스크린 — 컨트롤은 맵 위 오버레이
   document.body.classList.toggle('map-full', n === 97 && !document.body.classList.contains('board-viewer'));
-  const hdr = document.getElementById('appHeader');
-  if (hdr) document.documentElement.style.setProperty('--hdrH', hdr.offsetHeight + 'px');
+  syncHdrH();
   if (n === 97 && lcMap) setTimeout(() => lcMap.invalidateSize(), 120);
   if (n === 5) { try { renderEmotionChips(); } catch (e) {} } // 감정 태그 칩 최신 상태로
   if (n === '5b') { try { avgPosition(); renderPlaneDot(); } catch (e) {} } // 평면 진입 시 점 배치
