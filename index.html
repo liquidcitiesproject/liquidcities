@@ -2202,47 +2202,6 @@ const massCanvas = document.getElementById('massCanvas');
 const massCanvasCtx = massCanvas.getContext('2d');
 let massViewer = null;
 
-// 절차적 경사지붕(hip roof 근사) — footprint를 centroid 기준으로 축소한 상단 링을 만들어
-// 처마↔마루를 경사면으로 잇고 마루면을 덮는다. 축소는 위상을 보존해 오목 다각형도 안 깨짐.
-// coords: 닫히지 않은 로컬 [x,y] 링. 월드 매핑 (x,y)->(x, Y, -y) (기존 rotateX(-PI/2)와 일치).
-const ROOF_MAX_LEVELS = 3;   // 이하 층수만 경사지붕
-const ROOF_SHRINK = 0.62;    // 마루 링 축소 비율 (0.55~0.65 = hip 룩)
-function buildRoofGeometry(coords, wallTopY, roofH) {
-  const n = coords.length;
-  if (n < 3) return null;
-  // 면적가중 centroid (shoelace) — 단순평균보다 오목에서 안정적
-  let A = 0, cx = 0, cy = 0;
-  for (let i = 0; i < n; i++) {
-    const [x0, y0] = coords[i], [x1, y1] = coords[(i + 1) % n];
-    const cr = x0 * y1 - x1 * y0;
-    A += cr; cx += (x0 + x1) * cr; cy += (y0 + y1) * cr;
-  }
-  A *= 0.5;
-  if (Math.abs(A) < 1e-6) return null;
-  cx /= (6 * A); cy /= (6 * A);
-  const base = coords.map(([x, y]) => [x, wallTopY, -y]);                 // 처마
-  const top = coords.map(([x, y]) => [                                    // 마루(축소·상승)
-    cx + (x - cx) * ROOF_SHRINK, wallTopY + roofH, -(cy + (y - cy) * ROOF_SHRINK)]);
-  const positions = [], idx = [];
-  const push = p => { positions.push(p[0], p[1], p[2]); return positions.length / 3 - 1; };
-  const baseIx = base.map(push), topIx = top.map(push);
-  for (let i = 0; i < n; i++) {           // 경사면: 처마변 → 마루변 사다리꼴
-    const j = (i + 1) % n;
-    idx.push(baseIx[i], baseIx[j], topIx[j]);
-    idx.push(baseIx[i], topIx[j], topIx[i]);
-  }
-  try {                                    // 마루면(뚜껑) — 오목 링도 처리
-    const capPts = top.map(p => new THREE.Vector2(p[0], p[2]));
-    const capTris = THREE.ShapeUtils.triangulateShape(capPts, []);
-    for (const tri of capTris) idx.push(topIx[tri[0]], topIx[tri[1]], topIx[tri[2]]);
-  } catch (e) { /* 뚜껑 실패 시 경사면만 */ }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setIndex(idx);
-  geo.computeVertexNormals();              // EdgesGeometry 능선 판정에 필요
-  return geo;
-}
-
 function startMassViewer(building) {
   stopMassViewer();
 
@@ -2263,11 +2222,6 @@ function startMassViewer(building) {
   const group = new THREE.Group();
   const lineMat = new LineMaterial({ color: 0x000000, linewidth: 1.5, worldUnits: false });
   lineMat.resolution.set(CANVAS_W, CANVAS_H);
-  const roofMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-  // 저층 단일 본체만 경사지붕 — 고층·파트(굴뚝 등) 건물은 평지붕 유지
-  const isSinglePiece = !(building.parts && building.parts.length);
-  const wantsRoof = isSinglePiece &&
-    ((building.levels || Math.round((building.height || 0) / 3.5)) <= ROOF_MAX_LEVELS);
   // 매스를 전부 먼저 추가하고 선을 나중에 추가 — 렌더 순서가 곧 depth 기록
   // 순서라서, 섞어 추가하면 나중 매스가 앞선 선을 가리지 못해 내부 선이 비친다
   const lineObjs = [];
@@ -2282,29 +2236,6 @@ function startMassViewer(building) {
     group.add(mesh);
     meshes.push(mesh);
     geometries.push(geometry);
-    // 저층 경사지붕 — 벽 윗면 위에 hip roof 근사 얹기
-    if (wantsRoof) {
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (const [x, y] of piece.coords) {
-        if (x < minX) minX = x; if (x > maxX) maxX = x;
-        if (y < minY) minY = y; if (y > maxY) maxY = y;
-      }
-      const shortSpan = Math.min(maxX - minX, maxY - minY);
-      const roofH = Math.min(piece.height * 0.45, shortSpan * 0.35, 6.0);
-      if (roofH > 0.5) {
-        const roofGeo = buildRoofGeometry(piece.coords, piece.height, roofH);
-        if (roofGeo) {
-          const roofMesh = new THREE.Mesh(roofGeo, roofMat);
-          group.add(roofMesh);
-          meshes.push(roofMesh);
-          geometries.push(roofGeo); // 카메라 핏에 지붕 꼭대기 포함
-          const rEdges = new THREE.EdgesGeometry(roofGeo, 12);
-          const rLine = new LineSegments2(new LineSegmentsGeometry().fromEdgesGeometry(rEdges), lineMat);
-          rLine.renderOrder = 1;
-          lineObjs.push(rLine);
-        }
-      }
-    }
     // 1.5px 외곽선 — LineBasicMaterial의 linewidth는 브라우저에서 무시되므로 Line2 사용
     const edges = new THREE.EdgesGeometry(geometry, 12); // 12도 미만 꺾임(공면 삼각분할)은 제외
     const lineGeo = new LineSegmentsGeometry().fromEdgesGeometry(edges);
