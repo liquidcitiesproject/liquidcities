@@ -840,8 +840,7 @@
         <option value="quad" data-i18n="btnQuad"></option>
       </select>
       <button id="moodSortBtn" class="secondary" data-i18n="moodSortLabel"></button>
-      <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
-      <button id="unshareBoardBtn" class="secondary" data-i18n="btnUnshareBoard"></button>
+      <button id="shareToggleBtn" class="secondary" style="margin-left:auto; flex:0 0 auto"></button>
     </div>
     <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:2px"></div>
     <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
@@ -991,7 +990,7 @@ const I18N = {
     readMore: 'Read more',
     s96Sub: '확정한 건물 매스가 여기에 보관됩니다. 이름을 바꾸면 맵에도 반영됩니다.',
     confirmDelete: '이 기록을 삭제할까요?', btnEdit: '수정', editWord: '한 단어를 수정해주세요', editThought: '이 순간에 대한 생각을 수정해주세요',
-    btnShareBoard: '보드 공유', btnUnshareBoard: '공유 취소',
+    btnShareBoard: '보드 공유', btnUnshareBoard: '공유 취소', shareOn: '✓ 공유 중',
     unshareDone: '공유를 내렸습니다 — 링크가 더 이상 열리지 않습니다', unshareFail: '공유 취소 실패',
     shareReady: '공유 링크:', shareCopied: '링크가 복사되었습니다:',
     phPw: '비밀번호 (6자 이상)', btnPwLogin: '로그인 / 가입',
@@ -1163,7 +1162,7 @@ const I18N = {
     readMore: 'Read more',
     s96Sub: 'Confirmed building masses live here. Renaming also updates the map.',
     confirmDelete: 'Delete this record?', btnEdit: 'Edit', editWord: 'Edit your one word', editThought: 'Edit your thoughts on this moment',
-    btnShareBoard: 'Share board', btnUnshareBoard: 'Unshare',
+    btnShareBoard: 'Share board', btnUnshareBoard: 'Unshare', shareOn: '✓ Shared',
     unshareDone: 'Board unshared — the link no longer opens', unshareFail: 'Unshare failed',
     shareReady: 'Share link:', shareCopied: 'Link copied:',
     phPw: 'Password (6+ chars)', btnPwLogin: 'Log in / Sign up',
@@ -1336,6 +1335,7 @@ function applyLang() {
   document.getElementById('langKo2').style.opacity = lang === 'ko' ? '1' : '0.4';
   renderSavedList(); // 저장 목록 버튼 라벨도 언어 반영 (함수 선언은 호이스팅됨)
   try { syncHdrH(); } catch (e) {} // 언어 전환으로 헤더 높이 변할 수 있음 (함수 선언 호이스팅)
+  try { paintShareToggle(); } catch (e) {} // 공유 토글 라벨(동적, data-i18n 없음)
 }
 document.getElementById('hdrLang').addEventListener('click', () => {
   lang = lang === 'en' ? 'ko' : 'en';
@@ -1379,6 +1379,7 @@ function goto(n, opts) {
   document.body.classList.toggle('map-full', n === 97 && !document.body.classList.contains('board-viewer'));
   syncHdrH();
   if (n === 97 && lcMap) setTimeout(() => lcMap.invalidateSize(), 120);
+  if (n === 97) { try { refreshShareState(); } catch (e) {} } // 공유 토글 라벨 최신화
   if (n === 5) { try { renderEmotionChips(); } catch (e) {} } // 감정 태그 칩 최신 상태로
   if (n === '5b') { try { avgPosition(); renderPlaneDot(); } catch (e) {} } // 평면 진입 시 점 배치
   // 브라우저 뒤로가기(스와이프 포함)로 단계를 되돌릴 수 있게 히스토리에 기록
@@ -5264,32 +5265,49 @@ function autoShareBoard() {
   }, 1200);
 }
 
-document.getElementById('shareBoardBtn').addEventListener('click', async () => {
-  const st = document.getElementById('shareStatus');
-  if (!sb) { st.textContent = t('shareNeedServer'); return; }
-  try {
-    const uid = await pushBoardSnapshot();
-    if (!uid) { st.textContent = t('shareNeedServer'); return; }
-    const link = location.origin + location.pathname + '?board=' + uid;
-    st.textContent = t('shareReady') + ' ' + link;
-    try { await navigator.clipboard.writeText(link); st.textContent = t('shareCopied') + ' ' + link; } catch (e) {}
-  } catch (e) {
-    st.textContent = t('shareFail') + ' — ' + e.message;
-  }
-});
-// 공유 취소 — shared_boards에서 내 스냅샷 삭제. 링크가 더 이상 안 열림.
-document.getElementById('unshareBoardBtn').addEventListener('click', async () => {
-  const st = document.getElementById('shareStatus');
-  if (!sb) { st.textContent = t('shareNeedServer'); return; }
+// 공유 토글 — 하나의 버튼으로 공유/공유취소. 상태에 따라 라벨·동작 전환.
+let _shareState = null; // null=미확인, true=공유중, false=미공유
+function paintShareToggle() {
+  const btn = document.getElementById('shareToggleBtn');
+  if (!btn) return;
+  if (_shareState === true) { btn.textContent = t('shareOn'); btn.classList.add('sel'); }
+  else { btn.textContent = t('btnShareBoard'); btn.classList.remove('sel'); }
+}
+async function refreshShareState() {
+  if (!sb || viewerRecords) return; // 뷰어 모드 제외
   try {
     const { data: u } = await sb.auth.getUser();
     const uid = u && u.user && u.user.id;
-    if (!uid) { st.textContent = t('shareNeedServer'); return; }
-    const { error } = await sb.from('shared_boards').delete().eq('user_id', uid);
-    if (error) throw error;
-    st.textContent = t('unshareDone');
+    if (!uid) { _shareState = false; paintShareToggle(); return; }
+    const { data } = await sb.from('shared_boards').select('user_id').eq('user_id', uid).maybeSingle();
+    _shareState = !!data;
+    paintShareToggle();
+  } catch (e) { /* 무시 */ }
+}
+document.getElementById('shareToggleBtn').addEventListener('click', async () => {
+  const st = document.getElementById('shareStatus');
+  if (!sb) { st.textContent = t('shareNeedServer'); return; }
+  try {
+    if (_shareState === true) {
+      // 공유 취소
+      const { data: u } = await sb.auth.getUser();
+      const uid = u && u.user && u.user.id;
+      if (!uid) { st.textContent = t('shareNeedServer'); return; }
+      const { error } = await sb.from('shared_boards').delete().eq('user_id', uid);
+      if (error) throw error;
+      _shareState = false; paintShareToggle();
+      st.textContent = t('unshareDone');
+    } else {
+      // 공유
+      const uid = await pushBoardSnapshot();
+      if (!uid) { st.textContent = t('shareNeedServer'); return; }
+      _shareState = true; paintShareToggle();
+      const link = location.origin + location.pathname + '?board=' + uid;
+      st.textContent = t('shareReady') + ' ' + link;
+      try { await navigator.clipboard.writeText(link); st.textContent = t('shareCopied') + ' ' + link; } catch (e) {}
+    }
   } catch (e) {
-    st.textContent = t('unshareFail') + ' — ' + e.message;
+    st.textContent = t('shareFail') + ' — ' + e.message;
   }
 });
 // 뷰어 모드: ?board=<uid> 로 열리면 로그인 없이 그 사용자의 보드만 표시
