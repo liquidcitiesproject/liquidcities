@@ -1394,7 +1394,10 @@ function goto(n, opts) {
   // 맵은 헤더 아래 풀스크린 — 컨트롤은 맵 위 오버레이
   document.body.classList.toggle('map-full', n === 97 && !document.body.classList.contains('board-viewer'));
   syncHdrH();
-  if (n === 97 && lcMap) setTimeout(() => lcMap.invalidateSize(), 120);
+  if (n === 97 && lcMap) {
+    setTimeout(() => lcMap.invalidateSize(), 120);
+    try { renderMapMarkers(); } catch (e) {} // 상세→뒤로 복귀 시 노드 다시 그리기(맵 이미 초기화된 경우)
+  }
   if (n === 97) { try { refreshShareState(); } catch (e) {} } // 공유 토글 라벨 최신화
   if (n === 5) { try { renderEmotionChips(); } catch (e) {} } // 감정 태그 칩 최신 상태로
   if (n === '5b') { try { avgPosition(); renderPlaneDot(); } catch (e) {} } // 평면 진입 시 점 배치
@@ -5426,7 +5429,6 @@ function buildInfoRows(rec, full) {
   if ((rec.emoTags || []).length) add(t('emotionFilterLabel'), rec.emoTags.map(id => t('emo_' + id)).join(' · '));
   else if (rec.momentEmotion) add(t('emotionFilterLabel'), rec.momentEmotion); // 옛 기록 폴백
   if (hasCoord(rec)) add(t('emoCoordLabel'), emoCoordText(rec.emoX, rec.emoY));
-  if (typeof rec.momentScale === 'number') add('Scale', (rec.momentScale > 0 ? '+' : '') + rec.momentScale);
   add('Captured', rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '');
   if (!viewerRecords) add('Mass address', rec.address); // 방문자 뷰어에는 주소 노출 안 함
   if (typeof rec.gpsDistM === 'number' && rec.gpsDistM !== null) {
