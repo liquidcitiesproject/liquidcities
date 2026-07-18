@@ -925,13 +925,15 @@
     <button id="recEditBtn" class="secondary" data-i18n="btnEdit" style="flex:0 0 auto; padding:6px 14px"></button>
     <button id="recDelBtn" class="secondary" data-i18n="btnDelete" style="flex:0 0 auto; padding:6px 14px"></button>
   </div>
-  <div id="recDetailHead"></div>
-  <div id="recDetailCols" style="display:flex; gap:36px; flex-wrap:wrap; margin-top:8px">
-    <div style="flex:1 1 300px; min-width:260px">
+  <div id="recDetailCols" style="display:flex; gap:44px; flex-wrap:wrap; margin-top:8px; align-items:flex-start">
+    <!-- 왼쪽: 큰 매스 이미지 -->
+    <div style="flex:1 1 420px; min-width:280px">
       <div id="recOutputs"></div>
     </div>
+    <!-- 오른쪽: 제목·생각·날짜 + 정보표 -->
     <div style="flex:1 1 340px; min-width:280px">
-      <p class="sub" id="recDetailInfo" style="margin-top:0"></p>
+      <div id="recDetailHead"></div>
+      <p class="sub" id="recDetailInfo" style="margin-top:20px"></p>
     </div>
   </div>
 </section>
@@ -5469,50 +5471,26 @@ async function openRecordDetail(rec) {
   state._detailFrom = cur && cur.id === 'step97' ? 97 : 99;
   // 상단: 리스트 행과 같은 포맷 (매스 · 제목/글 · 날짜/날씨)
   {
+    // 오른쪽 컬럼 상단 — 제목 · 생각 · 날짜/날씨 (세로 블록, 썸네일은 왼쪽 큰 이미지가 대체)
     const head = document.getElementById('recDetailHead');
     head.innerHTML = '';
-    const row = document.createElement('div');
-    row.className = 'rec-row';
-    row.style.cursor = 'default';
-    const th = document.createElement('div');
-    th.className = 'rec-thumb';
-    if (rec.massThumb) {
-      // massThumb 즉시 표시 후 선명한 out4 원본으로 교체
-      const img = document.createElement('img');
-      img.src = rec.massThumb;
-      th.appendChild(img);
-      fetchOutputBlob(rec.savedAt, 'out4').then(b => {
-        if (b) img.src = URL.createObjectURL(b);
-      }).catch(() => {});
-    } else {
-      fetchOutputBlob(rec.savedAt, 'out4').then(b => {
-        if (!b) return;
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(b);
-        th.appendChild(img);
-      }).catch(() => {});
-    }
-    const mid = document.createElement('div');
-    mid.className = 'rec-mid';
     const title = document.createElement('p');
     title.className = 'rec-title';
+    title.style.cssText = 'font-size:18px; margin:0 0 10px';
     title.textContent = (rec.momentWordEn || rec.momentWord || '—').toUpperCase();
     const body = document.createElement('p');
     body.className = 'rec-body';
-    body.style.webkitLineClamp = 'unset';
+    body.style.cssText = 'webkit-line-clamp:unset; margin:0 0 14px; line-height:1.7';
     body.textContent = rec.momentThought || '';
-    mid.append(title, body);
-    const side = document.createElement('div');
-    side.className = 'rec-side';
-    const when = document.createElement('div');
+    const meta = document.createElement('div');
+    meta.style.cssText = 'display:flex; align-items:center; gap:10px; font-size:13px; color:var(--dim)';
+    const when = document.createElement('span');
     when.textContent = rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '';
-    const weather = document.createElement('div');
-    weather.className = 'rec-weather';
-    side.append(when, weather);
+    const weather = document.createElement('span');
     if (rec.weatherCode !== undefined && rec.weatherCode !== null) weather.textContent = WEATHER_EMOJI(rec.weatherCode);
     else fetchWeatherFor(rec).then(c => { if (c !== null && c !== undefined) weather.textContent = WEATHER_EMOJI(c); });
-    row.append(th, mid, side);
-    head.appendChild(row);
+    meta.append(when, weather);
+    head.append(title, body, meta);
   }
   const info = document.getElementById('recDetailInfo');
   const box = document.getElementById('recOutputs');
