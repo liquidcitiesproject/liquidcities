@@ -5510,14 +5510,14 @@ async function openRecordDetail(rec) {
       img.src = url;
       img.style.cssText = 'width:100%; display:block; border-radius:8px';
       box.appendChild(img);
-      const row = document.createElement('div');
-      row.className = 'row';
-      row.style.marginTop = '12px';
+      // 다운로드 버튼 — 오른쪽 정보 컬럼 하단 왼쪽에 작게
       const btn = document.createElement('button');
       btn.textContent = t('btnDownload');
+      btn.className = 'secondary';
+      btn.style.cssText = 'display:inline-block; width:auto; margin-top:24px; padding:8px 18px; font-size:13px';
       btn.addEventListener('click', () => downloadBlob(blob, 'liquidcities.png'));
-      row.appendChild(btn);
-      box.appendChild(row);
+      const infoCol = info.parentElement;         // 오른쪽 컬럼(정보표 아래)
+      if (infoCol) infoCol.appendChild(btn);
     }
   }
   if (!found && gen === state._detailGen) {
