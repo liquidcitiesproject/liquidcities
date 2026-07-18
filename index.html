@@ -4487,18 +4487,19 @@ function renderEmotionFilter() {
   const box = document.getElementById('emotionFilter');
   if (!box) return;
   box.innerHTML = '';
+  // 데이터에 실제 등장한 태그 — 없는 태그는 흐리게 표시(항상 7개 다 보여줌)
   const present = new Set();
   boardRecords().forEach(r => (r.emoTags || []).forEach(id => { if (EMO_BY_ID[id]) present.add(id); }));
-  if (!present.size) return;
   const lab = document.createElement('span');
   lab.textContent = t('emotionFilterLabel');
   lab.style.cssText = 'font-size:12px; color:var(--dim); margin-right:4px';
   box.appendChild(lab);
-  EMO_TAGS.filter(tg => present.has(tg.id)).forEach(tg => {
+  EMO_TAGS.forEach(tg => {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'ai-chip' + (emotionSel.has(tg.id) ? ' sel' : '');
-    chip.style.cssText = 'padding:4px 12px; font-size:12px';
+    // 기록에 없는 감정은 흐리게 (눌러도 결과 0임을 힌트)
+    chip.style.cssText = 'padding:4px 12px; font-size:12px' + (present.has(tg.id) ? '' : '; opacity:0.4');
     chip.textContent = t('emo_' + tg.id);
     chip.addEventListener('click', () => {
       if (emotionSel.has(tg.id)) emotionSel.delete(tg.id);
