@@ -197,36 +197,35 @@
   .leaflet-container { background: #fff; font-family: inherit; }
   .board-edge-label { font-size: 9px; fill: #8a8f95; }
 
-  /* ---- 앱 맵 풀스크린: 헤더 아래 전체 + 떠 있는 컨트롤 ---- */
+  /* ---- 앱 맵 풀스크린: 헤더 아래 = [상단 컨트롤 바] + [지도/평면 영역] 세로 스택 ---- */
   body.map-full { overflow: hidden; }
-  body.map-full #step97 { padding: 0; max-width: none; }
+  body.map-full #step97 {
+    padding: 0; max-width: none;
+    height: calc(100vh - var(--hdrH, 112px));
+    display: flex; flex-direction: column; overflow: hidden;
+  }
   body.map-full #step97 > h1, body.map-full #step97 > .sub { display: none; }
-  body.map-full #mapView {
-    position: fixed !important; left: 0; right: 0; bottom: 0; top: var(--hdrH, 112px);
-    width: 100% !important; height: auto !important;
+  /* 컨트롤 바 — 흐름 상단(fixed 아님), 콘텐츠 높이만 차지 → 겹침 원천 제거 */
+  body.map-full #mapControlBar {
+    flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px;
+    padding: 10px 12px; background: var(--bg); border-bottom: 1px solid var(--line);
+    max-height: 42vh; overflow-y: auto; z-index: 2;
+  }
+  body.map-full #massCats .mass-cat { box-shadow: 0 1px 6px rgba(0,0,0,0.08); }
+  body.map-full #emotionFilter:empty { display: none; }
+  body.map-full #mapStatus:empty, body.map-full #shareStatus:empty { display: none; }
+  body.map-full #mapStatus, body.map-full #shareStatus { font-size: 11px; }
+  /* 지도/평면 영역 — 나머지 공간 전부. min-height:0 필수(flex 자식 축소 허용) */
+  body.map-full #mapStage { flex: 1; min-height: 0; position: relative; }
+  body.map-full #mapView, body.map-full #globeView {
+    position: absolute !important; inset: 0;
+    width: 100% !important; height: 100% !important;
     border: none !important; border-radius: 0 !important; z-index: 1;
   }
-  body.map-full #massCats {
-    position: fixed; top: calc(var(--hdrH, 112px) + 12px); left: 12px; right: 190px;
-    z-index: 1200; margin: 0; padding-bottom: 0;
-  }
-  body.map-full #massCats .mass-cat { box-shadow: 0 1px 6px rgba(0,0,0,0.10); }
-  body.map-full #mapCtrlRow {
-    position: fixed; top: calc(var(--hdrH, 112px) + 12px); right: 12px; z-index: 1200;
-    margin: 0; max-width: calc(100vw - 24px); width: auto; display: flex; gap: 6px;
-    flex-wrap: wrap; justify-content: flex-end; /* 좁아지면 겹치지 말고 줄바꿈 */
-  }
-  body.map-full #mapCtrlRow button { flex: 0 0 auto; padding: 8px 12px; font-size: 12px;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.10); background: #fff; }
-  body.map-full #mapStatus { position: fixed; bottom: 12px; left: 12px; z-index: 1200; margin: 0; }
-  body.map-full #shareStatus { position: fixed; bottom: 32px; left: 12px; right: 12px; z-index: 1200; margin: 0; }
-  body.map-full #scaleGauge { position: fixed !important; z-index: 1200; }
+  body.map-full #globeView { background: #fff; }
+  body.map-full #quadView { z-index: 3; } /* 지도(1) 위에 확실히 표시 */
+  body.map-full #scaleGauge { display: none !important; }
   body.map-full #back97Row { display: none; }
-  /* ---- 지구본 뷰: 평면(#mapView)과 같은 풀스크린 영역을 차지 ---- */
-  body.map-full #globeView {
-    position: fixed !important; left: 0; right: 0; bottom: 0; top: var(--hdrH, 112px);
-    width: 100% !important; height: auto !important; z-index: 1; background: #fff;
-  }
   /* ---- 보드 공유 뷰어 (?board=) — 풀스크린 보드 + 떠 있는 카테고리 ---- */
   body.board-viewer #step97 { max-width: none; width: 100%; padding: 0; margin: 0; }
   body.board-viewer #step97 > h1,
@@ -316,26 +315,10 @@
     #mapView { height: min(560px, 62vh) !important; }
     .saved-item { flex-wrap: wrap; }
     .saved-item span { flex: 1 1 100%; }
-    /* ---- 맵 풀스크린 오버레이 모바일 재배치 (겹침 방지) ----
-       데스크톱은 카테고리(좌) / 컨트롤(우) 분리 배치지만, 좁은 폭에선 겹치므로
-       위→아래 세로로 쌓는다: 1행 카테고리(가로 스크롤) → 2행 컨트롤(줄바꿈). */
-    body.map-full #massCats {
-      left: 8px; right: 8px;                 /* 전체 폭 한 줄, 가로 스크롤 */
-      top: calc(var(--hdrH, 96px) + 8px);
-      flex-wrap: nowrap;
-    }
-    body.map-full #mapCtrlRow {
-      left: 8px; right: 8px; width: auto;
-      top: calc(var(--hdrH, 96px) + 62px);   /* 카테고리 줄 아래로 */
-      flex-wrap: wrap; justify-content: flex-start;
-    }
-    body.map-full #mapCtrlRow button { min-height: 40px; } /* 터치 타깃 확보 */
-    /* 감정 필터: 지도 위 하단 얇은 시트 */
-    body.map-full #emotionFilter {
-      position: fixed; left: 8px; right: 8px; bottom: 8px; z-index: 1200;
-      background: rgba(255,255,255,0.96); padding: 8px; border-radius: 8px;
-      box-shadow: 0 -1px 8px rgba(0,0,0,0.12); max-height: 26vh; overflow-y: auto;
-    }
+    /* 맵 풀스크린 모바일 — 컨트롤 바가 flex column이라 자동으로 세로 스택.
+       카테고리만 한 줄 가로 스크롤 유지. (fixed 오버레이는 데스크톱과 공통으로 제거됨) */
+    body.map-full #massCats { flex-wrap: nowrap; }
+    body.map-full #mapControlBar { max-height: 46vh; }
     /* 오늘의 기분 패널: 화면 하단에서 올라오는 바텀시트 (닫기 버튼 포함) */
     body.map-full #moodSortPanel.open {
       top: auto; right: 0; left: 0; width: 100%; max-width: 100%;
@@ -846,20 +829,25 @@
 <section class="step wide" id="step97">
   <h1 data-i18n="mapTitle"></h1>
   <p class="sub" data-i18n="mapSub"></p>
-  <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:8px; margin-bottom:6px"></div>
-  <div class="row" id="mapCtrlRow" style="margin-top:0; margin-bottom:8px; align-items:center">
-    <select id="viewSelect" class="secondary" style="flex:0 0 auto; width:auto; min-width:130px">
-      <option value="board" data-i18n="btnBoard"></option>
-      <option value="map" data-i18n="btnGeoMap"></option>
-      <option value="globe" data-i18n="btnGlobe"></option>
-      <option value="quad" data-i18n="btnQuad"></option>
-    </select>
-    <button id="moodSortBtn" class="secondary" data-i18n="moodSortLabel"></button>
-    <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
-    <button id="unshareBoardBtn" class="secondary" data-i18n="btnUnshareBoard"></button>
+  <!-- 맵 컨트롤 바 — 뷰 선택 · 카테고리 · 감정 필터 (지도 위에 겹치지 않게 상단 정렬) -->
+  <div id="mapControlBar">
+    <div class="row" id="mapCtrlRow" style="margin-top:0; margin-bottom:0; align-items:center">
+      <select id="viewSelect" class="secondary" style="flex:0 0 auto; width:auto; min-width:130px">
+        <option value="board" data-i18n="btnBoard"></option>
+        <option value="map" data-i18n="btnGeoMap"></option>
+        <option value="globe" data-i18n="btnGlobe"></option>
+        <option value="quad" data-i18n="btnQuad"></option>
+      </select>
+      <button id="moodSortBtn" class="secondary" data-i18n="moodSortLabel"></button>
+      <button id="shareBoardBtn" class="secondary" data-i18n="btnShareBoard"></button>
+      <button id="unshareBoardBtn" class="secondary" data-i18n="btnUnshareBoard"></button>
+    </div>
+    <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:2px"></div>
+    <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
+    <div id="emotionFilter" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"></div>
+    <div class="status" id="shareStatus" style="margin:0; user-select:text; -webkit-user-select:text"></div>
+    <div class="status" id="mapStatus" style="margin:0"></div>
   </div>
-  <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
-  <div id="emotionFilter" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; align-items:center"></div>
   <!-- 오늘의 기분 정렬 패널 (평면에 오늘 점 찍기 → gap 가까운 순 리스트) -->
   <div id="moodSortPanel">
     <div class="mood-head">
@@ -882,9 +870,7 @@
       <div id="moodList"></div>
     </div>
   </div>
-  <div class="status" id="shareStatus" style="margin:0 0 8px; user-select:text; -webkit-user-select:text"></div>
-  <div class="status" id="mapStatus" style="margin:0 0 8px"></div>
-  <div style="position:relative">
+  <div id="mapStage" style="position:relative">
     <div id="mapView" style="width:100%; height:560px; border:1px solid var(--line); border-radius:8px; background:#fff"></div>
     <!-- 감정 좌표 사분면 뷰 (노드를 x:낯섦↔편안, y:고요↔격렬 평면에 배치) -->
     <div id="quadView">
