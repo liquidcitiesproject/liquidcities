@@ -77,8 +77,8 @@
   .saved-item button { flex: none; padding: 8px 14px; font-size: 12px; }
   .saved-item img { width: 36px; height: 64px; object-fit: cover; flex: none;
     border-radius: 4px; border: 1px solid var(--line); background: #000; }
-  #recOutputs img, #recOutputs video { width: 100%; max-width: 300px; display: block;
-    border: 1px solid var(--line); border-radius: 6px; background: transparent; margin-top: 16px; }
+  #recOutputs img, #recOutputs video { width: 100%; max-width: 420px; display: block;
+    border: none; border-radius: 6px; background: transparent; margin: 0 auto; }
   .mass-cat { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px;
     background: #fff; border: 1px solid var(--line); border-radius: 3px; color: var(--ink);
     font-size: 12px; cursor: pointer; }
@@ -5508,7 +5508,7 @@ async function openRecordDetail(rec) {
       const url = URL.createObjectURL(blob);
       const img = document.createElement('img');
       img.src = url;
-      img.style.cssText = 'width:100%; display:block; border-radius:8px';
+      img.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border:none';
       box.appendChild(img);
       // 다운로드 버튼 — 오른쪽 정보 컬럼 하단 왼쪽에 작게
       const btn = document.createElement('button');
