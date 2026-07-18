@@ -5432,7 +5432,7 @@ function buildInfoRows(rec, full) {
   if (typeof rec.gpsDistM === 'number' && rec.gpsDistM !== null) {
     add('Distance', rec.gpsDistM >= 1000 ? (rec.gpsDistM / 1000).toFixed(1) + 'km' : rec.gpsDistM + 'm');
   }
-  if (rec.mediaGps) add('Location', rec.w3w ? '///' + rec.w3w : rec.mediaGps.lat.toFixed(4) + ', ' + rec.mediaGps.lon.toFixed(4));
+  if (rec.mediaGps && !viewerRecords) add('Location', rec.w3w ? '///' + rec.w3w : rec.mediaGps.lat.toFixed(4) + ', ' + rec.mediaGps.lon.toFixed(4)); // 방문자 뷰어엔 좌표 노출 안 함
   if (full) {
     add(lang === 'ko' ? '인상적인 물체' : 'Striking things', (rec.segmentsRaw || rec.segments || []).join(', '));
     if (rec.contact && !rec.contact.anonymous) {
