@@ -5498,39 +5498,27 @@ async function openRecordDetail(rec) {
   info.appendChild(renderInfoTable(buildInfoRows(rec, true)));
   box.innerHTML = '';
   goto(98);
-  const kinds = [
-    { k: 'out1', name: t('outName1'), file: rec.mediaType === 'video' ? 'liquidcities-reels.mp4' : 'liquidcities-reels.jpg' },
-    { k: 'out2', name: t('outName2'), file: 'liquidcities-still.jpg' },
-    { k: 'out3', name: t('outName3'), file: 'liquidcities-reels-thumb.jpg' },
-    { k: 'out4', name: t('outName4'), file: 'liquidcities-square.png' },
-  ];
+  // 매핑된 이미지(out4 = 매스에 사진이 들어간 PNG)만 크게 표시 + PNG 다운로드
   let found = 0;
-  for (const { k, name, file } of kinds) {
-    const blob = await fetchOutputBlob(rec.savedAt, k);
-    if (!blob) continue;
-    found++;
-    const h = document.createElement('h2');
-    h.style.cssText = 'font-size:14px; margin:22px 0 0';
-    h.textContent = name;
-    box.appendChild(h);
+  {
+    const blob = await fetchOutputBlob(rec.savedAt, 'out4');
     if (gen !== state._detailGen) return; // 다른 기록으로 넘어감 — 중단
-    const url = URL.createObjectURL(blob);
-    if (blob.type.startsWith('video/')) {
-      const v = document.createElement('video');
-      v.src = url; v.controls = true; v.playsInline = true;
-      box.appendChild(v);
-    } else {
+    if (blob) {
+      found++;
+      const url = URL.createObjectURL(blob);
       const img = document.createElement('img');
       img.src = url;
+      img.style.cssText = 'width:100%; display:block; border-radius:8px';
       box.appendChild(img);
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.style.marginTop = '12px';
+      const btn = document.createElement('button');
+      btn.textContent = t('btnDownload');
+      btn.addEventListener('click', () => downloadBlob(blob, 'liquidcities.png'));
+      row.appendChild(btn);
+      box.appendChild(row);
     }
-    const row = document.createElement('div');
-    row.className = 'row';
-    const btn = document.createElement('button');
-    btn.textContent = t('btnDownload');
-    btn.addEventListener('click', () => downloadBlob(blob, file));
-    row.appendChild(btn);
-    box.appendChild(row);
   }
   if (!found && gen === state._detailGen) {
     const pNo = document.createElement('p');
