@@ -3238,19 +3238,30 @@ function renderPlaneDot() {
     dot.style.display = 'none';
   }
 }
-// STEP5b 평면 상호작용 (클릭/드래그로 점 이동)
-(function initEmoPlane() {
-  const wrap = document.getElementById('emoPlaneWrap');
+// 평면 상호작용을 공통화 (STEP5b · 오늘의 기분 정렬 둘 다 사용).
+// setPointerCapture가 던져도 좌표 설정은 먼저 실행되게, 탭/드래그 모두 반응.
+function bindPlane(wrapId, onPlace) {
+  const wrap = document.getElementById(wrapId);
   if (!wrap) return;
   let dragging = false;
-  const set = (cx, cy) => placePoint(cx, cy, wrap, (x, y) => {
-    state.emoX = x; state.emoY = y; state._emoManual = true; renderPlaneDot();
+  const set = (cx, cy) => placePoint(cx, cy, wrap, onPlace);
+  wrap.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    set(e.clientX, e.clientY);                 // 좌표 먼저 (capture 실패와 무관)
+    try { wrap.setPointerCapture(e.pointerId); } catch (err) {}
   });
-  wrap.addEventListener('pointerdown', (e) => { dragging = true; wrap.setPointerCapture(e.pointerId); set(e.clientX, e.clientY); });
-  wrap.addEventListener('pointermove', (e) => { if (dragging) set(e.clientX, e.clientY); });
-  wrap.addEventListener('pointerup', () => { dragging = false; });
-  wrap.addEventListener('pointercancel', () => { dragging = false; });
-})();
+  wrap.addEventListener('pointermove', (e) => { if (dragging) { e.preventDefault(); set(e.clientX, e.clientY); } });
+  const stop = () => { dragging = false; };
+  wrap.addEventListener('pointerup', stop);
+  wrap.addEventListener('pointercancel', stop);
+  wrap.addEventListener('lostpointercapture', stop);
+  // 포인터 이벤트 미지원 환경 폴백 (탭)
+  wrap.addEventListener('click', (e) => set(e.clientX, e.clientY));
+}
+bindPlane('emoPlaneWrap', (x, y) => {
+  state.emoX = x; state.emoY = y; state._emoManual = true; renderPlaneDot();
+});
 function collectMoment() {
   state.momentEmotionLabel = state.emoTags.map(id => t('emo_' + id)).join(' · '); // 파생 라벨(하위호환)
   const thoughtRaw = document.getElementById('momentThought').value.trim();
@@ -4184,18 +4195,9 @@ function renderMoodSort() {
     list.appendChild(row);
   });
 }
-(function initMoodPlane() {
-  const wrap = document.getElementById('moodPlaneWrap');
-  if (!wrap) return;
-  let dragging = false;
-  const set = (cx, cy) => placePoint(cx, cy, wrap, (x, y) => {
-    todayMood = { emoX: x, emoY: y }; renderMoodDot(); renderMoodSort();
-  });
-  wrap.addEventListener('pointerdown', (e) => { dragging = true; wrap.setPointerCapture(e.pointerId); set(e.clientX, e.clientY); });
-  wrap.addEventListener('pointermove', (e) => { if (dragging) set(e.clientX, e.clientY); });
-  wrap.addEventListener('pointerup', () => { dragging = false; });
-  wrap.addEventListener('pointercancel', () => { dragging = false; });
-})();
+bindPlane('moodPlaneWrap', (x, y) => {
+  todayMood = { emoX: x, emoY: y }; renderMoodDot(); renderMoodSort();
+});
 document.getElementById('moodSortBtn').addEventListener('click', () => {
   moodSortOpen = !moodSortOpen;
   const panel = document.getElementById('moodSortPanel');
