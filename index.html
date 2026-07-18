@@ -106,8 +106,7 @@
     transform: translate(-50%, -50%); display: none; pointer-events: none; }
   /* ---- 감정 좌표 사분면 뷰 (#mapView 위 오버레이) ---- */
   #quadView { display: none; position: absolute; inset: 0; border: 1px solid var(--line);
-    border-radius: 8px; overflow: hidden;
-    background: linear-gradient(135deg, #f2f6f5 0%, #faf7f2 100%); }
+    border-radius: 8px; overflow: hidden; background: #fff; }
   #quadView.on { display: block; }
   .quad-axis-x { position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line); }
   .quad-axis-y { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--line); }
@@ -119,8 +118,8 @@
   .quad-node { position: absolute; transform: translate(-50%, -50%); cursor: pointer;
     width: 46px; height: 46px; z-index: 3; transition: transform .15s; }
   .quad-node:hover { transform: translate(-50%, -50%) scale(1.15); z-index: 4; }
-  .quad-node img { width: 100%; height: 100%; object-fit: cover; display: block;
-    border: 1px solid rgba(0,0,0,0.15); background: #fff; }
+  .quad-node img { width: 100%; height: 100%; object-fit: contain; display: block;
+    border: none; background: transparent; }
   .quad-node .quad-cap { position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
     margin-top: 2px; font-size: 9px; white-space: nowrap; color: var(--ink);
     text-shadow: 0 1px 4px rgba(255,255,255,0.9); pointer-events: none; }
@@ -4217,6 +4216,14 @@ async function uploadOutputToStorage(savedAt, kind, blob) {
 async function fetchOutputBlob(savedAt, kind) {
   const local = await idbGet(savedAt + ':' + kind).catch(() => null);
   if (local) return local;
+  // 뷰어 모드: 공유자 uid + anon client로 storage에서 내려받음
+  if (viewerUid && viewerClient) {
+    try {
+      const { data, error } = await viewerClient.storage.from('outputs').download(`${viewerUid}/${savedAt}-${kind}`);
+      if (error || !data) return null;
+      return data; // 뷰어는 캐시 안 함(남의 데이터)
+    } catch (e) { return null; }
+  }
   if (!sb) return null;
   try {
     const { data: u } = await sb.auth.getUser();
@@ -5224,6 +5231,8 @@ async function renderMapMarkers() {
 // 개인 정보(생각·연락처·자동 태그)는 스냅샷에 넣지 않는다.
 let viewerRecords = null; // ?board= 뷰어 모드일 때 이 목록을 데이터 소스로 사용
 let viewerMassNames = {};  // 공유자가 지정한 매스 이름
+let viewerUid = null;      // 공유 보드 주인 uid (뷰어에서 산출물 storage 경로용)
+let viewerClient = null;   // 뷰어 anon Supabase client (산출물 storage 다운로드용)
 function boardRecords() { return viewerRecords || getRecords(); }
 
 // 현재 로컬 기록으로 공유 스냅샷(payload)을 만든다 — 공유/자동갱신 공통.
@@ -5336,10 +5345,12 @@ async function initBoardViewer(uid) {
   if (!url || !key || !window.supabase) return false;
   try {
     const client = window.supabase.createClient(url, key);
+    viewerClient = client; // 산출물 storage 다운로드용
     const { data, error } = await client.from('shared_boards').select('payload').eq('user_id', uid).single();
     if (error || !data) throw error || new Error('not found');
     viewerRecords = (data.payload && data.payload.records) || [];
     viewerMassNames = (data.payload && data.payload.massNames) || {};
+    viewerUid = uid; // 산출물 storage 경로(공유자 uid)용
     // 풀스크린 보드 뷰어 — 지도 토글·공유·계정 등 앱 UI 없이 보드만
     document.body.classList.remove('lc-locked'); // 공유 뷰어는 로그인 게이트 예외
     document.body.classList.add('board-viewer');
@@ -5501,16 +5512,16 @@ async function openRecordDetail(rec) {
   info.appendChild(renderInfoTable(buildInfoRows(rec, true)));
   box.innerHTML = '';
   goto(98);
-  // 매핑된 이미지(out4 = 매스에 사진이 들어간 PNG)만 크게 표시 + PNG 다운로드
+  // 매핑된 이미지 — out4(원본 화질) 우선, 없으면 공유 스냅샷의 massThumb 폴백(뷰어용)
   let found = 0;
   {
     const blob = await fetchOutputBlob(rec.savedAt, 'out4');
     if (gen !== state._detailGen) return; // 다른 기록으로 넘어감 — 중단
-    if (blob) {
+    const imgSrc = blob ? URL.createObjectURL(blob) : (rec.massThumb || null);
+    if (imgSrc) {
       found++;
-      const url = URL.createObjectURL(blob);
       const img = document.createElement('img');
-      img.src = url;
+      img.src = imgSrc;
       img.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border:none';
       box.appendChild(img);
       // 다운로드 버튼 — 오른쪽 정보 컬럼 하단 왼쪽에 작게
@@ -5518,7 +5529,10 @@ async function openRecordDetail(rec) {
       btn.textContent = t('btnDownload');
       btn.className = 'secondary';
       btn.style.cssText = 'display:inline-block; width:auto; margin-top:24px; padding:8px 18px; font-size:13px';
-      btn.addEventListener('click', () => downloadBlob(blob, 'liquidcities.png'));
+      btn.addEventListener('click', () => {
+        if (blob) return downloadBlob(blob, 'liquidcities.png');
+        const a = document.createElement('a'); a.href = imgSrc; a.download = 'liquidcities.png'; a.click();
+      });
       const infoCol = info.parentElement;         // 오른쪽 컬럼(정보표 아래)
       if (infoCol) infoCol.appendChild(btn);
     }
