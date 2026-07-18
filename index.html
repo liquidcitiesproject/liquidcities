@@ -240,11 +240,24 @@
     position: fixed !important; inset: 0; width: 100% !important; height: 100% !important;
     border: none !important; border-radius: 0 !important; z-index: 1;
   }
+  /* 감정 좌표 뷰도 전체 화면 (mapView와 같은 영역) */
+  body.board-viewer #quadView {
+    position: fixed !important; inset: 0; border: none; border-radius: 0; z-index: 3;
+  }
   body.board-viewer #massCats {
-    position: fixed; top: 12px; left: 12px; right: 12px; z-index: 1200;
+    position: fixed; top: 12px; left: 12px; right: 150px; z-index: 1200;
     margin: 0; padding-bottom: 0;
   }
   body.board-viewer #massCats .mass-cat { box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
+  /* 방문자 뷰어 — 뷰 전환(보드/감정)만 우상단에. 나머지 컨트롤은 숨김 */
+  body.board-viewer #mapCtrlRow {
+    display: flex !important; position: fixed; top: 12px; right: 12px; z-index: 1200;
+    margin: 0; width: auto;
+  }
+  body.board-viewer #viewSelect { box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
+  body.board-viewer #moodSortBtn,
+  body.board-viewer #shareToggleBtn,
+  body.board-viewer #emotionFilter { display: none !important; }
   body.board-viewer #scaleGauge { position: fixed !important; z-index: 1200; }
   body.board-viewer #langBar, body.board-viewer #buildTag { display: none; }
   .info-line { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
@@ -5325,9 +5338,12 @@ async function initBoardViewer(uid) {
     document.body.classList.remove('lc-locked'); // 공유 뷰어는 로그인 게이트 예외
     document.body.classList.add('board-viewer');
     document.getElementById('accountBar') && (document.getElementById('accountBar').style.display = 'none');
+    // 방문자 뷰어는 보드·감정 좌표 뷰만 — 지도/지구본 옵션 제거
+    const vsel = document.getElementById('viewSelect');
+    if (vsel) vsel.querySelectorAll('option[value="map"], option[value="globe"]').forEach(o => o.remove());
     goto(97);
     renderMassCats();
-    setMapMode('map'); // 방문자용 뷰어 — 실제 지도 타일 배경 위에 노드 표시
+    setMapMode('board'); // 방문자용 뷰어 기본 = 보드
     // iframe 임베드 시 컨테이너 크기가 늦게 잡혀 지도가 빈 화면으로 뜨는 문제 방지:
     // invalidateSize를 여러 시점(즉시·짧게·load 후)에 부르고, 크기가 잡히면 노드에 맞춰 다시 fit.
     const refitViewer = () => {
