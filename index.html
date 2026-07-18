@@ -1026,6 +1026,7 @@ const I18N = {
     stRender: '건물 렌더링 중...',
     postcodeLoc: '우편번호 기준 위치', approxLoc: '근사 위치', manualLoc: '직접 입력',
     infoLevels: n => `${n}층 추정`, unnamedBuilding: '이름 없는 건물',
+    synthMass: '이 지역엔 건물 데이터가 없어 기본 매스로 표시합니다 (드래그로 각도 조절)',
     errSearch: m => '검색 중 오류가 발생했습니다: ' + m,
     errBuilding: m => '건물 조회 실패: ' + m,
     errNoResult: '검색 결과가 없습니다. 다르게 입력해보세요.', errNoBuilding: '이 위치 주변에서 건물 폴리곤을 찾지 못했습니다. 좌표를 조금 옮겨보세요.',
@@ -1186,6 +1187,7 @@ const I18N = {
     stRender: 'Rendering building...',
     postcodeLoc: 'postcode-based location', approxLoc: 'approximate location', manualLoc: 'manual input',
     infoLevels: n => `est. ${n} floors`, unnamedBuilding: 'Unnamed building',
+    synthMass: 'No building data here — showing a default mass (drag to set the angle)',
     errSearch: m => 'Search error: ' + m,
     errBuilding: m => 'Building lookup failed: ' + m,
     errNoResult: 'No results. Try a different query.', errNoBuilding: 'No building polygon found near this point. Try moving the coordinates slightly.',
@@ -1858,8 +1860,9 @@ async function proceedWithLocation(lat, lon) {
 
     searchStatus.textContent = t('stRender');
     startMassViewer(building);
-    document.getElementById('buildingInfo').textContent =
-      `${building.name || t('unnamedBuilding')} · ${t('infoLevels', building.levels)} · ${state.address}`;
+    document.getElementById('buildingInfo').textContent = building.synthetic
+      ? `${t('synthMass')} · ${state.address}`   // 대체 매스 안내
+      : `${building.name || t('unnamedBuilding')} · ${t('infoLevels', building.levels)} · ${state.address}`;
     searchStatus.textContent = '';
     goto(2);
   } catch (e) {
@@ -1903,6 +1906,22 @@ async function overpass(query) {
   throw lastErr || new Error('Overpass unreachable');
 }
 
+// OSM에 건물 데이터가 없는 지역(시골·신축 등)을 위한 대체 매스 —
+// 검색 좌표를 중심으로 한 기본 사각형 박스. 이후 크기·회전은 매스 뷰어에서 조절 가능.
+// coords는 로컬 미터 좌표(중심 0,0), building 실물과 동일한 구조를 반환한다.
+const FALLBACK_SIZE_M = 12;   // 한 변 길이(m)
+const FALLBACK_LEVELS = 3;
+function fallbackMass(lat, lon) {
+  const h = FALLBACK_SIZE_M / 2;
+  const coords = [[-h, -h], [h, -h], [h, h], [-h, h]]; // 정사각 (로컬 미터)
+  return {
+    coords, levels: FALLBACK_LEVELS, height: FALLBACK_LEVELS * 3.5,
+    name: null,
+    osmId: 'synth:' + lat.toFixed(6) + ',' + lon.toFixed(6), // 합성 id (같은 지점 재검색 시 동일 그룹)
+    parts: null,
+    synthetic: true,          // 대체 매스 표시 (안내·향후 편집용)
+  };
+}
 async function fetchBuilding(lat, lon) {
   // 본체(building)와 부분(building:part)을 함께 조회. 지오코더 좌표가 큰 건물의
   // 중심에서 벗어날 수 있어 반경을 넓게(80→150→300m) 재시도한다.
@@ -1920,7 +1939,7 @@ async function fetchBuilding(lat, lon) {
   }
   const partWays = allWays.filter(e => e.tags && e.tags['building:part']);
   const ways = allWays.filter(e => e.tags && e.tags.building);
-  if (!ways.length) return null;
+  if (!ways.length) return fallbackMass(lat, lon); // OSM에 건물이 없는 지역 → 대체 매스
 
   // 포인트를 포함하는 폴리곤 우선, 없으면 중심점이 가장 가까운 것
   const inside = ways.find(w => pointInPolygon(lat, lon, w.geometry));
