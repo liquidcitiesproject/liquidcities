@@ -2588,13 +2588,12 @@ async function readMediaGps(file) {
 async function readCaptureDate(file) {
   try {
     if (file.type.startsWith('image/') && window.exifr) {
-      // pick으로 필드를 제한하면 HEIC 등에서 파싱이 실패할 수 있어 전체 파싱한다.
-      // exifr는 EXIF 날짜를 Date로 파싱해준다(문자열이면 아래에서 보정).
+      // GPS는 읽히는데 날짜만 안 읽히던 문제 — 옵션이 필드를 누락시켜서였음.
+      // 옵션 없이 전체 파싱하면 DateTimeOriginal 등 모든 EXIF를 읽는다.
       let ex = null;
-      try { ex = await exifr.parse(file, { tiff: true, exif: true, ifd0: true, gps: false }); }
-      catch (e1) { try { ex = await exifr.parse(file); } catch (e2) { ex = null; } }
+      try { ex = await exifr.parse(file); } catch (e1) { ex = null; }
       const cand = ex && (ex.DateTimeOriginal || ex.CreateDate || ex.DateTimeDigitized
-        || ex.ModifyDate || ex.DateTime);
+        || ex.ModifyDate || ex.DateTime || ex.GPSDateStamp);
       const d = toDateSafe(cand);
       if (d) { console.info('[capture] EXIF date', d.toISOString(), 'from', file.name); return { date: d, source: 'exif' }; }
       console.warn('[capture] EXIF에 촬영일 없음 — 읽힌 키:', ex ? Object.keys(ex).join(',') : '(파싱 실패)', file.type);
