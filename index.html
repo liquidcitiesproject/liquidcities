@@ -3435,7 +3435,7 @@ async function deleteOutputsFromStorage(savedAt) {
     const { data: u } = await sb.auth.getUser();
     const uid = u && u.user && u.user.id;
     if (!uid) return;
-    await sb.storage.from('outputs').remove(['out1', 'out2', 'out3', 'out4'].map(k => `${uid}/${savedAt}-${k}`));
+    await sb.storage.from('outputs').remove(['out1', 'out2', 'out3', 'out4', 'out5'].map(k => `${uid}/${savedAt}-${k}`));
   } catch (e) {}
 }
 async function deleteRecord(savedAt) {
@@ -4216,7 +4216,7 @@ async function idbGet(key) {
 async function idbDelRecord(savedAt) {
   const db = await idbOpen();
   const tx = db.transaction('outputs', 'readwrite');
-  ['out1', 'out2', 'out3', 'out4'].forEach(k => tx.objectStore('outputs').delete(savedAt + ':' + k));
+  ['out1', 'out2', 'out3', 'out4', 'out5'].forEach(k => tx.objectStore('outputs').delete(savedAt + ':' + k));
 }
 // 다운로드 시점의 산출물을 현재 레코드에 연결해 보관
 function saveOutputBlob(kind, blob) {
@@ -5556,7 +5556,9 @@ async function openRecordDetail(rec) {
   let found = 0;
   {
     const isVideo = rec.mediaType === 'video';
-    const vidBlob = isVideo ? await fetchOutputBlob(rec.savedAt, 'out1') : null;
+    // 영상: 텍스트 없는 매핑 영상(out5) 우선, 없으면 릴스(out1) 폴백
+    let vidBlob = isVideo ? await fetchOutputBlob(rec.savedAt, 'out5') : null;
+    if (isVideo && !vidBlob) vidBlob = await fetchOutputBlob(rec.savedAt, 'out1');
     const imgBlob = (!isVideo || !vidBlob) ? await fetchOutputBlob(rec.savedAt, 'out4') : null;
     if (gen !== state._detailGen) return; // 다른 기록으로 넘어감 — 중단
     let dlBlob = null, dlName = 'liquidcities.png';
@@ -5807,19 +5809,35 @@ async function extractSourceAAC(url, clipStart, durSec) {
   }
   return { samples: out, sampleRate: d.sampleRate, channels: d.channels };
 }
-async function exportVideoOffline(status) {
+// opts: { withText, outKind, download, fileName, square, reuseAudio }
+//  - withText(기본 true): 텍스트 레이어 오버레이 여부 (out5는 false)
+//  - square(기본 false): 1:1 정사각 인코딩 (out5는 true — 중앙 정사각 크롭)
+//  - reuseAudio: 앞선 호출(out1)이 조립한 오디오 결과를 재사용 (Safari 제스처 밖 재조립 회피)
+//  - download/outKind/fileName: 저장·다운로드 제어
+// 반환: 이번에 조립한 오디오 결과(다음 out5 호출이 reuseAudio로 재사용)
+async function exportVideoOffline(status, opts = {}) {
+  const withText = opts.withText !== false;
+  const square = opts.square === true;
+  const doDownload = opts.download !== false;
+  const outKind = opts.outKind || 'out1';
+  const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/+esm');
+  const FPS = 30, TOTAL = TARGET_DURATION * FPS;
+  const W = square ? CANVAS_W : CANVAS_W, H = square ? CANVAS_W : CANVAS_H; // 정사각이면 H=W(1080)
+
+  // 오디오 재사용 경로 (out5) — Safari 제스처 밖에서 새 AudioContext를 만들지 않는다
+  let audioCfg, audioMode, renderedAudio, mrAAC, audioMuxCodec, muxSampleRate, muxChannels;
+  if (opts.reuseAudio) {
+    ({ audioCfg, audioMode, renderedAudio, mrAAC, audioMuxCodec, muxSampleRate, muxChannels } = opts.reuseAudio);
+  } else {
   // Safari: AudioContext는 어떤 await보다 먼저(클릭 제스처 안) 만들어야 산다
   const gestureAC = new (window.AudioContext || window.webkitAudioContext)();
   gestureAC.resume().catch(() => {});
-  const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/+esm');
-  const FPS = 30, TOTAL = TARGET_DURATION * FPS;
-  const W = CANVAS_W, H = CANVAS_H;
 
   // ---- 오디오 경로 결정 ----
   // ⓪ 원본 AAC 무손실 복사 (아이폰 mov 포함 대부분 — 가장 견고·최고 품질)
   // ① AudioEncoder 재인코딩 (Chrome 등, 원본이 AAC가 아닐 때)
   // ② 재생-녹음 폴백 (그 외)
-  let audioCfg = null, audioMode = null, audioBuf = null, sourceAAC = null;
+  let audioBuf = null, sourceAAC = null;
   try {
     sourceAAC = await extractSourceAAC(video.src, state.clipStart || 0, TARGET_DURATION);
     audioMode = 'copy';
@@ -5838,7 +5856,6 @@ async function exportVideoOffline(status) {
   }
 
   // ---- 조립: 구간 [clipStart, +5s]를 반복·컷한 단일 버퍼 (두 오디오 경로 공용) ----
-  let renderedAudio = null;
   if (audioBuf) {
     const oc = new OfflineAudioContext(audioBuf.numberOfChannels,
       Math.ceil(TARGET_DURATION * audioBuf.sampleRate), audioBuf.sampleRate);
@@ -5853,7 +5870,6 @@ async function exportVideoOffline(status) {
   }
 
   // ---- mediarec 모드: muxer 생성 전에 녹음·추출까지 끝내 sampleRate 확정 ----
-  let mrAAC = null;
   if (audioMode === 'copy') {
     mrAAC = sourceAAC;
     audioMode = 'mediarec'; // 이후 주입 로직 공용
@@ -5870,9 +5886,12 @@ async function exportVideoOffline(status) {
       audioMode = null; // 진짜 무음 영상일 수 있음 — 비디오만 저장
     }
   }
-  const audioMuxCodec = audioMode ? 'aac' : null;
-  const muxSampleRate = audioMode === 'mediarec' ? mrAAC.sampleRate : (audioCfg ? audioCfg.sampleRate : 44100);
-  const muxChannels = audioMode === 'mediarec' ? mrAAC.channels : (audioCfg ? audioCfg.numberOfChannels : 2);
+  audioMuxCodec = audioMode ? 'aac' : null;
+  muxSampleRate = audioMode === 'mediarec' ? mrAAC.sampleRate : (audioCfg ? audioCfg.sampleRate : 44100);
+  muxChannels = audioMode === 'mediarec' ? mrAAC.channels : (audioCfg ? audioCfg.numberOfChannels : 2);
+  try { gestureAC.close(); } catch (e) {} // 조립 끝났으니 정리 (reuseAudio 경로엔 gestureAC 없음)
+  } // end else (오디오 조립)
+  const _audioAssembly = { audioCfg, audioMode, renderedAudio, mrAAC, audioMuxCodec, muxSampleRate, muxChannels };
 
   // ---- 비디오 인코더: H.264 우선(호환성), 안 되면 VP9-in-MP4 ----
   let vCodecCfg = null, videoMuxCodec = null;
@@ -5902,14 +5921,20 @@ async function exportVideoOffline(status) {
   const cs = Math.min(state.clipStart || 0, Math.max(0, srcDur - 0.1));
   const clipLen = Math.min(srcDur - cs, TARGET_DURATION); // 짧으면 반복, 길면 10초 컷
   const off = document.createElement('canvas');
-  off.width = W; off.height = H;
+  off.width = W; off.height = H;              // 인코딩 대상 (square면 1080×1080)
   const octx = off.getContext('2d');
+  // 매핑은 항상 풀사이즈(1080×1920)로 그린 뒤, square면 중앙 정사각을 크롭
+  const comp = square ? document.createElement('canvas') : off;
+  if (square) { comp.width = CANVAS_W; comp.height = CANVAS_H; }
+  const cctx = square ? comp.getContext('2d') : octx;
+  const cropY = Math.round((CANVAS_H - CANVAS_W) / 2); // 420
   for (let i = 0; i < TOTAL; i++) {
     if (encError) throw encError;
     const srcT = cs + ((i / FPS) % clipLen);
     await seekTo(v, Math.min(srcT, srcDur - 0.001));
-    drawComposite(octx, v, '#fff', state.edgeLayer);
-    if (state._out1TextLayer) octx.drawImage(state._out1TextLayer, 0, 0);
+    drawComposite(cctx, v, '#fff', state.edgeLayer);
+    if (withText && state._out1TextLayer) cctx.drawImage(state._out1TextLayer, 0, 0);
+    if (square) { octx.clearRect(0, 0, W, H); octx.drawImage(comp, 0, cropY, CANVAS_W, CANVAS_W, 0, 0, W, H); }
     const frame = new VideoFrame(off, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
     venc.encode(frame, { keyFrame: i % 60 === 0 });
     frame.close();
@@ -5968,13 +5993,13 @@ async function exportVideoOffline(status) {
       first = false;
     }
   }
-  try { gestureAC.close(); } catch (e) {}
 
   muxer.finalize();
   const outBlob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
-  downloadBlob(outBlob, 'liquidcities-reels.mp4');
-  saveOutputBlob('out1', outBlob);
-  status.textContent = t('dlDone');
+  if (doDownload) downloadBlob(outBlob, opts.fileName || 'liquidcities-reels.mp4');
+  saveOutputBlob(outKind, outBlob);
+  if (doDownload) status.textContent = t('dlDone');
+  return _audioAssembly; // out5가 오디오 재조립 없이 재사용
 }
 
 // WebCodecs 미지원 브라우저용 실시간 녹화 폴백 (기존 검증된 경로)
@@ -6099,7 +6124,16 @@ dl1Btn.addEventListener('click', async () => {
     // 끊기고 색범위도 좁게 인코딩되므로 최후 폴백으로만 사용.
     if ('VideoEncoder' in window) {
       try {
-        await exportVideoOffline(status);
+        const assembly = await exportVideoOffline(status);
+        // 상세용 out5 — 텍스트 없는 1:1 정사각 매핑 영상. 오디오 재사용(Safari 제스처 회피),
+        // 백그라운드로(사용자 대기 없음), 실패해도 앱 안 깨지게. 없으면 상세는 out1 폴백.
+        if (assembly) {
+          const dummy = { textContent: '' };
+          exportVideoOffline(dummy, {
+            withText: false, square: true, download: false, outKind: 'out5',
+            reuseAudio: assembly,
+          }).catch(e => console.warn('out5 encode skipped:', e.message));
+        }
       } catch (e) {
         console.warn('offline export failed, falling back to realtime:', e.message);
         await recordRealtime(status);
