@@ -5522,6 +5522,17 @@ async function openRecordDetail(rec) {
     body.className = 'rec-body';
     body.style.cssText = 'webkit-line-clamp:unset; margin:0 0 14px; line-height:1.7';
     body.textContent = rec.momentThought || '';
+    // 영어 모드에서 생각이 한글이면 번역해 표시(무료 API, 결과는 캐시)
+    if (lang === 'en' && rec.momentThought && HANGUL.test(rec.momentThought)) {
+      if (rec._thoughtEnCache) {
+        body.textContent = rec._thoughtEnCache;
+      } else {
+        translateToEn(rec.momentThought).then(en => {
+          if (gen !== state._detailGen) return; // 다른 기록으로 넘어감
+          if (en) { rec._thoughtEnCache = en; body.textContent = en; }
+        }).catch(() => {});
+      }
+    }
     const meta = document.createElement('div');
     meta.style.cssText = 'display:flex; align-items:center; gap:10px; font-size:13px; color:var(--dim)';
     const when = document.createElement('span');
