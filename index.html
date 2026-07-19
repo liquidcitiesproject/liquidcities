@@ -2591,15 +2591,20 @@ async function readCaptureDate(file) {
     if (file.type.startsWith('image/') && window.exifr) {
       // GPS는 읽히는데 날짜만 안 읽히던 문제 — 옵션이 필드를 누락시켜서였음.
       // 옵션 없이 전체 파싱하면 DateTimeOriginal 등 모든 EXIF를 읽는다.
+      // 모든 세그먼트를 강제로 파싱(tiff/exif/ifd0/gps) — 기본 파싱이 날짜를 누락하는 기기 대응
       let ex = null;
-      try { ex = await exifr.parse(file); } catch (e1) { ex = null; }
+      try { ex = await exifr.parse(file, { tiff: true, ifd0: true, exif: true, gps: true, mergeOutput: true }); }
+      catch (e0) { try { ex = await exifr.parse(file); } catch (e1) { ex = null; } }
       const cand = ex && (ex.DateTimeOriginal || ex.CreateDate || ex.DateTimeDigitized
         || ex.ModifyDate || ex.DateTime || ex.GPSDateStamp);
       const d = toDateSafe(cand);
-      // 진단(핸드폰에서 원인 확인용) — 파일 타입 + 읽힌 EXIF 키
-      state._captureDebug = file.type + ' · ' + (ex ? Object.keys(ex).slice(0, 12).join(',') || '(빈 EXIF)' : '(파싱 실패)');
-      if (d) { console.info('[capture] EXIF date', d.toISOString(), 'from', file.name); return { date: d, source: 'exif' }; }
-      console.warn('[capture] EXIF에 촬영일 없음 — 읽힌 키:', state._captureDebug);
+      // 진단(핸드폰에서 원인 확인용) — 파일 타입 · 날짜후보 · 읽힌 키
+      state._captureDebug = file.type + ' · 날짜값=' + (cand !== undefined && cand !== null ? String(cand) : '없음')
+        + ' · 키=' + (ex ? Object.keys(ex).slice(0, 14).join(',') || '(빈 EXIF)' : '(파싱 실패)');
+      if (d) { console.info('[capture] EXIF date', d.toISOString()); return { date: d, source: 'exif' }; }
+      console.warn('[capture] EXIF 촬영일 없음:', state._captureDebug);
+      // EXIF 날짜를 못 읽었을 때 원인을 핸드폰에서도 바로 보이게 (일시적 진단)
+      try { alert('촬영일 진단\n' + state._captureDebug); } catch (e) {}
     } else if (file.type.startsWith('video/')) {
       const d = await readMp4CreationDate(file);
       if (d) return { date: d, source: 'video-meta' };
