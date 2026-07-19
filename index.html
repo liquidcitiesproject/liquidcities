@@ -5565,7 +5565,8 @@ async function openRecordDetail(rec) {
       const v = document.createElement('video');
       v.src = URL.createObjectURL(vidBlob);
       v.controls = true; v.playsInline = true;
-      v.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border-radius:8px';
+      // out1은 흰 배경에 매스 형태로 클리핑된 영상 — 요소 배경도 흰색으로(검은 레터박스 방지)
+      v.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border-radius:8px; background:#fff; object-fit:contain';
       box.appendChild(v);
       dlBlob = vidBlob; dlName = 'liquidcities.mp4';
     } else {
