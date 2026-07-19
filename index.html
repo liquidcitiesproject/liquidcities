@@ -2588,19 +2588,33 @@ async function readMediaGps(file) {
 async function readCaptureDate(file) {
   try {
     if (file.type.startsWith('image/') && window.exifr) {
-      // HEIC·일부 기기는 DateTimeOriginal이 없고 다른 필드에 촬영일이 있어 넓게 시도
-      const ex = await exifr.parse(file, {
-        pick: ['DateTimeOriginal', 'CreateDate', 'DateTimeDigitized', 'ModifyDate', 'DateTime', 'GPSDateStamp'],
-      });
-      const d = ex && (ex.DateTimeOriginal || ex.CreateDate || ex.DateTimeDigitized || ex.ModifyDate || ex.DateTime);
-      if (d instanceof Date && !isNaN(d)) return { date: d, source: 'exif' };
+      // pick으로 필드를 제한하면 HEIC 등에서 파싱이 실패할 수 있어 전체 파싱한다.
+      // exifr는 EXIF 날짜를 Date로 파싱해준다(문자열이면 아래에서 보정).
+      let ex = null;
+      try { ex = await exifr.parse(file, { tiff: true, exif: true, ifd0: true, gps: false }); }
+      catch (e1) { try { ex = await exifr.parse(file); } catch (e2) { ex = null; } }
+      const cand = ex && (ex.DateTimeOriginal || ex.CreateDate || ex.DateTimeDigitized
+        || ex.ModifyDate || ex.DateTime);
+      const d = toDateSafe(cand);
+      if (d) { console.info('[capture] EXIF date', d.toISOString(), 'from', file.name); return { date: d, source: 'exif' }; }
+      console.warn('[capture] EXIF에 촬영일 없음 — 읽힌 키:', ex ? Object.keys(ex).join(',') : '(파싱 실패)', file.type);
     } else if (file.type.startsWith('video/')) {
       const d = await readMp4CreationDate(file);
       if (d) return { date: d, source: 'video-meta' };
     }
-  } catch (e) { /* 폴백으로 */ }
+  } catch (e) { console.warn('[capture] readCaptureDate 오류', e && e.message); }
   if (file.lastModified) return { date: new Date(file.lastModified), source: 'file' };
   return { date: new Date(), source: 'now' };
+}
+// EXIF 날짜가 Date거나 "YYYY:MM:DD HH:MM:SS" 문자열일 수 있어 안전 변환
+function toDateSafe(v) {
+  if (v instanceof Date && !isNaN(v)) return v;
+  if (typeof v === 'string') {
+    const m = v.match(/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
+    if (m) { const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]); if (!isNaN(d)) return d; }
+    const d2 = new Date(v); if (!isNaN(d2)) return d2;
+  }
+  return null;
 }
 
 document.getElementById('mediaInput').addEventListener('change', async e => {
