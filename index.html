@@ -2595,8 +2595,10 @@ async function readCaptureDate(file) {
       const cand = ex && (ex.DateTimeOriginal || ex.CreateDate || ex.DateTimeDigitized
         || ex.ModifyDate || ex.DateTime || ex.GPSDateStamp);
       const d = toDateSafe(cand);
+      // 진단(핸드폰에서 원인 확인용) — 파일 타입 + 읽힌 EXIF 키
+      state._captureDebug = file.type + ' · ' + (ex ? Object.keys(ex).slice(0, 12).join(',') || '(빈 EXIF)' : '(파싱 실패)');
       if (d) { console.info('[capture] EXIF date', d.toISOString(), 'from', file.name); return { date: d, source: 'exif' }; }
-      console.warn('[capture] EXIF에 촬영일 없음 — 읽힌 키:', ex ? Object.keys(ex).join(',') : '(파싱 실패)', file.type);
+      console.warn('[capture] EXIF에 촬영일 없음 — 읽힌 키:', state._captureDebug);
     } else if (file.type.startsWith('video/')) {
       const d = await readMp4CreationDate(file);
       if (d) return { date: d, source: 'video-meta' };
@@ -2743,6 +2745,10 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
       line += '\n' + t('gpsFound', state.mediaGps.lat.toFixed(4), state.mediaGps.lon.toFixed(4), dTxt);
     } else {
       line += '\n' + t('gpsNone');
+    }
+    // 이미지인데 EXIF 촬영일을 못 읽었을 때 원인 진단(핸드폰에서도 보이게)
+    if (state.mediaType === 'image' && (srcKey === 'capFile' || srcKey === 'capNow') && state._captureDebug) {
+      line += '\n[진단] ' + state._captureDebug;
     }
     const ci = document.getElementById('captureInfo');
     ci.style.whiteSpace = 'pre-line';
