@@ -5548,29 +5548,47 @@ async function openRecordDetail(rec) {
   info.innerHTML = '';
   info.appendChild(renderInfoTable(buildInfoRows(rec, true)));
   box.innerHTML = '';
+  document.querySelectorAll('.rec-dl-btn').forEach(b => b.remove()); // 이전 기록의 다운로드 버튼 정리
   goto(98);
-  // 매핑된 이미지 — out4(원본 화질) 우선, 없으면 공유 스냅샷의 massThumb 폴백(뷰어용)
+  // 영상이면 릴스(out1) 재생, 아니면 매핑 이미지(out4) — 없으면 massThumb 폴백
   let found = 0;
   {
-    const blob = await fetchOutputBlob(rec.savedAt, 'out4');
+    const isVideo = rec.mediaType === 'video';
+    const vidBlob = isVideo ? await fetchOutputBlob(rec.savedAt, 'out1') : null;
+    const imgBlob = (!isVideo || !vidBlob) ? await fetchOutputBlob(rec.savedAt, 'out4') : null;
     if (gen !== state._detailGen) return; // 다른 기록으로 넘어감 — 중단
-    const imgSrc = blob ? URL.createObjectURL(blob) : (rec.massThumb || null);
-    if (imgSrc) {
+    let dlBlob = null, dlName = 'liquidcities.png';
+    if (vidBlob) {
       found++;
-      const img = document.createElement('img');
-      img.src = imgSrc;
-      img.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border:none';
-      box.appendChild(img);
-      // 다운로드 버튼 — 오른쪽 정보 컬럼 하단 왼쪽에 작게
+      const v = document.createElement('video');
+      v.src = URL.createObjectURL(vidBlob);
+      v.controls = true; v.playsInline = true;
+      v.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border-radius:8px';
+      box.appendChild(v);
+      dlBlob = vidBlob; dlName = 'liquidcities.mp4';
+    } else {
+      const imgSrc = imgBlob ? URL.createObjectURL(imgBlob) : (rec.massThumb || null);
+      if (imgSrc) {
+        found++;
+        const img = document.createElement('img');
+        img.src = imgSrc;
+        img.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border:none';
+        box.appendChild(img);
+        dlBlob = imgBlob; // massThumb 폴백이면 null → dataURL 다운
+      }
+    }
+    if (found) {
+      // 다운로드 버튼 1개 — 오른쪽 정보 컬럼 하단 왼쪽에 작게 (열 때마다 이전 것 제거됨)
       const btn = document.createElement('button');
       btn.textContent = t('btnDownload');
-      btn.className = 'secondary';
+      btn.className = 'secondary rec-dl-btn';
       btn.style.cssText = 'display:inline-block; width:auto; margin-top:24px; padding:8px 18px; font-size:13px';
+      const dlSrc = box.querySelector('video, img') && box.querySelector('video, img').src;
       btn.addEventListener('click', () => {
-        if (blob) return downloadBlob(blob, 'liquidcities.png');
-        const a = document.createElement('a'); a.href = imgSrc; a.download = 'liquidcities.png'; a.click();
+        if (dlBlob) return downloadBlob(dlBlob, dlName);
+        if (dlSrc) { const a = document.createElement('a'); a.href = dlSrc; a.download = dlName; a.click(); }
       });
-      const infoCol = info.parentElement;         // 오른쪽 컬럼(정보표 아래)
+      const infoCol = info.parentElement;
       if (infoCol) infoCol.appendChild(btn);
     }
   }
