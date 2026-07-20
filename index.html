@@ -87,6 +87,14 @@
   .mass-cat img { width: 42px; height: 42px; object-fit: cover; object-position: center;
     border-radius: 4px; background: #000; }
   .mass-cat.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
+  /* ---- 주소 검색 결과 목록 ---- */
+  #searchResults .sr-hint { font-size: 12px; color: var(--dim); margin: 0 0 8px; }
+  .sr-item { display: block; width: 100%; text-align: left; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: pointer;
+    font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+  .sr-item:hover { border-color: var(--ink); background: var(--panel); }
+  .sr-item .sr-main { font-weight: 500; }
+  .sr-item .sr-sub { font-size: 11px; color: var(--dim); margin-top: 2px; }
   .ai-chip { background: #fff; color: var(--ink); border: 1px solid var(--line);
     padding: 8px 14px; border-radius: 3px; font-size: 13px; font-weight: 400; }
   .ai-chip:hover { border-color: #999; }
@@ -536,6 +544,9 @@
       <button id="searchBtn" data-i18n="btnSearch"></button>
     </div>
   </div>
+
+  <!-- 검색 결과 목록 (여러 개면 사용자가 고름 — 동명 지명 오선택 방지) -->
+  <div id="searchResults" style="display:none; margin-top:12px"></div>
 
   <div class="err" id="searchErr"></div>
   <div class="manual-box" id="manualBox">
@@ -1124,7 +1135,7 @@ const I18N = {
     outName1: '릴스', outName2: '도시 데이터 (구버전)', outName3: '릴스 썸네일', outName4: 'PNG (홈)',
     detecting: '이미지 내용 분석 중...',
     detected: objs => `인식된 사물: <b>${objs}</b>`,
-    stSearching: '주소 검색 중...',
+    stSearching: '주소 검색 중...', srPick: '검색 결과가 여러 곳이에요 — 맞는 곳을 골라주세요:',
     stRetry: q => `다시 검색 중: "${q}"`,
     stSearchN: (i, n) => `검색 중 (${i}/${n})...`,
     stOverpass: '건물 데이터 조회 중... (Overpass)',
@@ -1295,7 +1306,7 @@ const I18N = {
     outName1: 'Reels', outName2: 'City data (legacy)', outName3: 'Reels thumbnail', outName4: 'PNG (home)',
     detecting: 'Analyzing content...',
     detected: objs => `Detected: <b>${objs}</b>`,
-    stSearching: 'Searching address...',
+    stSearching: 'Searching address...', srPick: 'Several matches — pick the right one:',
     stRetry: q => `Retrying: "${q}"`,
     stSearchN: (i, n) => `Searching (${i}/${n})...`,
     stOverpass: 'Fetching building data... (Overpass)',
@@ -1605,6 +1616,13 @@ async function nominatim(q) {
   const list = await res.json();
   return list.length ? list[0] : null;
 }
+// Nominatim 여러 결과 반환 (목록 선택용) — 동명 지명 오선택 방지
+async function nominatimList(q) {
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&q=' + encodeURIComponent(q);
+  const res = await fetch(url, { headers: { 'Accept-Language': lang === 'ko' ? 'ko,en' : 'en' } });
+  if (!res.ok) throw new Error('Nominatim ' + res.status);
+  return await res.json();
+}
 // Nominatim 구조화 검색 — country/postalcode/street 파라미터는 자유형식 q=보다
 // 훨씬 안정적으로 매칭된다 (예: postalcode=SW11 3PL & country=United Kingdom)
 async function nominatimStruct(params) {
@@ -1677,6 +1695,32 @@ function queueAddressEnglishization() {
 }
 
 // 검색 성공 공통 처리: 동·호수는 검색에 쓰지 않고 주소 표기에만 접두
+// 검색 결과 목록 렌더 — 사용자가 맞는 장소를 고른다(동명 지명 오선택 방지)
+function renderSearchResults(list, usedLabel) {
+  const box = document.getElementById('searchResults');
+  box.innerHTML = '';
+  box.style.display = 'block';
+  const hint = document.createElement('p');
+  hint.className = 'sr-hint';
+  hint.textContent = t('srPick');
+  box.appendChild(hint);
+  list.forEach(hit => {
+    const parts = (hit.display_name || '').split(',');
+    const main = parts.slice(0, 2).join(',').trim();
+    const sub = parts.slice(2).join(',').trim();
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'sr-item';
+    btn.innerHTML = `<div class="sr-main"></div>` + (sub ? `<div class="sr-sub"></div>` : '');
+    btn.querySelector('.sr-main').textContent = main;
+    if (sub) btn.querySelector('.sr-sub').textContent = sub;
+    btn.addEventListener('click', async () => {
+      box.style.display = 'none'; box.innerHTML = '';
+      await finishSearch(hit, usedLabel);
+    });
+    box.appendChild(btn);
+  });
+}
 async function finishSearch(hit, usedLabel) {
   const unit = (document.getElementById('unitInput').value || '').trim();
   state.address = (unit ? unit + ' · ' : '') + hit.display_name + (usedLabel ? ` (${t(usedLabel)})` : '');
@@ -1903,6 +1947,7 @@ function buildQueryCandidates(q) {
 }
 
 searchBtn.addEventListener('click', async () => {
+  { const sr = document.getElementById('searchResults'); if (sr) { sr.style.display = 'none'; sr.innerHTML = ''; } } // 이전 결과 목록 정리
   // 3단어 주소(word.word.word 또는 ///word.word.word)면 what3words로 변환
   {
     const q0 = document.getElementById('addrInput').value || '';
@@ -1934,20 +1979,24 @@ searchBtn.addEventListener('click', async () => {
   searchBtn.disabled = true;
   try {
     const cands = buildQueryCandidates(q);
-    let hit = null, usedLabel = '';
+    let results = [], usedLabel = '';
     for (let i = 0; i < cands.length; i++) {
       searchStatus.textContent = i === 0 ? t('stSearching') : t('stRetry', cands[i].q);
-      try { hit = await nominatim(cands[i].q); } catch (e) { hit = null; }
-      if (hit) { usedLabel = cands[i].label; break; }
+      try { results = await nominatimList(cands[i].q); } catch (e) { results = []; }
+      if (results.length) { usedLabel = cands[i].label; break; }
       if (i < cands.length - 1) await sleep(1100); // Nominatim 레이트리밋 (1 req/s)
     }
-    if (!hit) {
+    searchStatus.textContent = '';
+    if (!results.length) {
       // 모든 단계 실패 → 직접 입력 폴백 노출
-      searchStatus.textContent = '';
       manualBox.classList.add('show');
       return;
     }
-    await finishSearch(hit, usedLabel);
+    if (results.length === 1) {
+      await finishSearch(results[0], usedLabel); // 결과 하나면 바로 진행
+    } else {
+      renderSearchResults(results, usedLabel);   // 여러 개면 목록에서 고르게
+    }
   } catch (e) {
     searchErr.textContent = t('errSearch', e.message);
     searchErr.style.display = 'block';
