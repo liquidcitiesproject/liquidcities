@@ -872,7 +872,6 @@
       </select>
       <button id="moodSortBtn" class="secondary" style="margin-left:auto; flex:0 0 auto" data-i18n="moodSortLabel"></button>
       <button id="shareToggleBtn" class="secondary" style="flex:0 0 auto"></button>
-      <button id="atlasExportBtn" class="secondary" style="flex:0 0 auto; display:none" data-i18n="btnAtlasExport"></button>
     </div>
     <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:2px"></div>
     <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
@@ -1120,7 +1119,6 @@ const I18N = {
     mapTitle: '맵',
     renamePrompt: '이 홈의 이름을 정해주세요',
     btnBoard: '보드', btnGeoMap: '지도', btnGlobe: '지구본', btnQuad: '감정 좌표',
-    btnAtlasExport: '아틀라스 내보내기', atlasRendering: '아틀라스 그리는 중…', atlasNeedNodes: '감정 좌표가 있는 기록이 2개 이상 필요합니다.',
     quadEmpty: '아직 감정 좌표가 있는 기록이 없어요. 새 기록은 감정 평면에서 위치가 정해집니다.',
     edgeSameMass: '같은 홈', edgeScale: '비슷한 스케일',
     mapNoGps: n => `${n}건은 미디어에 위치 정보가 없어 지도에 표시되지 않습니다`,
@@ -1297,7 +1295,6 @@ const I18N = {
     mapTitle: 'Map',
     renamePrompt: 'Name this home',
     btnBoard: 'Board', btnGeoMap: 'Map', btnGlobe: 'Globe', btnQuad: 'Emotion',
-    btnAtlasExport: 'Export atlas', atlasRendering: 'Rendering atlas…', atlasNeedNodes: 'Need at least 2 records with emotion coordinates.',
     quadEmpty: 'No records with emotional coordinates yet. New moments get placed on the emotion plane.',
     edgeSameMass: 'same home', edgeScale: 'similar scale',
     mapNoGps: n => `${n} record(s) have no media location and are not shown on the map`,
@@ -5104,153 +5101,6 @@ function emotionEdges(recs) {
   return edges;
 }
 
-/* ============================================================
-   전시용 감정 아틀라스 (export 전용 고해상도 canvas)
-   흰 배경 · 감정 좌표 배치 · 같은/비슷한 단어 연결(선+감정거리 라벨) · 단어 캡션
-   ============================================================ */
-
-// Claude로 '의미가 비슷한 단어 쌍'을 판정. 키 없거나 실패 시 null(→ 정확 일치 폴백).
-async function atlasSimilarWordPairs(words) {
-  const key = localStorage.getItem('lc_api_key');
-  if (!key || words.length < 2) return null;
-  const list = words.map((w, i) => `${i}: ${w}`).join('\n');
-  const prompt = `Here is a numbered list of single words (moments in a city):\n${list}\n\n`
-    + `Return pairs of indices whose words are SIMILAR in meaning or feeling (synonyms, same theme, or emotionally close — e.g. "summer" & "warmth", "rain" & "grey"). `
-    + `Identical words are always similar. Output ONLY a JSON array of index pairs, e.g. [[0,3],[1,4]]. No prose. If none are similar, output [].`;
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': key, 'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true', 'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 400,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const txt = (data.content && data.content[0] && data.content[0].text) || '';
-    const m = txt.match(/\[[\s\S]*\]/);
-    if (!m) return null;
-    const arr = JSON.parse(m[0]);
-    return Array.isArray(arr) ? arr.filter(p => Array.isArray(p) && p.length === 2) : null;
-  } catch (e) { return null; }
-}
-
-// 좌표 있는 기록들의 단어 관계 엣지 — 비슷한 단어끼리 연결, 라벨 = 감정 거리(gap N).
-// Claude 유사도 우선, 실패 시 정확히 같은 단어만.
-async function atlasWordEdges(nodes) {
-  const wordOf = r => (r.momentWordEn || r.momentWord || '').trim();
-  const idx = nodes.map(wordOf);
-  const edges = [];
-  const seen = new Set();
-  const addEdge = (i, j) => {
-    if (i === j) return;
-    const kk = i < j ? i + '-' + j : j + '-' + i;
-    if (seen.has(kk)) return;
-    seen.add(kk);
-    edges.push({ a: nodes[i], b: nodes[j], label: 'gap ' + toGap(emoDist(nodes[i], nodes[j])) });
-  };
-  const pairs = await atlasSimilarWordPairs(idx);
-  if (pairs) {
-    for (const [i, j] of pairs) {
-      if (Number.isInteger(i) && Number.isInteger(j) && idx[i] && idx[j]) addEdge(i, j);
-    }
-  } else {
-    // 폴백: 정확히 같은 단어(대소문자 무시)
-    for (let i = 0; i < nodes.length; i++)
-      for (let j = i + 1; j < nodes.length; j++)
-        if (idx[i] && idx[j] && idx[i].toLowerCase() === idx[j].toLowerCase()) addEdge(i, j);
-  }
-  return edges;
-}
-
-// blob/dataURL → 로드된 Image (drawImage용)
-function loadImg(src) {
-  return new Promise((resolve) => {
-    const im = new Image();
-    im.onload = () => resolve(im);
-    im.onerror = () => resolve(null);
-    im.src = src;
-  });
-}
-
-// 고해상도 아틀라스 canvas 렌더. recs=좌표 있는 기록, edges=단어 관계.
-async function renderAtlasCanvas(nodes, edges, statusEl) {
-  const W = 2600, H = 2600, PAD = 260;          // 큰 흰 배경 + 넉넉한 여백
-  const NODE = 190;                              // 노드(액자) 한 변 px
-  const cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
-  const g = cv.getContext('2d');
-  g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
-
-  // 감정 좌표 → canvas 좌표 (renderQuad와 동일 공식, 여백 안쪽 영역에 매핑) + 겹침 나선 분산
-  const area = { x0: PAD, y0: PAD, x1: W - PAD, y1: H - PAD };
-  const placed = [];
-  const pos = {};
-  for (const r of nodes) {
-    let xp = (r.emoX + 1) / 2;          // 0..1
-    let yp = (1 - r.emoY) / 2;          // 0..1 (위가 +)
-    let px = area.x0 + xp * (area.x1 - area.x0);
-    let py = area.y0 + yp * (area.y1 - area.y0);
-    let k = 0;
-    while (placed.some(p => Math.abs(p[0] - px) < NODE * 1.05 && Math.abs(p[1] - py) < NODE * 1.05) && k < 16) {
-      k++; px += NODE * 0.55 * Math.cos(k * 2.4); py += NODE * 0.55 * Math.sin(k * 2.4);
-    }
-    px = Math.max(area.x0, Math.min(area.x1, px));
-    py = Math.max(area.y0, Math.min(area.y1, py));
-    placed.push([px, py]);
-    pos[r.savedAt] = { x: px, y: py };
-  }
-
-  // 엣지 먼저 (노드 뒤) — 가는 검은 선 + 중간에 gap 라벨
-  g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 1.4;
-  g.font = '22px ui-monospace, "SF Mono", Menlo, monospace';
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  for (const e of edges) {
-    const a = pos[e.a.savedAt], b = pos[e.b.savedAt];
-    if (!a || !b) continue;
-    g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
-    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-    const tw = g.measureText(e.label).width;
-    g.fillStyle = '#ffffff'; g.fillRect(mx - tw / 2 - 8, my - 16, tw + 16, 32); // 가독성 패치
-    g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillText(e.label, mx, my);
-  }
-
-  // 노드 이미지 로드 (out4 우선, 없으면 massThumb)
-  if (statusEl) statusEl.textContent = t('atlasRendering');
-  const imgs = await Promise.all(nodes.map(async r => {
-    const b = await fetchOutputBlob(r.savedAt, 'out4').catch(() => null);
-    if (b) return await loadImg(URL.createObjectURL(b));
-    if (r.massThumb) return await loadImg(r.massThumb);
-    return null;
-  }));
-
-  // 노드 그리기 — 얇은 회색 액자 + 이미지(contain) + 단어 캡션
-  g.textAlign = 'center'; g.textBaseline = 'top';
-  for (let i = 0; i < nodes.length; i++) {
-    const r = nodes[i], p = pos[r.savedAt], im = imgs[i];
-    const x = p.x - NODE / 2, y = p.y - NODE / 2;
-    g.fillStyle = '#ffffff'; g.fillRect(x, y, NODE, NODE);
-    if (im) {
-      // contain 맞춤
-      const s = Math.min(NODE / im.width, NODE / im.height);
-      const dw = im.width * s, dh = im.height * s;
-      g.drawImage(im, p.x - dw / 2, p.y - dh / 2, dw, dh);
-    }
-    g.strokeStyle = '#d8d8d8'; g.lineWidth = 1.5; g.strokeRect(x, y, NODE, NODE);
-    const word = (r.momentWordEn || r.momentWord || '').trim();
-    if (word) {
-      g.font = '600 24px -apple-system, "Helvetica Neue", Arial, sans-serif';
-      g.fillStyle = '#111';
-      g.fillText(word, p.x, y + NODE + 8);
-    }
-  }
-  return cv;
-}
-
 // 맵 뷰 3종: 'board'(타일 없는 흰 보드) / 'map'(실제 지도 타일) / 'globe'(3D 지구본).
 // 노드·연결선은 세 뷰 공통 데이터(renderMapMarkers가 계산).
 function setMapMode(mode) {
@@ -5266,9 +5116,6 @@ function setMapMode(mode) {
   const wf = document.getElementById('wordFloat');
   if (gv) gv.style.display = globeOn ? 'block' : 'none';
   if (qv) qv.classList.toggle('on', quadOn);
-  // 아틀라스 내보내기 버튼은 감정 좌표(quad) 뷰에서만 (방문자 뷰어 제외)
-  const axb = document.getElementById('atlasExportBtn');
-  if (axb) axb.style.display = (quadOn && !document.body.classList.contains('board-viewer')) ? '' : 'none';
   // 지도(Leaflet)는 지구본·사분면일 때 숨김
   if (mapEl) mapEl.style.visibility = (globeOn || quadOn) ? 'hidden' : 'visible';
   // 스케일 게이지는 감정 도입으로 폐기 — 항상 숨김
@@ -5280,27 +5127,6 @@ function setMapMode(mode) {
   renderMapMarkers();
 }
 document.getElementById('viewSelect').addEventListener('change', (e) => setMapMode(e.target.value));
-
-// 전시용 감정 아틀라스 내보내기 — 현재 감정 좌표 뷰의 기록을 고해상도 PNG로.
-document.getElementById('atlasExportBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('atlasExportBtn');
-  const all = boardRecords();
-  let recs = lcMapSelKey ? all.filter(r => massKeyOf(r) === lcMapSelKey) : all;
-  if (emotionSel.size) recs = recs.filter(r => (r.emoTags || []).some(id => emotionSel.has(id)));
-  const nodes = recs.filter(hasCoord);
-  if (nodes.length < 2) { btn.textContent = t('atlasNeedNodes'); setTimeout(() => { btn.textContent = t('btnAtlasExport'); }, 2500); return; }
-  const label = btn.textContent;
-  btn.disabled = true; btn.textContent = t('atlasRendering');
-  try {
-    const edges = await atlasWordEdges(nodes);
-    const cv = await renderAtlasCanvas(nodes, edges, btn);
-    await new Promise(res => cv.toBlob(b => { if (b) downloadBlob(b, 'liquidcities-atlas.png'); res(); }, 'image/png'));
-  } catch (e) {
-    console.warn('[LC] 아틀라스 내보내기 실패:', e && e.message);
-  } finally {
-    btn.disabled = false; btn.textContent = t('btnAtlasExport');
-  }
-});
 
 // 감정 좌표 사분면 뷰 렌더 — 좌표(emoX,emoY)를 가진 기록을 평면 위에 노드로 배치.
 function renderQuad(recs) {
