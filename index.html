@@ -5841,12 +5841,11 @@ async function openRecordDetail(rec) {
   let found = 0;
   {
     const isVideo = rec.mediaType === 'video';
-    // 영상: 텍스트 없는 매핑 영상(out5) 우선, 없으면 릴스(out1) 폴백
+    // 영상: 텍스트 없는 1:1 매핑 영상(out5)만 재생 — out1(릴스, 9:16)은 배경이
+    // 검게 나올 수 있어 상세 재생엔 쓰지 않는다. out5 없으면 매핑 이미지로 폴백.
     let vidBlob = isVideo ? await fetchOutputBlob(rec.savedAt, 'out5') : null;
-    const _out5Found = !!vidBlob;
-    if (isVideo && !vidBlob) vidBlob = await fetchOutputBlob(rec.savedAt, 'out1');
     console.log('[LC] 상세 영상 조회 — mediaType:', rec.mediaType, '| savedAt:', rec.savedAt,
-      '| out5:', _out5Found ? '있음' : '없음', '| out1:', (vidBlob && !_out5Found) ? '있음' : (vidBlob ? '(out5사용)' : '없음'));
+      '| out5:', vidBlob ? '있음' : '없음');
     const imgBlob = (!isVideo || !vidBlob) ? await fetchOutputBlob(rec.savedAt, 'out4') : null;
     if (gen !== state._detailGen) return; // 다른 기록으로 넘어감 — 중단
     let dlBlob = null, dlName = 'liquidcities.png';
@@ -6121,6 +6120,9 @@ async function exportVideoOffline(status, opts = {}) {
   const square = opts.square === true;
   const doDownload = opts.download !== false;
   const outKind = opts.outKind || 'out1';
+  // out5(정사각 1:1 상세 재생용)는 항상 무음으로 인코딩 — 오디오 조립이 실패해도
+  // ('no audio samples' 등) 영상 자체는 확실히 만들어지게 한다.
+  if (square) opts = { ...opts, noAudio: true, reuseAudio: null };
   const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/+esm');
   const FPS = 30, TOTAL = TARGET_DURATION * FPS;
   const W = square ? CANVAS_W : CANVAS_W, H = square ? CANVAS_W : CANVAS_H; // 정사각이면 H=W(1080)
