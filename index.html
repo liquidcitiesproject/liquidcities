@@ -1135,6 +1135,8 @@ const I18N = {
     reelNotReady: '릴스 영상이 아직 준비되지 않았습니다. 산출물 화면에서 릴스를 한 번 다운로드하면 이후 여기서도 받을 수 있어요. (미리보기는 매핑 이미지로 표시)',
     reelEncoding: '릴스 영상 준비 중… 잠시 후 상세에서 다운로드할 수 있어요.',
     reelReady: '릴스 영상 준비 완료 — 이제 상세에서도 다운로드할 수 있어요.',
+    btnSaveGallery: '갤러리에 저장',
+    savedGallery: '저장됨',
     outName1: '릴스', outName2: '도시 데이터 (구버전)', outName3: '릴스 썸네일', outName4: 'PNG (홈)',
     detecting: '이미지 내용 분석 중...',
     detected: objs => `인식된 사물: <b>${objs}</b>`,
@@ -1309,6 +1311,8 @@ const I18N = {
     reelNotReady: 'The reel video isn\'t ready yet. Download the reel once from the output screen and it\'ll be available here too. (Preview shows the mapped image.)',
     reelEncoding: 'Preparing the reel video… you can download it from the detail page shortly.',
     reelReady: 'Reel video ready — you can now download it from the detail page too.',
+    btnSaveGallery: 'Save to gallery',
+    savedGallery: 'Saved',
     outName1: 'Reels', outName2: 'City data (legacy)', outName3: 'Reels thumbnail', outName4: 'PNG (home)',
     detecting: 'Analyzing content...',
     detected: objs => `Detected: <b>${objs}</b>`,
@@ -4343,6 +4347,27 @@ async function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 3000);
 }
 
+// iOS 전용: 릴스 인코딩이 끝난 뒤엔 사용자 제스처가 만료돼 navigator.share가 막힌다.
+// 그래서 완료 후 status 옆에 '갤러리에 저장' 버튼을 띄우고, 그 클릭(새 제스처) 안에서
+// 공유 시트를 띄워 사진 갤러리에 저장하게 한다. iOS가 아니면 아무것도 안 함.
+function showSaveGalleryBtn(statusEl) {
+  if (!isIOS() || !navigator.canShare || !statusEl || !state._lastReelBlob) return;
+  const prev = statusEl.parentElement && statusEl.parentElement.querySelector('.save-gallery-btn');
+  if (prev) prev.remove();
+  const blob = state._lastReelBlob, name = state._lastReelName || 'liquidcities-reels.mp4';
+  const file = new File([blob], name, { type: blob.type || 'video/mp4' });
+  if (!navigator.canShare({ files: [file] })) return; // 이 기기가 파일 공유 불가면 스킵
+  const b = document.createElement('button');
+  b.className = 'secondary save-gallery-btn';
+  b.textContent = t('btnSaveGallery');
+  b.style.cssText = 'display:inline-block; width:auto; margin-top:10px; padding:8px 18px; font-size:13px';
+  b.addEventListener('click', async () => {
+    try { await navigator.share({ files: [file] }); b.textContent = t('savedGallery'); }
+    catch (e) { /* 사용자가 취소 등 — 버튼 유지 */ }
+  });
+  statusEl.insertAdjacentElement('afterend', b);
+}
+
 // 썸네일 장면 선택 (step45) — 슬라이더로 장면을 고르면 정방형 미리보기 갱신
 const frameSlider = document.getElementById('frameSlider');
 const thumbPreview = document.getElementById('thumbPreview');
@@ -6275,7 +6300,11 @@ async function exportVideoOffline(status, opts = {}) {
 
   muxer.finalize();
   const outBlob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
-  if (doDownload) downloadBlob(outBlob, opts.fileName || 'liquidcities-reels.mp4');
+  if (doDownload) {
+    // iOS: 완료 후 '갤러리에 저장' 버튼이 이 blob을 공유(인코딩 뒤엔 제스처가 만료돼 자동 공유 불가)
+    state._lastReelBlob = outBlob; state._lastReelName = opts.fileName || 'liquidcities-reels.mp4';
+    downloadBlob(outBlob, opts.fileName || 'liquidcities-reels.mp4');
+  }
   saveOutputBlob(outKind, outBlob, opts.savedAt); // 백그라운드면 고정 savedAt에 저장
   if (doDownload) status.textContent = t('dlDone');
   return _audioAssembly; // out5가 오디오 재조립 없이 재사용
@@ -6383,6 +6412,7 @@ async function recordRealtime(status) {
 
   if (!chunks.length) throw new Error(t('errEmptyRec'));
   const outBlob = new Blob(chunks, { type: mimeType });
+  state._lastReelBlob = outBlob; state._lastReelName = `liquidcities-reels.${ext}`;
   downloadBlob(outBlob, `liquidcities-reels.${ext}`);
   saveOutputBlob('out1', outBlob);
   status.textContent = ext === 'webm' ? t('dlDoneWebm') : t('dlDoneRT');
@@ -6393,7 +6423,11 @@ dl1Btn.addEventListener('click', async () => {
   const status = document.getElementById('dl1Status');
   saveRecord();
   if (state.mediaType === 'image') {
-    out1Canvas.toBlob(b => { downloadBlob(b, 'liquidcities-reels.jpg'); saveOutputBlob('out1', b); }, 'image/jpeg', 0.95);
+    out1Canvas.toBlob(b => {
+      state._lastReelBlob = b; state._lastReelName = 'liquidcities-reels.jpg';
+      downloadBlob(b, 'liquidcities-reels.jpg'); saveOutputBlob('out1', b);
+      showSaveGalleryBtn(status); // iOS면 '갤러리에 저장' 버튼
+    }, 'image/jpeg', 0.95);
     return;
   }
   dl1Btn.disabled = true;
@@ -6422,9 +6456,11 @@ dl1Btn.addEventListener('click', async () => {
     }
   } catch (e) {
     status.textContent = t('dlFail', e.message);
+    state._lastReelBlob = null; // 실패 시 이전 blob으로 저장 버튼이 뜨지 않게
   } finally {
     state._recTrack = null;
     dl1Btn.disabled = false;
+    showSaveGalleryBtn(status); // iOS: 인코딩 완료 후 '갤러리에 저장' 버튼(제스처 재확보)
   }
 });
 
