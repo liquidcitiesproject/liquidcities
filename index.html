@@ -5151,17 +5151,40 @@ async function exportEmotionAtlas(statusBtn) {
   const g = cv.getContext('2d');
   g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
 
-  // 감정 좌표 → canvas (겹침 나선 분산)
-  const placed = [], pos = [];
-  for (const r of nodes) {
-    let px = PAD + (r.emoX + 1) / 2 * (W - 2 * PAD);
-    let py = PAD + (1 - r.emoY) / 2 * (H - 2 * PAD);
-    let k = 0;
-    while (placed.some(q => Math.abs(q[0] - px) < NODE * 1.05 && Math.abs(q[1] - py) < NODE * 1.05) && k < 16) {
-      k++; px += NODE * 0.55 * Math.cos(k * 2.4); py += NODE * 0.55 * Math.sin(k * 2.4);
+  // 감정 좌표 → canvas 초기 위치 (감정 배치 유지)
+  const pos = nodes.map(r => ({
+    x: PAD + (r.emoX + 1) / 2 * (W - 2 * PAD),
+    y: PAD + (1 - r.emoY) / 2 * (H - 2 * PAD),
+  }));
+  // 충돌 해소 — 두 노드 중심이 MIN_GAP보다 가까우면 서로 밀어내기(여러 패스).
+  // 캡션이 노드 아래 있으므로 세로 여유(1.25)를 더 준다. 겹침이 완전히 사라질 때까지 반복.
+  const MIN_X = NODE * 1.08, MIN_Y = NODE * 1.25;
+  for (let pass = 0; pass < 200; pass++) {
+    let moved = false;
+    for (let i = 0; i < pos.length; i++) {
+      for (let j = i + 1; j < pos.length; j++) {
+        const dx = pos[j].x - pos[i].x, dy = pos[j].y - pos[i].y;
+        // 타원형 충돌(가로 MIN_X, 세로 MIN_Y). 정규화 거리 < 1이면 겹침.
+        const nx = dx / MIN_X, ny = dy / MIN_Y;
+        const dist = Math.hypot(nx, ny);
+        if (dist < 1) {
+          moved = true;
+          // 밀어낼 방향(0이면 임의로 살짝 벌림)
+          let ux = nx, uy = ny;
+          if (dist < 1e-6) { const a = i * 2.399; ux = Math.cos(a); uy = Math.sin(a); }
+          else { ux /= dist; uy /= dist; }
+          const push = (1 - Math.max(dist, 1e-6)) / 2 + 0.01;
+          pos[i].x -= ux * MIN_X * push; pos[i].y -= uy * MIN_Y * push;
+          pos[j].x += ux * MIN_X * push; pos[j].y += uy * MIN_Y * push;
+        }
+      }
     }
-    px = Math.max(PAD, Math.min(W - PAD, px)); py = Math.max(PAD, Math.min(H - PAD, py));
-    placed.push([px, py]); pos.push({ x: px, y: py });
+    // 여백 안으로 clamp (캡션 공간까지 고려해 하단 여유)
+    for (const p of pos) {
+      p.x = Math.max(PAD, Math.min(W - PAD, p.x));
+      p.y = Math.max(PAD, Math.min(H - PAD - NODE * 0.3, p.y));
+    }
+    if (!moved) break;
   }
 
   // 엣지 (노드 뒤)
