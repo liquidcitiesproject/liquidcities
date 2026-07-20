@@ -872,8 +872,8 @@
       </select>
       <button id="moodSortBtn" class="secondary" style="margin-left:auto; flex:0 0 auto" data-i18n="moodSortLabel"></button>
       <button id="shareToggleBtn" class="secondary" style="flex:0 0 auto"></button>
-      <!-- 작가 전용: ?atlas URL일 때만 감정 좌표 뷰에서 노출 -->
-      <button id="atlasBtn" class="secondary" style="flex:0 0 auto; display:none">Atlas ↓</button>
+      <!-- 감정 좌표 뷰에서 전시용 아틀라스(60×90cm) 내보내기 -->
+      <button id="atlasBtn" class="secondary" style="flex:0 0 auto; display:none" data-i18n="btnAtlasExport"></button>
     </div>
     <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:2px"></div>
     <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
@@ -1121,7 +1121,7 @@ const I18N = {
     mapTitle: '맵',
     renamePrompt: '이 홈의 이름을 정해주세요',
     btnBoard: '보드', btnGeoMap: '지도', btnGlobe: '지구본', btnQuad: '감정 좌표',
-    atlasRendering: '아틀라스 그리는 중…', atlasNeedNodes: '감정 좌표가 있는 기록이 필요합니다.',
+    btnAtlasExport: '아틀라스 ↓', atlasRendering: '아틀라스 그리는 중…', atlasNeedNodes: '감정 좌표가 있는 기록이 필요합니다.',
     quadEmpty: '아직 감정 좌표가 있는 기록이 없어요. 새 기록은 감정 평면에서 위치가 정해집니다.',
     edgeSameMass: '같은 홈', edgeScale: '비슷한 스케일',
     mapNoGps: n => `${n}건은 미디어에 위치 정보가 없어 지도에 표시되지 않습니다`,
@@ -1298,7 +1298,7 @@ const I18N = {
     mapTitle: 'Map',
     renamePrompt: 'Name this home',
     btnBoard: 'Board', btnGeoMap: 'Map', btnGlobe: 'Globe', btnQuad: 'Emotion',
-    atlasRendering: 'Rendering atlas…', atlasNeedNodes: 'Need records with emotion coordinates.',
+    btnAtlasExport: 'Atlas ↓', atlasRendering: 'Rendering atlas…', atlasNeedNodes: 'Need records with emotion coordinates.',
     quadEmpty: 'No records with emotional coordinates yet. New moments get placed on the emotion plane.',
     edgeSameMass: 'same home', edgeScale: 'similar scale',
     mapNoGps: n => `${n} record(s) have no media location and are not shown on the map`,
@@ -5211,10 +5211,9 @@ function setMapMode(mode) {
   const wf = document.getElementById('wordFloat');
   if (gv) gv.style.display = globeOn ? 'block' : 'none';
   if (qv) qv.classList.toggle('on', quadOn);
-  // 작가 전용 아틀라스 버튼 — ?atlas URL + 감정 좌표(quad) 뷰 + 방문자 아닐 때만
+  // 아틀라스 버튼 — 감정 좌표(quad) 뷰 + 방문자(board 뷰어) 아닐 때 표시
   const axb = document.getElementById('atlasBtn');
-  if (axb) axb.style.display = (quadOn && new URLSearchParams(location.search).has('atlas')
-    && !document.body.classList.contains('board-viewer')) ? '' : 'none';
+  if (axb) axb.style.display = (quadOn && !document.body.classList.contains('board-viewer')) ? '' : 'none';
   // 지도(Leaflet)는 지구본·사분면일 때 숨김
   if (mapEl) mapEl.style.visibility = (globeOn || quadOn) ? 'hidden' : 'visible';
   // 스케일 게이지는 감정 도입으로 폐기 — 항상 숨김
