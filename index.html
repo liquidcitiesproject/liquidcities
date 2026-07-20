@@ -4350,6 +4350,7 @@ function saveRecord() {
     state._out5Started = true;
     exportVideoOffline({ textContent: '' }, {
       withText: false, square: true, download: false, outKind: 'out5', savedAt: rec.savedAt,
+      noAudio: true, // 제스처 밖 자동 생성 — 오디오 조립 실패로 throw되지 않게 무음 인코딩
     }).catch(e => console.warn('auto out5 skipped:', e && e.message));
   }
   // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
@@ -5844,6 +5845,9 @@ async function exportVideoOffline(status, opts = {}) {
   let audioCfg, audioMode, renderedAudio, mrAAC, audioMuxCodec, muxSampleRate, muxChannels;
   if (opts.reuseAudio) {
     ({ audioCfg, audioMode, renderedAudio, mrAAC, audioMuxCodec, muxSampleRate, muxChannels } = opts.reuseAudio);
+  } else if (opts.noAudio) {
+    // 무음 인코딩 — 오디오 조립을 아예 건너뛴다(제스처 밖 자동 out5가 조립 실패로 throw되지 않게)
+    audioMode = null; audioMuxCodec = null; muxSampleRate = 44100; muxChannels = 2;
   } else {
   // Safari: AudioContext는 어떤 await보다 먼저(클릭 제스처 안) 만들어야 산다
   const gestureAC = new (window.AudioContext || window.webkitAudioContext)();
