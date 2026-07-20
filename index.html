@@ -4605,14 +4605,23 @@ function saveRecord() {
     state._out5Started = true;
     const rst = document.getElementById('detectStatus');
     if (rst) rst.textContent = t('reelEncoding');
+    const savedAt = rec.savedAt;
     exportVideoOffline({ textContent: '' }, {
-      withText: false, square: true, download: false, outKind: 'out5', savedAt: rec.savedAt,
+      withText: false, square: true, download: false, outKind: 'out5', savedAt,
       noAudio: true, // 제스처 밖 자동 생성 — 오디오 조립 실패로 throw되지 않게 무음 인코딩
     }).then(() => {
-      console.log('[LC] out5 자동 인코딩 완료 — 상세에서 릴스 다운로드 가능');
+      console.log('[LC] out5 자동 인코딩 완료 — 상세에서 릴스 재생 가능');
+      // 이어서 릴스(out1, 9:16 + 텍스트)도 미리 생성 — 폰에서 '릴스 다운' 클릭 시
+      // 인코딩 없이 즉시 공유 시트로 갤러리에 저장되게(제스처 안에서 바로).
+      return exportVideoOffline({ textContent: '' }, {
+        withText: true, square: false, download: false, outKind: 'out1', savedAt,
+        noAudio: true, // 제스처 밖 자동 생성이라 무음(소리 포함 릴스는 결과화면에서 직접 다운로드)
+      });
+    }).then(() => {
+      console.log('[LC] out1 릴스 자동 인코딩 완료 — 폰에서 바로 갤러리 저장 가능');
       if (rst) rst.textContent = t('reelReady');
     }).catch(e => {
-      console.warn('[LC] out5 자동 인코딩 실패:', e && e.message,
+      console.warn('[LC] 릴스 자동 인코딩 실패:', e && e.message,
         '— 릴스는 산출물 화면에서 한 번 다운로드해야 상세에서도 받을 수 있음');
       if (rst) rst.textContent = t('reelNotReady');
     });
@@ -6428,6 +6437,16 @@ dl1Btn.addEventListener('click', async () => {
       downloadBlob(b, 'liquidcities-reels.jpg'); saveOutputBlob('out1', b);
       showSaveGalleryBtn(status); // iOS면 '갤러리에 저장' 버튼
     }, 'image/jpeg', 0.95);
+    return;
+  }
+  // 저장 시 미리 만든 릴스(out1)가 이미 있으면 재인코딩 없이 즉시 다운로드 —
+  // 폰에선 클릭 제스처 안에서 바로 공유 시트가 떠 갤러리에 저장된다.
+  const preReel = await fetchOutputBlob(state._recordSavedAt, 'out1').catch(() => null);
+  if (preReel) {
+    state._lastReelBlob = preReel; state._lastReelName = 'liquidcities-reels.mp4';
+    downloadBlob(preReel, 'liquidcities-reels.mp4');
+    showSaveGalleryBtn(status); // share가 제스처 만료로 막히면 버튼으로 폴백
+    status.textContent = t('dlDone');
     return;
   }
   dl1Btn.disabled = true;
