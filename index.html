@@ -5852,7 +5852,10 @@ async function openRecordDetail(rec) {
     const isVideo = rec.mediaType === 'video';
     // 영상: 텍스트 없는 매핑 영상(out5) 우선, 없으면 릴스(out1) 폴백
     let vidBlob = isVideo ? await fetchOutputBlob(rec.savedAt, 'out5') : null;
+    const _out5Found = !!vidBlob;
     if (isVideo && !vidBlob) vidBlob = await fetchOutputBlob(rec.savedAt, 'out1');
+    console.log('[LC] 상세 영상 조회 — mediaType:', rec.mediaType, '| savedAt:', rec.savedAt,
+      '| out5:', _out5Found ? '있음' : '없음', '| out1:', (vidBlob && !_out5Found) ? '있음' : (vidBlob ? '(out5사용)' : '없음'));
     const imgBlob = (!isVideo || !vidBlob) ? await fetchOutputBlob(rec.savedAt, 'out4') : null;
     if (gen !== state._detailGen) return; // 다른 기록으로 넘어감 — 중단
     let dlBlob = null, dlName = 'liquidcities.png';
