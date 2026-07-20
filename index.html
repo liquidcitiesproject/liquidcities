@@ -1971,13 +1971,21 @@ searchBtn.addEventListener('click', async () => {
   manualBox.classList.remove('show');
   searchBtn.disabled = true;
   try {
-    const cands = buildQueryCandidates(q);
     let results = [], usedLabel = '';
-    for (let i = 0; i < cands.length; i++) {
-      searchStatus.textContent = i === 0 ? t('stSearching') : t('stRetry', cands[i].q);
-      try { results = await nominatimList(cands[i].q); } catch (e) { results = []; }
-      if (results.length) { usedLabel = cands[i].label; break; }
-      if (i < cands.length - 1) await sleep(1100); // Nominatim 레이트리밋 (1 req/s)
+    // 한글이 포함된 주소는 VWorld(국토부 도로명/지번 DB)를 먼저 — OSM에 없는 한국 상세주소 대응.
+    if (/[가-힣]/.test(q)) {
+      searchStatus.textContent = t('stSearching');
+      try { results = await geocodeVWorld(q); } catch (e) { results = []; }
+    }
+    // VWorld 실패(또는 비한글)면 Nominatim 후보들로 시도.
+    if (!results.length) {
+      const cands = buildQueryCandidates(q);
+      for (let i = 0; i < cands.length; i++) {
+        searchStatus.textContent = i === 0 ? t('stSearching') : t('stRetry', cands[i].q);
+        try { results = await nominatimList(cands[i].q); } catch (e) { results = []; }
+        if (results.length) { usedLabel = cands[i].label; break; }
+        if (i < cands.length - 1) await sleep(1100); // Nominatim 레이트리밋 (1 req/s)
+      }
     }
     searchStatus.textContent = '';
     if (!results.length) {
@@ -2164,6 +2172,42 @@ function jsonp(baseUrl, cbParamBuilder, timeoutMs = 8000) {
     script.src = baseUrl + (baseUrl.includes('?') ? '&' : '?') + cbParamBuilder(cb);
     document.head.appendChild(script);
   });
+}
+
+// VWorld 주소 지오코더 — 한국 도로명/지번 주소를 좌표로 변환.
+// OSM(Nominatim)에 없는 한국 상세주소(예: "화순서동로 56번길 24")를 정확히 잡는다.
+// nominatimList와 같은 형태({lat, lon, display_name})의 배열을 반환해 검색 흐름과 호환.
+async function geocodeVWorld(rawAddr) {
+  const key = vworldKey();
+  if (!key) return [];
+  // 건물명·호수 등 매칭을 방해하는 꼬리 제거: 도로명주소는 "…로/길 + 번호"까지가 핵심.
+  // "화순서동로 56번길 24 아띠빌라" → "화순서동로 56번길 24"
+  const trimmed = rawAddr
+    .replace(/\s+(\S+빌라|\S+아파트|\S+오피스텔|\S+빌딩|\S*동\s*\d+호|\d+호|B?\d+동)\b.*$/, '')
+    .trim();
+  const url = 'https://api.vworld.kr/req/address';
+  // 도로명(road)·지번(parcel) 둘 다 시도 — 어느 쪽 주소인지 사용자가 몰라도 되게.
+  for (const type of ['road', 'parcel']) {
+    for (const addr of (trimmed !== rawAddr ? [trimmed, rawAddr] : [rawAddr])) {
+      const build = (cb) => [
+        'service=address', 'request=getcoord', 'version=2.0', 'crs=epsg:4326',
+        'type=' + type, 'refine=true', 'simple=false', 'format=json',
+        'callback=' + cb, 'key=' + encodeURIComponent(key),
+        'address=' + encodeURIComponent(addr),
+        'domain=' + encodeURIComponent(location.hostname),
+      ].join('&');
+      let data;
+      try { data = await jsonp(url, build, 7000); } catch (e) { continue; }
+      const r = data && data.response;
+      if (!r || r.status !== 'OK' || !r.result || !r.result.point) continue;
+      const lon = parseFloat(r.result.point.x), lat = parseFloat(r.result.point.y);
+      if (!isFinite(lat) || !isFinite(lon)) continue;
+      const label = (r.refined && r.refined.text) || addr;
+      return [{ lat: String(lat), lon: String(lon), display_name: label,
+                address: { country_code: 'kr' }, _vworld: true }];
+    }
+  }
+  return [];
 }
 
 // VWorld WFS로 한국 건물 형태 자동 조회 (OSM에 건물 없을 때 폴백).
