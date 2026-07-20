@@ -5279,6 +5279,7 @@ function buildBoardSnapshot() {
   const snapshot = getRecords().map(r => ({
     savedAt: r.savedAt, momentWord: r.momentWord, momentWordEn: r.momentWordEn,
     momentThought: r.momentThought || '',                  // 순간에 대한 생각 (뷰어 상세 표시)
+    mediaType: r.mediaType || null,                        // image/video — 뷰어가 영상 판정에 사용
     momentScale: r.momentScale, momentEmotion: r.momentEmotion,
     emoTags: r.emoTags || [], emoX: r.emoX, emoY: r.emoY,   // 감정 좌표(뷰어 gap/정렬용)
     mediaDate: r.mediaDate,
