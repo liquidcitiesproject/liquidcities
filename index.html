@@ -4223,11 +4223,13 @@ async function idbDelRecord(savedAt) {
   const tx = db.transaction('outputs', 'readwrite');
   ['out1', 'out2', 'out3', 'out4', 'out5'].forEach(k => tx.objectStore('outputs').delete(savedAt + ':' + k));
 }
-// 다운로드 시점의 산출물을 현재 레코드에 연결해 보관
-function saveOutputBlob(kind, blob) {
-  if (!state._recordSavedAt || !blob) return;
-  idbPut(state._recordSavedAt + ':' + kind, blob).catch(() => {});
-  uploadOutputToStorage(state._recordSavedAt, kind, blob); // 기기 간 동기화 (버킷 있으면)
+// 산출물을 레코드에 연결해 보관. savedAt 미지정 시 현재 레코드.
+// (백그라운드 인코딩 중 다른 레코드로 넘어가도 엉뚱한 곳에 저장되지 않게 savedAt 고정 가능)
+function saveOutputBlob(kind, blob, savedAt) {
+  const sa = savedAt || state._recordSavedAt;
+  if (!sa || !blob) return;
+  idbPut(sa + ':' + kind, blob).catch(() => {});
+  uploadOutputToStorage(sa, kind, blob); // 기기 간 동기화 (버킷 있으면)
 }
 // 산출물 blob을 Supabase Storage('outputs' 버킷)에 사용자별 경로로 업로드.
 // 버킷이 없거나 권한 문제면 조용히 로컬 전용으로 동작한다.
@@ -4341,6 +4343,14 @@ function saveRecord() {
     idbPut(rec.savedAt + ':out4', state._autoOut4).catch(() => {});
     uploadOutputToStorage(rec.savedAt, 'out4', state._autoOut4); // 기기 간 동기화용 자동 업로드
     rec._out4Uploaded = true;
+  }
+  // 영상이면 out5(텍스트 없는 1:1 매핑 영상)를 백그라운드 자동 생성 —
+  // 릴스 다운로드를 안 눌러도 상세에서 영상으로 재생되게. 무거운 인코딩이라 조용히.
+  if (state.mediaType === 'video' && 'VideoEncoder' in window && !state._out5Started) {
+    state._out5Started = true;
+    exportVideoOffline({ textContent: '' }, {
+      withText: false, square: true, download: false, outKind: 'out5', savedAt: rec.savedAt,
+    }).catch(e => console.warn('auto out5 skipped:', e && e.message));
   }
   // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
   syncRecordToServer(rec).then(ok => {
@@ -6002,7 +6012,7 @@ async function exportVideoOffline(status, opts = {}) {
   muxer.finalize();
   const outBlob = new Blob([muxer.target.buffer], { type: 'video/mp4' });
   if (doDownload) downloadBlob(outBlob, opts.fileName || 'liquidcities-reels.mp4');
-  saveOutputBlob(outKind, outBlob);
+  saveOutputBlob(outKind, outBlob, opts.savedAt); // 백그라운드면 고정 savedAt에 저장
   if (doDownload) status.textContent = t('dlDone');
   return _audioAssembly; // out5가 오디오 재조립 없이 재사용
 }
@@ -6130,13 +6140,13 @@ dl1Btn.addEventListener('click', async () => {
     if ('VideoEncoder' in window) {
       try {
         const assembly = await exportVideoOffline(status);
-        // 상세용 out5 — 텍스트 없는 1:1 정사각 매핑 영상. 오디오 재사용(Safari 제스처 회피),
-        // 백그라운드로(사용자 대기 없음), 실패해도 앱 안 깨지게. 없으면 상세는 out1 폴백.
-        if (assembly) {
-          const dummy = { textContent: '' };
-          exportVideoOffline(dummy, {
+        // 릴스 다운로드 시점(오디오 조립 완료)에 out5(텍스트 없는 1:1 매핑 영상)도 재사용해 생성.
+        // saveRecord가 이미 백그라운드로 out5를 시작했다면 중복 방지(_out5Started).
+        if (assembly && !state._out5Started) {
+          state._out5Started = true;
+          exportVideoOffline({ textContent: '' }, {
             withText: false, square: true, download: false, outKind: 'out5',
-            reuseAudio: assembly,
+            reuseAudio: assembly, savedAt: state._recordSavedAt,
           }).catch(e => console.warn('out5 encode skipped:', e.message));
         }
       } catch (e) {
