@@ -1718,7 +1718,7 @@ async function finishSearch(hit, usedLabel) {
   const unit = (document.getElementById('unitInput').value || '').trim();
   state.address = (unit ? unit + ' · ' : '') + hit.display_name + (usedLabel ? ` (${t(usedLabel)})` : '');
   state.countryCode = (hit.address && hit.address.country_code) || null;
-  await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon));
+  await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon), hit);
 }
 
 // ---- 통합 검색: 한 창 + 추천 선택 ----
@@ -1772,7 +1772,7 @@ uniInput.addEventListener('input', () => {
           const unit = (document.getElementById('unitInput2').value || '').trim();
           state.address = (unit ? unit + ' · ' : '') + hit.display_name;
           state.countryCode = (hit.address && hit.address.country_code) || null;
-          await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon));
+          await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon), hit);
         });
         uniSuggest.appendChild(item);
       }
@@ -1828,7 +1828,7 @@ document.getElementById('uniSearchBtn').addEventListener('click', async () => {
     const unit = (document.getElementById('unitInput2').value || '').trim();
     state.address = (unit ? unit + ' · ' : '') + hit.display_name;
     state.countryCode = (hit.address && hit.address.country_code) || null;
-    await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon));
+    await proceedWithLocation(parseFloat(hit.lat), parseFloat(hit.lon), hit);
   } catch (e) {
     searchStatus.textContent = '';
     searchErr.textContent = t('errBuilding', e.message);
@@ -2045,11 +2045,17 @@ document.getElementById('manualBtn').addEventListener('click', async () => {
   await proceedWithLocation(lat, lon);
 });
 
-async function proceedWithLocation(lat, lon) {
+async function proceedWithLocation(lat, lon, hit) {
   state.lat = lat; state.lon = lon;
   searchStatus.textContent = t('stOverpass');
   try {
-    let building = await fetchBuilding(lat, lon);          // 1순위: OSM (전세계)
+    let building = null;
+    // 0순위: 검색 결과에 정확한 OSM way ID가 있으면 그 건물을 직접 조회 —
+    // 좌표 근처의 엉뚱한 건물이 잡히는 문제를 원천 차단(node/relation은 좌표 폴백).
+    if (hit && hit.osm_type === 'way' && hit.osm_id) {
+      building = await fetchBuildingByOsmId(hit.osm_id).catch(() => null);
+    }
+    if (!building) building = await fetchBuilding(lat, lon); // 1순위: OSM 좌표 근접 (전세계)
     if (!building) {
       searchStatus.textContent = t('stVworld');
       building = await fetchBuildingVWorld(lat, lon);      // 2순위: VWorld (한국 건축물대장)
@@ -2115,33 +2121,19 @@ async function overpass(query) {
   throw lastErr || new Error('Overpass unreachable');
 }
 
-async function fetchBuilding(lat, lon) {
-  // 본체(building)와 부분(building:part)을 함께 조회. 지오코더 좌표가 큰 건물의
-  // 중심에서 벗어날 수 있어 반경을 넓게(80→150→300m) 재시도한다.
-  let allWays = [];
-  for (const radius of [80, 150, 300]) {
-    const q = `[out:json][timeout:25];
-      (
-        way["building"](around:${radius},${lat},${lon});
-        way["building:part"](around:${radius},${lat},${lon});
-      );
-      out geom tags;`;
-    const data = await overpass(q);
-    allWays = data.elements.filter(e => e.type === 'way' && e.geometry && e.geometry.length >= 4);
-    if (allWays.some(e => e.tags && e.tags.building)) break;
+// 폴리곤(geom: {lat,lon}[]) 면적 근사 — shoelace(경위도 단위, 상대 비교용).
+// 절대 면적이 아니라 "어느 폴리곤이 더 작은가" 비교에만 쓴다.
+function polyAreaLL(geom) {
+  let a = 0;
+  for (let i = 0, j = geom.length - 1; i < geom.length; j = i++) {
+    a += (geom[j].lon + geom[i].lon) * (geom[j].lat - geom[i].lat);
   }
-  const partWays = allWays.filter(e => e.tags && e.tags['building:part']);
-  const ways = allWays.filter(e => e.tags && e.tags.building);
-  if (!ways.length) return null; // OSM에 건물 없음 → 호출부에서 '직접 그리기'로 유도
+  return Math.abs(a / 2);
+}
 
-  // 포인트를 포함하는 폴리곤 우선, 없으면 중심점이 가장 가까운 것
-  const inside = ways.find(w => pointInPolygon(lat, lon, w.geometry));
-  const pick = inside || ways.reduce((best, w) => {
-    const c = centroidLatLon(w.geometry);
-    const d = haversine(lat, lon, c.lat, c.lon);
-    return (!best || d < best.d) ? { w, d } : best;
-  }, null).w;
-
+// 선택된 way(pick) + 주변 파트 후보(partWays)를 building 객체로 변환.
+// fetchBuilding(좌표)·fetchBuildingByOsmId(ID) 공용. partWays가 없으면 parts=null.
+function buildFromWay(pick, partWays) {
   const tags = pick.tags || {};
   let levels = parseInt(tags['building:levels']) || null;
   let height = parseFloat(tags['height'] || tags['building:height']) || null;
@@ -2162,7 +2154,7 @@ async function fetchBuilding(lat, lon) {
   // 본체 폴리곤 내부(중심점 기준)의 building:part들 — 굴뚝처럼 높이가 다른
   // 구조를 개별 압출하기 위해 파트별 {coords, height} 수집
   const parts = [];
-  for (const pw of partWays) {
+  for (const pw of (partWays || [])) {
     const pc = centroidLatLon(pw.geometry);
     if (!pointInPolygon(pc.lat, pc.lon, pick.geometry)) continue;
     const pt = pw.tags || {};
@@ -2176,6 +2168,60 @@ async function fetchBuilding(lat, lon) {
 
   return { coords, levels, height, name: tags.name || null, osmId: pick.id,
            parts: parts.length >= 2 ? parts : null }; // 파트가 2개 이상일 때만 사용
+}
+
+// 검색 결과의 정확한 OSM way ID로 건물 폴리곤을 직접 조회 — 좌표 근처의 엉뚱한
+// 건물이 잡히는 문제를 원천 차단한다. node/relation이나 building 아님이면 null.
+async function fetchBuildingByOsmId(osmId) {
+  const q = `[out:json][timeout:25]; way(${osmId}); out geom tags;`;
+  let data;
+  try { data = await overpass(q); } catch (e) { return null; }
+  const w = (data.elements || []).find(
+    e => e.type === 'way' && e.geometry && e.geometry.length >= 4);
+  if (!w) return null;
+  const tags = w.tags || {};
+  if (!tags.building && !tags['building:part']) return null; // 건물 폴리곤이 아님
+  console.log('[LC] 건물 ID 직접조회 성공', osmId, tags.name || '(무명)');
+  return buildFromWay(w, null); // ID 경로는 단일 매스(파트 미조회)
+}
+
+async function fetchBuilding(lat, lon) {
+  // 본체(building)와 부분(building:part)을 함께 조회. 지오코더 좌표가 큰 건물의
+  // 중심에서 벗어날 수 있어 반경을 넓게(60→120m) 재시도한다. 300m는 도심에서
+  // 엉뚱한 대형 랜드마크를 끌어들이는 주범이라 축소.
+  let allWays = [];
+  for (const radius of [60, 120]) {
+    const q = `[out:json][timeout:25];
+      (
+        way["building"](around:${radius},${lat},${lon});
+        way["building:part"](around:${radius},${lat},${lon});
+      );
+      out geom tags;`;
+    const data = await overpass(q);
+    allWays = data.elements.filter(e => e.type === 'way' && e.geometry && e.geometry.length >= 4);
+    if (allWays.some(e => e.tags && e.tags.building)) break;
+  }
+  const partWays = allWays.filter(e => e.tags && e.tags['building:part']);
+  const ways = allWays.filter(e => e.tags && e.tags.building);
+  if (!ways.length) return null; // OSM에 건물 없음 → 호출부에서 '직접 그리기'로 유도
+
+  // 검색점을 포함하는 폴리곤 우선. 여러 개면 배열 순서가 아니라 '면적이 가장 작은'
+  // (=가장 구체적인) 건물 — 큰 랜드마크가 작은 건물을 감싸는 경우 오선택 방지.
+  const inside = ways.filter(w => pointInPolygon(lat, lon, w.geometry));
+  let pick;
+  if (inside.length) {
+    pick = inside.reduce((best, w) =>
+      (!best || polyAreaLL(w.geometry) < polyAreaLL(best.geometry)) ? w : best, null);
+  } else {
+    // 포함 없으면 중심점이 가장 가까운 것
+    pick = ways.reduce((best, w) => {
+      const c = centroidLatLon(w.geometry);
+      const d = haversine(lat, lon, c.lat, c.lon);
+      return (!best || d < best.d) ? { w, d } : best;
+    }, null).w;
+  }
+
+  return buildFromWay(pick, partWays);
 }
 
 // JSONP 요청 (CORS 우회) — VWorld처럼 fetch가 막힌 API용. script 태그 주입 + 콜백.
