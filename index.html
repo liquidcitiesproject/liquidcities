@@ -1132,6 +1132,7 @@ const I18N = {
     btnView: '보기',
     recDetailTitle: '기록 상세',
     noOutputs: '저장된 산출물이 없습니다 — 이 기능이 추가되기 전에 만든 기록입니다. 다운로드한 시점의 산출물만 보관됩니다.',
+    reelNotReady: '릴스 영상이 아직 준비되지 않았습니다. 산출물 화면에서 릴스를 한 번 다운로드하면 이후 여기서도 받을 수 있어요. (미리보기는 매핑 이미지로 표시)',
     outName1: '릴스', outName2: '도시 데이터 (구버전)', outName3: '릴스 썸네일', outName4: 'PNG (홈)',
     detecting: '이미지 내용 분석 중...',
     detected: objs => `인식된 사물: <b>${objs}</b>`,
@@ -1303,6 +1304,7 @@ const I18N = {
     btnView: 'View',
     recDetailTitle: 'Record',
     noOutputs: 'No saved outputs — this record was made before this feature. Outputs are kept from the moment you download them.',
+    reelNotReady: 'The reel video isn\'t ready yet. Download the reel once from the output screen and it\'ll be available here too. (Preview shows the mapped image.)',
     outName1: 'Reels', outName2: 'City data (legacy)', outName3: 'Reels thumbnail', outName4: 'PNG (home)',
     detecting: 'Analyzing content...',
     detected: objs => `Detected: <b>${objs}</b>`,
@@ -4305,7 +4307,29 @@ async function enterResults() {
   dl1Btn.disabled = false;
 }
 
-function downloadBlob(blob, name) {
+// iOS(아이폰/아이패드) 판별 — iPadOS는 데스크톱 UA로 위장하므로 터치+Mac도 포함.
+function isIOS() {
+  const ua = navigator.userAgent || '';
+  return /iP(hone|ad|od)/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+// 파일 저장. iOS에선 <a download>가 '다운로드'로만 가고 사진 갤러리엔 안 들어가므로,
+// 공유 시트(navigator.share)를 띄워 사용자가 '비디오/이미지 저장'으로 카메라롤에 넣게 한다.
+// PC/안드로이드는 기존 <a download>. share 실패/미지원 시에도 다운로드로 폴백.
+async function downloadBlob(blob, name) {
+  if (isIOS() && navigator.canShare) {
+    try {
+      const file = new File([blob], name, { type: blob.type || 'application/octet-stream' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] });
+        return; // 공유 시트로 저장(또는 사용자가 취소) → 다운로드 폴백 안 함
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return; // 사용자가 공유 시트를 닫음 → 다운로드 안 함
+      // 그 외 오류는 아래 <a download> 폴백으로
+    }
+  }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
@@ -4553,7 +4577,11 @@ function saveRecord() {
     exportVideoOffline({ textContent: '' }, {
       withText: false, square: true, download: false, outKind: 'out5', savedAt: rec.savedAt,
       noAudio: true, // 제스처 밖 자동 생성 — 오디오 조립 실패로 throw되지 않게 무음 인코딩
-    }).catch(e => console.warn('auto out5 skipped:', e && e.message));
+    }).then(() => console.log('[LC] out5 자동 인코딩 완료 — 상세에서 릴스 다운로드 가능'))
+      .catch(e => console.warn('[LC] out5 자동 인코딩 실패:', e && e.message,
+        '— 릴스는 산출물 화면에서 한 번 다운로드해야 상세에서도 받을 수 있음'));
+  } else if (state.mediaType === 'video' && !('VideoEncoder' in window)) {
+    console.warn('[LC] 이 브라우저는 VideoEncoder 미지원 — out5 자동 생성 불가. 릴스는 산출물 화면에서 다운로드 필요.');
   }
   // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
   syncRecordToServer(rec).then(ok => {
@@ -5799,6 +5827,14 @@ async function openRecordDetail(rec) {
         img.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border:none';
         box.appendChild(img);
         dlBlob = imgBlob; // massThumb 폴백이면 null → dataURL 다운
+        // 영상 기록인데 릴스 blob을 못 찾아 이미지로 폴백한 경우 — 사용자에게 이유 안내
+        if (isVideo) {
+          const pReel = document.createElement('p');
+          pReel.className = 'hint';
+          pReel.style.cssText = 'max-width:420px; margin:10px auto 0';
+          pReel.textContent = t('reelNotReady');
+          box.appendChild(pReel);
+        }
       }
     }
     if (found) {
@@ -5808,9 +5844,13 @@ async function openRecordDetail(rec) {
       btn.className = 'secondary rec-dl-btn';
       btn.style.cssText = 'display:inline-block; width:auto; margin-top:24px; padding:8px 18px; font-size:13px';
       const dlSrc = box.querySelector('video, img') && box.querySelector('video, img').src;
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         if (dlBlob) return downloadBlob(dlBlob, dlName);
-        if (dlSrc) { const a = document.createElement('a'); a.href = dlSrc; a.download = dlName; a.click(); }
+        // dataURL 폴백(massThumb)도 blob으로 변환해 downloadBlob 경유 → iOS 갤러리 저장 지원
+        if (dlSrc) {
+          try { const b = await fetch(dlSrc).then(r => r.blob()); return downloadBlob(b, dlName); }
+          catch (e) { const a = document.createElement('a'); a.href = dlSrc; a.download = dlName; a.click(); }
+        }
       });
       const infoCol = info.parentElement;
       if (infoCol) infoCol.appendChild(btn);
@@ -6125,7 +6165,10 @@ async function exportVideoOffline(status, opts = {}) {
 
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
-    video: { codec: videoMuxCodec, width: W, height: H },
+    // color를 full-range BT.709로 태깅 — 이게 없으면 플레이어가 영상을 limited(16–235)
+    // range로 해석해 흰 배경(255)이 회색빛으로 눌린다. fullRange:true로 흰색을 그대로.
+    video: { codec: videoMuxCodec, width: W, height: H,
+             color: { matrix: 'bt709', transfer: 'bt709', primaries: 'bt709', fullRange: true } },
     ...(audioMuxCodec ? { audio: { codec: audioMuxCodec, sampleRate: muxSampleRate, numberOfChannels: muxChannels } } : {}),
     fastStart: 'in-memory',
   });
