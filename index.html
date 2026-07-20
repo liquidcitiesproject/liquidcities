@@ -5840,7 +5840,8 @@ async function openRecordDetail(rec) {
     if (found) {
       // 다운로드 버튼 1개 — 오른쪽 정보 컬럼 하단 왼쪽에 작게 (열 때마다 이전 것 제거됨)
       const btn = document.createElement('button');
-      btn.textContent = t('btnDownload');
+      // 릴스(영상)를 받는 경우엔 버튼 라벨을 '릴스 다운로드'로 명확히
+      btn.textContent = (dlName === 'liquidcities.mp4') ? t('btnDlReels') : t('btnDownload');
       btn.className = 'secondary rec-dl-btn';
       btn.style.cssText = 'display:inline-block; width:auto; margin-top:24px; padding:8px 18px; font-size:13px';
       const dlSrc = box.querySelector('video, img') && box.querySelector('video, img').src;
