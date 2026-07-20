@@ -1616,13 +1616,6 @@ async function nominatim(q) {
   const list = await res.json();
   return list.length ? list[0] : null;
 }
-// Nominatim 여러 결과 반환 (목록 선택용) — 동명 지명 오선택 방지
-async function nominatimList(q) {
-  const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&q=' + encodeURIComponent(q);
-  const res = await fetch(url, { headers: { 'Accept-Language': lang === 'ko' ? 'ko,en' : 'en' } });
-  if (!res.ok) throw new Error('Nominatim ' + res.status);
-  return await res.json();
-}
 // Nominatim 구조화 검색 — country/postalcode/street 파라미터는 자유형식 q=보다
 // 훨씬 안정적으로 매칭된다 (예: postalcode=SW11 3PL & country=United Kingdom)
 async function nominatimStruct(params) {
@@ -1733,7 +1726,7 @@ const uniInput = document.getElementById('uniInput');
 const uniSuggest = document.getElementById('uniSuggest');
 let uniTimer = null, uniSeq = 0;
 async function nominatimList(q) {
-  const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=' + encodeURIComponent(q);
+  const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&q=' + encodeURIComponent(q);
   const res = await fetch(url, { headers: { 'Accept-Language': lang === 'ko' ? 'ko,en' : 'en' } });
   if (!res.ok) return [];
   return await res.json();
