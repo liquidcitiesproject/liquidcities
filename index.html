@@ -1738,13 +1738,26 @@ uniInput.addEventListener('input', () => {
   uniTimer = setTimeout(async () => {
     const seq = ++uniSeq;
     try {
-      const list = await nominatimList(q);
+      // 한글 주소는 VWorld(국토부 도로명/지번 DB)를 병행 조회해 목록 맨 위에 — OSM에 없는 지번/상세주소 대응.
+      const isKo = /[가-힣]/.test(q);
+      const [osm, vw] = await Promise.all([
+        nominatimList(q).catch(() => []),
+        isKo ? geocodeVWorld(q).catch(() => []) : Promise.resolve([]),
+      ]);
       if (seq !== uniSeq) return; // 오래된 응답 무시
+      // VWorld 결과를 앞에, 그다음 OSM(중복 좌표는 제외).
+      const list = [...vw, ...osm.filter(o =>
+        !vw.some(v => Math.abs(+v.lat - +o.lat) < 1e-4 && Math.abs(+v.lon - +o.lon) < 1e-4))];
       uniSuggest.innerHTML = '';
       if (!list.length) { uniSuggest.style.display = 'none'; return; }
       for (const hit of list) {
         const item = document.createElement('div');
-        item.textContent = hit.display_name;
+        if (hit._vworld) {
+          item.innerHTML = '<span style="color:var(--dim); font-size:10px; letter-spacing:.05em">국토부 주소</span><br>'
+            + hit.display_name.replace(/</g, '&lt;');
+        } else {
+          item.textContent = hit.display_name;
+        }
         item.style.cssText = 'padding:10px 14px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line)';
         item.addEventListener('mouseenter', () => { item.style.background = 'var(--panel)'; });
         item.addEventListener('mouseleave', () => { item.style.background = ''; });
