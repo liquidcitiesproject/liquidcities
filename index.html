@@ -1491,11 +1491,16 @@ function renderSavedList() {
         if (v.trim()) target.customName = v.trim(); else delete target.customName;
         localStorage.setItem(LS_KEY, JSON.stringify(all));
         resyncBuilding(target); // 이름 변경도 서버 반영
-        // 맵의 홈 카테고리에도 같은 이름이 뜨게 (사용자 확정)
+        // 맵의 홈 카테고리에도 같은 이름이 뜨게 (사용자 확정).
+        // OSM ID 키(massKeyOf)와 좌표 기반 legacy 키 둘 다에 저장 — 최근 건물 매칭
+        // 변경으로 같은 건물의 osmId가 달라져도 좌표 키로 이름이 유지되게.
         try {
           const names = JSON.parse(localStorage.getItem('lc_mass_names')) || {};
           const mk = massKeyOf(target);
-          if (v.trim()) names[mk] = v.trim(); else delete names[mk];
+          const legacyKey = `${(target.address || '').split(',')[0].trim()}|` +
+            `${isFinite(target.lat) ? target.lat.toFixed(4) : '?'},${isFinite(target.lon) ? target.lon.toFixed(4) : '?'}`;
+          if (v.trim()) { names[mk] = v.trim(); names[legacyKey] = v.trim(); }
+          else { delete names[mk]; delete names[legacyKey]; }
           localStorage.setItem('lc_mass_names', JSON.stringify(names));
         } catch (e) {}
         renderSavedList();
@@ -4739,8 +4744,12 @@ function renderRecCats() {
   for (const [key, recs] of groups) {
     const match = savedB.find(b => isFinite(b.lat) && isFinite(recs[0].lat)
       && Math.abs(b.lat - recs[0].lat) < 0.001 && Math.abs(b.lon - recs[0].lon) < 0.001);
-    const name = customNames[key] || (match && match.customName) || key.split('|')[0];
-    mkChip(`${name || '?'} (${recs.length})`, key);
+    // 좌표 기반 legacy 키도 조회 — osmId가 달라져도 지정한 이름이 유지되게.
+    const legacyKey = `${(recs[0].address || '').split(',')[0].trim()}|` +
+      `${isFinite(recs[0].lat) ? recs[0].lat.toFixed(4) : '?'},${isFinite(recs[0].lon) ? recs[0].lon.toFixed(4) : '?'}`;
+    const name = customNames[key] || customNames[legacyKey] || (match && match.customName)
+      || (recs[0].address ? recs[0].address.split(',')[0].trim() : '') || '?';
+    mkChip(`${name} (${recs.length})`, key);
   }
 }
 async function renderRecList() {
