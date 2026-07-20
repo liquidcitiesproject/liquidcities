@@ -2844,6 +2844,8 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   // 새 미디어 = 새 기록 세션 — 이전 작품의 상태를 전부 초기화
   state._recordSaved = false;
   state._recordSavedAt = null;
+  state._out5Started = false;           // ★ 새 기록마다 out5(1:1 영상) 자동 생성을 다시 허용
+                                        // (리셋 안 하면 첫 기록 이후 out5가 영원히 스킵됨)
   state.locked = false;                 // 이전 잠금 해제
   editorCanvas.classList.remove('locked');
   state.pan = { x: 0, y: 0 };           // 위치·크기 리셋 (baseScale은 로드 후 resetTransform)
