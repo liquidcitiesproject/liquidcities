@@ -3460,11 +3460,21 @@ async function initSupabase() {
     });
     const { data } = await sb.auth.getSession();
     if (data && data.session) {
-      // 기존 로그인 유지 — 잠금 해제 + 서버 기록 복원 + 미전송분 업로드
-      unlockApp();
-      await pullServerRecords();
-      syncPendingRecords();
-      updateAccountBar();
+      // 저장된 세션이 있어도 refresh token이 만료됐을 수 있다(→ 이후 모든 Storage/DB
+      // 요청이 refresh_token 400으로 실패). getUser()로 서버에 실제 유효성을 확인하고,
+      // 죽은 세션이면 정리 후 재로그인 유도.
+      const { error: uErr } = await sb.auth.getUser();
+      if (uErr) {
+        console.warn('[LC] 세션 만료 — 재로그인 필요:', uErr.message);
+        try { await sb.auth.signOut(); } catch (e) {}
+        lockApp();
+      } else {
+        // 기존 로그인 유지 — 잠금 해제 + 서버 기록 복원 + 미전송분 업로드
+        unlockApp();
+        await pullServerRecords();
+        syncPendingRecords();
+        updateAccountBar();
+      }
     } else {
       // 세션 없음 → 로그인 화면 (익명 계정은 만들지 않음, 잠금 유지)
       lockApp();
