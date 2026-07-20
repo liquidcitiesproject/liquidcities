@@ -5867,14 +5867,6 @@ async function openRecordDetail(rec) {
         img.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border:none';
         box.appendChild(img);
         dlBlob = imgBlob; // massThumb 폴백이면 null → dataURL 다운
-        // 영상 기록인데 릴스 blob을 못 찾아 이미지로 폴백한 경우 — 사용자에게 이유 안내
-        if (isVideo) {
-          const pReel = document.createElement('p');
-          pReel.className = 'hint';
-          pReel.style.cssText = 'max-width:420px; margin:10px auto 0';
-          pReel.textContent = t('reelNotReady');
-          box.appendChild(pReel);
-        }
       }
     }
     if (found) {
