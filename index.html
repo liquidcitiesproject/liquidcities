@@ -1738,22 +1738,26 @@ uniInput.addEventListener('input', () => {
   uniTimer = setTimeout(async () => {
     const seq = ++uniSeq;
     try {
-      // 한글 주소는 VWorld(국토부 도로명/지번 DB)를 병행 조회해 목록 맨 위에 — OSM에 없는 지번/상세주소 대응.
+      // 한글 주소는 VWorld(국토부 도로명/지번 DB), 5자리 숫자는 한국 우편번호를 병행 조회해 목록 맨 위에.
       const isKo = /[가-힣]/.test(q);
-      const [osm, vw] = await Promise.all([
+      const isPostal = /^\d{5}$/.test(q);
+      const [osm, vw, pc] = await Promise.all([
         nominatimList(q).catch(() => []),
         isKo ? geocodeVWorld(q).catch(() => []) : Promise.resolve([]),
+        isPostal ? geocodePostalKR(q).catch(() => []) : Promise.resolve([]),
       ]);
       if (seq !== uniSeq) return; // 오래된 응답 무시
-      // VWorld 결과를 앞에, 그다음 OSM(중복 좌표는 제외).
-      const list = [...vw, ...osm.filter(o =>
-        !vw.some(v => Math.abs(+v.lat - +o.lat) < 1e-4 && Math.abs(+v.lon - +o.lon) < 1e-4))];
+      // 우편번호·VWorld 결과를 앞에, 그다음 OSM(중복 좌표는 제외).
+      const head = [...pc, ...vw];
+      const list = [...head, ...osm.filter(o =>
+        !head.some(v => Math.abs(+v.lat - +o.lat) < 1e-4 && Math.abs(+v.lon - +o.lon) < 1e-4))];
       uniSuggest.innerHTML = '';
       if (!list.length) { uniSuggest.style.display = 'none'; return; }
       for (const hit of list) {
         const item = document.createElement('div');
-        if (hit._vworld) {
-          item.innerHTML = '<span style="color:var(--dim); font-size:10px; letter-spacing:.05em">국토부 주소</span><br>'
+        if (hit._vworld || hit._postal) {
+          const tag = hit._postal ? ('우편번호 ' + hit._postal) : '국토부 주소';
+          item.innerHTML = '<span style="color:var(--dim); font-size:10px; letter-spacing:.05em">' + tag + '</span><br>'
             + hit.display_name.replace(/</g, '&lt;');
         } else {
           item.textContent = hit.display_name;
@@ -1985,8 +1989,13 @@ searchBtn.addEventListener('click', async () => {
   searchBtn.disabled = true;
   try {
     let results = [], usedLabel = '';
-    // 한글이 포함된 주소는 VWorld(국토부 도로명/지번 DB)를 먼저 — OSM에 없는 한국 상세주소 대응.
-    if (/[가-힣]/.test(q)) {
+    // 5자리 숫자는 한국 우편번호로 먼저 조회.
+    if (/^\d{5}$/.test(q)) {
+      searchStatus.textContent = t('stSearching');
+      try { results = await geocodePostalKR(q); } catch (e) { results = []; }
+    }
+    // 한글이 포함된 주소는 VWorld(국토부 도로명/지번 DB)를 — OSM에 없는 한국 상세주소 대응.
+    if (!results.length && /[가-힣]/.test(q)) {
       searchStatus.textContent = t('stSearching');
       try {
         results = await geocodeVWorld(q);
@@ -2188,6 +2197,28 @@ function jsonp(baseUrl, cbParamBuilder, timeoutMs = 8000) {
     script.src = baseUrl + (baseUrl.includes('?') ? '&' : '?') + cbParamBuilder(cb);
     document.head.appendChild(script);
   });
+}
+
+// 한국 우편번호(5자리) → 좌표. VWorld는 우편번호 검색이 없어 Nominatim 구조화 검색 사용.
+// 우편번호는 동/리 단위라 해당 지역 중심점이 나온다(핀포인트 아님, 우편번호 특성상 정상).
+async function geocodePostalKR(pc) {
+  const usp = new URLSearchParams({
+    format: 'json', addressdetails: '1', limit: '5',
+    postalcode: pc, country: 'South Korea',
+  });
+  let list;
+  try {
+    const res = await fetch('https://nominatim.openstreetmap.org/search?' + usp.toString(),
+      { headers: { 'Accept-Language': lang === 'ko' ? 'ko,en' : 'en' } });
+    if (!res.ok) return [];
+    list = await res.json();
+  } catch (e) { return []; }
+  // 우편번호 표시를 앞세워 어느 지역인지 바로 보이게.
+  return (list || []).map(h => ({
+    ...h,
+    address: { ...(h.address || {}), country_code: 'kr' },
+    _postal: pc,
+  }));
 }
 
 // VWorld 주소 지오코더 — 한국 도로명/지번 주소를 좌표로 변환.
