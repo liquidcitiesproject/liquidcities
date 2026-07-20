@@ -1133,6 +1133,8 @@ const I18N = {
     recDetailTitle: '기록 상세',
     noOutputs: '저장된 산출물이 없습니다 — 이 기능이 추가되기 전에 만든 기록입니다. 다운로드한 시점의 산출물만 보관됩니다.',
     reelNotReady: '릴스 영상이 아직 준비되지 않았습니다. 산출물 화면에서 릴스를 한 번 다운로드하면 이후 여기서도 받을 수 있어요. (미리보기는 매핑 이미지로 표시)',
+    reelEncoding: '릴스 영상 준비 중… 잠시 후 상세에서 다운로드할 수 있어요.',
+    reelReady: '릴스 영상 준비 완료 — 이제 상세에서도 다운로드할 수 있어요.',
     outName1: '릴스', outName2: '도시 데이터 (구버전)', outName3: '릴스 썸네일', outName4: 'PNG (홈)',
     detecting: '이미지 내용 분석 중...',
     detected: objs => `인식된 사물: <b>${objs}</b>`,
@@ -1305,6 +1307,8 @@ const I18N = {
     recDetailTitle: 'Record',
     noOutputs: 'No saved outputs — this record was made before this feature. Outputs are kept from the moment you download them.',
     reelNotReady: 'The reel video isn\'t ready yet. Download the reel once from the output screen and it\'ll be available here too. (Preview shows the mapped image.)',
+    reelEncoding: 'Preparing the reel video… you can download it from the detail page shortly.',
+    reelReady: 'Reel video ready — you can now download it from the detail page too.',
     outName1: 'Reels', outName2: 'City data (legacy)', outName3: 'Reels thumbnail', outName4: 'PNG (home)',
     detecting: 'Analyzing content...',
     detected: objs => `Detected: <b>${objs}</b>`,
@@ -4570,18 +4574,27 @@ function saveRecord() {
     uploadOutputToStorage(rec.savedAt, 'out4', state._autoOut4); // 기기 간 동기화용 자동 업로드
     rec._out4Uploaded = true;
   }
-  // 영상이면 out5(텍스트 없는 1:1 매핑 영상)를 백그라운드 자동 생성 —
-  // 릴스 다운로드를 안 눌러도 상세에서 영상으로 재생되게. 무거운 인코딩이라 조용히.
+  // 영상이면 out5(텍스트 없는 1:1 매핑 영상)를 저장 시 자동 생성 — 릴스 다운로드를
+  // 안 눌러도 상세에서 영상으로 재생·다운로드되게. 진행 상태를 사용자에게 표시한다.
   if (state.mediaType === 'video' && 'VideoEncoder' in window && !state._out5Started) {
     state._out5Started = true;
+    const rst = document.getElementById('detectStatus');
+    if (rst) rst.textContent = t('reelEncoding');
     exportVideoOffline({ textContent: '' }, {
       withText: false, square: true, download: false, outKind: 'out5', savedAt: rec.savedAt,
       noAudio: true, // 제스처 밖 자동 생성 — 오디오 조립 실패로 throw되지 않게 무음 인코딩
-    }).then(() => console.log('[LC] out5 자동 인코딩 완료 — 상세에서 릴스 다운로드 가능'))
-      .catch(e => console.warn('[LC] out5 자동 인코딩 실패:', e && e.message,
-        '— 릴스는 산출물 화면에서 한 번 다운로드해야 상세에서도 받을 수 있음'));
+    }).then(() => {
+      console.log('[LC] out5 자동 인코딩 완료 — 상세에서 릴스 다운로드 가능');
+      if (rst) rst.textContent = t('reelReady');
+    }).catch(e => {
+      console.warn('[LC] out5 자동 인코딩 실패:', e && e.message,
+        '— 릴스는 산출물 화면에서 한 번 다운로드해야 상세에서도 받을 수 있음');
+      if (rst) rst.textContent = t('reelNotReady');
+    });
   } else if (state.mediaType === 'video' && !('VideoEncoder' in window)) {
     console.warn('[LC] 이 브라우저는 VideoEncoder 미지원 — out5 자동 생성 불가. 릴스는 산출물 화면에서 다운로드 필요.');
+    const rst = document.getElementById('detectStatus');
+    if (rst) rst.textContent = t('reelNotReady');
   }
   // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
   syncRecordToServer(rec).then(ok => {
