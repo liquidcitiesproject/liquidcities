@@ -872,6 +872,8 @@
       </select>
       <button id="moodSortBtn" class="secondary" style="margin-left:auto; flex:0 0 auto" data-i18n="moodSortLabel"></button>
       <button id="shareToggleBtn" class="secondary" style="flex:0 0 auto"></button>
+      <!-- 작가 전용: ?atlas URL일 때만 감정 좌표 뷰에서 노출 -->
+      <button id="atlasBtn" class="secondary" style="flex:0 0 auto; display:none">Atlas ↓</button>
     </div>
     <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:2px"></div>
     <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
@@ -1119,6 +1121,7 @@ const I18N = {
     mapTitle: '맵',
     renamePrompt: '이 홈의 이름을 정해주세요',
     btnBoard: '보드', btnGeoMap: '지도', btnGlobe: '지구본', btnQuad: '감정 좌표',
+    atlasRendering: '아틀라스 그리는 중…', atlasNeedNodes: '감정 좌표가 있는 기록이 필요합니다.',
     quadEmpty: '아직 감정 좌표가 있는 기록이 없어요. 새 기록은 감정 평면에서 위치가 정해집니다.',
     edgeSameMass: '같은 홈', edgeScale: '비슷한 스케일',
     mapNoGps: n => `${n}건은 미디어에 위치 정보가 없어 지도에 표시되지 않습니다`,
@@ -1295,6 +1298,7 @@ const I18N = {
     mapTitle: 'Map',
     renamePrompt: 'Name this home',
     btnBoard: 'Board', btnGeoMap: 'Map', btnGlobe: 'Globe', btnQuad: 'Emotion',
+    atlasRendering: 'Rendering atlas…', atlasNeedNodes: 'Need records with emotion coordinates.',
     quadEmpty: 'No records with emotional coordinates yet. New moments get placed on the emotion plane.',
     edgeSameMass: 'same home', edgeScale: 'similar scale',
     mapNoGps: n => `${n} record(s) have no media location and are not shown on the map`,
@@ -5101,6 +5105,97 @@ function emotionEdges(recs) {
   return edges;
 }
 
+/* ── 작가 전용: 전시용 감정 아틀라스 (60×90cm 고해상 PNG) ──
+   ?atlas URL의 감정 좌표 뷰에서만. 앱 안 데이터(현재 보이는 기록)를 그대로 사용.
+   노드=감정 좌표 배치(회색 액자 없이 매스 이미지만), 감정 거리 연결선+gap 라벨, 단어 캡션. */
+function _atlasLoadImg(src) {
+  return new Promise((res) => {
+    if (!src) return res(null);
+    const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src;
+  });
+}
+async function exportEmotionAtlas(statusBtn) {
+  const CM_W = 60, CM_H = 90, DPI = 200;
+  const W = Math.round(CM_W / 2.54 * DPI), H = Math.round(CM_H / 2.54 * DPI); // 4724×7087
+  const PAD = Math.round(W * 0.12), NODE = Math.round(W * 0.13), MAX_GAP = 2;
+
+  // 현재 뷰와 같은 필터의 기록 (감정 좌표 있는 것만)
+  const all = boardRecords();
+  let recs = lcMapSelKey ? all.filter(r => massKeyOf(r) === lcMapSelKey) : all;
+  if (emotionSel.size) recs = recs.filter(r => (r.emoTags || []).some(id => emotionSel.has(id)));
+  const nodes = recs.filter(hasCoord);
+  if (!nodes.length) { alert(t('atlasNeedNodes')); return; }
+
+  // 노드 이미지 (out4 blob 우선 → massThumb)
+  const imgs = await Promise.all(nodes.map(async r => {
+    const b = await fetchOutputBlob(r.savedAt, 'out4').catch(() => null);
+    if (b) { const im = await _atlasLoadImg(URL.createObjectURL(b)); if (im) return im; }
+    return await _atlasLoadImg(r.massThumb || null);
+  }));
+
+  // 감정 거리 엣지 (재사용: emoDist/toGap)
+  const idxBy = {}; nodes.forEach((n, i) => idxBy[n.savedAt] = i);
+  const pairs = [];
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++)
+    pairs.push({ i, j, d: emoDist(nodes[i], nodes[j]) });
+  pairs.sort((a, b) => a.d - b.d);
+  const deg = {}, edges = [];
+  for (const p of pairs) {
+    const gp = toGap(p.d); if (gp > MAX_GAP) break;
+    if ((deg[p.i] || 0) >= 3 || (deg[p.j] || 0) >= 3) continue;
+    edges.push({ i: p.i, j: p.j, gap: gp }); deg[p.i] = (deg[p.i] || 0) + 1; deg[p.j] = (deg[p.j] || 0) + 1;
+  }
+
+  // canvas
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+
+  // 감정 좌표 → canvas (겹침 나선 분산)
+  const placed = [], pos = [];
+  for (const r of nodes) {
+    let px = PAD + (r.emoX + 1) / 2 * (W - 2 * PAD);
+    let py = PAD + (1 - r.emoY) / 2 * (H - 2 * PAD);
+    let k = 0;
+    while (placed.some(q => Math.abs(q[0] - px) < NODE * 1.05 && Math.abs(q[1] - py) < NODE * 1.05) && k < 16) {
+      k++; px += NODE * 0.55 * Math.cos(k * 2.4); py += NODE * 0.55 * Math.sin(k * 2.4);
+    }
+    px = Math.max(PAD, Math.min(W - PAD, px)); py = Math.max(PAD, Math.min(H - PAD, py));
+    placed.push([px, py]); pos.push({ x: px, y: py });
+  }
+
+  // 엣지 (노드 뒤)
+  g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = Math.max(1, W / 2400);
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const lf = Math.round(W * 0.011); g.font = lf + 'px ui-monospace, Menlo, monospace';
+  for (const e of edges) {
+    const a = pos[e.i], b = pos[e.j];
+    g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2, lab = 'gap ' + e.gap;
+    const tw = g.measureText(lab).width;
+    g.fillStyle = '#fff'; g.fillRect(mx - tw / 2 - 10, my - lf * 0.8, tw + 20, lf * 1.6);
+    g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillText(lab, mx, my);
+  }
+
+  // 노드 (액자 없이 이미지만) + 단어 캡션
+  g.textAlign = 'center'; g.textBaseline = 'top';
+  const cf = Math.round(W * 0.014);
+  for (let n = 0; n < nodes.length; n++) {
+    const im = imgs[n], p = pos[n];
+    if (im) {
+      const s = Math.min(NODE / im.width, NODE / im.height);
+      g.drawImage(im, p.x - im.width * s / 2, p.y - im.height * s / 2, im.width * s, im.height * s);
+    }
+    const w = (nodes[n].momentWordEn || nodes[n].momentWord || '').trim();
+    if (w) {
+      g.font = '500 ' + cf + 'px -apple-system, "Helvetica Neue", Arial, sans-serif';
+      g.fillStyle = '#111'; g.fillText(w, p.x, p.y + NODE / 2 + cf * 0.4);
+    }
+  }
+
+  await new Promise(res => cv.toBlob(b => { if (b) downloadBlob(b, 'liquidcities-atlas-60x90.png'); res(); }, 'image/png'));
+}
+
 // 맵 뷰 3종: 'board'(타일 없는 흰 보드) / 'map'(실제 지도 타일) / 'globe'(3D 지구본).
 // 노드·연결선은 세 뷰 공통 데이터(renderMapMarkers가 계산).
 function setMapMode(mode) {
@@ -5116,6 +5211,10 @@ function setMapMode(mode) {
   const wf = document.getElementById('wordFloat');
   if (gv) gv.style.display = globeOn ? 'block' : 'none';
   if (qv) qv.classList.toggle('on', quadOn);
+  // 작가 전용 아틀라스 버튼 — ?atlas URL + 감정 좌표(quad) 뷰 + 방문자 아닐 때만
+  const axb = document.getElementById('atlasBtn');
+  if (axb) axb.style.display = (quadOn && new URLSearchParams(location.search).has('atlas')
+    && !document.body.classList.contains('board-viewer')) ? '' : 'none';
   // 지도(Leaflet)는 지구본·사분면일 때 숨김
   if (mapEl) mapEl.style.visibility = (globeOn || quadOn) ? 'hidden' : 'visible';
   // 스케일 게이지는 감정 도입으로 폐기 — 항상 숨김
@@ -5127,6 +5226,15 @@ function setMapMode(mode) {
   renderMapMarkers();
 }
 document.getElementById('viewSelect').addEventListener('change', (e) => setMapMode(e.target.value));
+
+// 작가 전용 아틀라스 버튼 (?atlas URL) — 클릭 시 60×90cm PNG 생성·다운로드
+document.getElementById('atlasBtn').addEventListener('click', async () => {
+  const b = document.getElementById('atlasBtn');
+  const prev = b.textContent; b.disabled = true; b.textContent = t('atlasRendering');
+  try { await exportEmotionAtlas(b); }
+  catch (e) { console.warn('[LC] 아틀라스 실패:', e && e.message); }
+  finally { b.disabled = false; b.textContent = prev; }
+});
 
 // 감정 좌표 사분면 뷰 렌더 — 좌표(emoX,emoY)를 가진 기록을 평면 위에 노드로 배치.
 function renderQuad(recs) {
