@@ -53,7 +53,7 @@
   .err { color: #c62828; font-size: 13px; margin-top: 12px; display: none; line-height: 1.5; }
   .hint { color: var(--dim); font-size: 12px; margin-top: 10px; line-height: 1.5; }
   .canvas-wrap { margin: 18px 0 0; width: 100%; max-width: 360px; position: relative; }
-  /* 매스·배치 미리보기: 세로 1080×1920 캔버스의 중앙 정사각 밴드만 노출 */
+  /* 홈·배치 미리보기: 세로 1080×1920 캔버스의 중앙 정사각 밴드만 노출 */
   .canvas-wrap.square { aspect-ratio: 1 / 1; overflow: hidden; background: #fff;
     border: 1px solid var(--line); border-radius: 6px; max-width: 460px; }
   .canvas-wrap.square > canvas { width: 100%; height: auto; display: block;
@@ -188,7 +188,7 @@
   .board-card .bc-label { font-size: 9px; color: #555; padding: 1px 2px 3px; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
   .board-card img { width: 100%; display: block; border-radius: 2px; background: #000; }
-  /* 매스 실루엣 노드 — 배경 없이 투명 PNG 그대로 (매스만) */
+  /* 홈 실루엣 노드 — 배경 없이 투명 PNG 그대로 (홈만) */
   .board-mass { position: absolute; width: 120px; cursor: pointer; text-align: center; }
   .board-mass img { width: 100%; display: block; background: transparent; }
   .board-mass .bm-label { font-size: 10px; color: #444; margin-bottom: 2px; }
@@ -419,7 +419,7 @@
   <nav class="hdr-row hdr-menu">
     <span class="hdr-link" id="hdrMap">Map</span>
     <span class="hdr-link" id="hdrMy">My Cities</span>
-    <span class="hdr-link" id="hdrMass">Mass</span>
+    <span class="hdr-link" id="hdrMass">Home</span>
     <span class="hdr-link" id="hdrPage">My page</span>
   </nav>
 </header>
@@ -494,7 +494,7 @@
     <div class="row">
       <button id="uniSearchBtn" data-i18n="btnFind"></button>
     </div>
-    <!-- 저장된 매스 바로가기 — 누르면 그 매스로 시작 -->
+    <!-- 저장된 홈 바로가기 — 누르면 그 홈로 시작 -->
     <div id="quickMasses" style="display:flex; gap:12px; margin-top:18px; overflow-x:auto; max-width:640px"></div>
   </div>
 
@@ -551,7 +551,7 @@
   <div class="status" id="searchStatus"></div>
 </section>
 
-<!-- STEP 2: 건물 매스 확인 (드래그로 뷰 회전 → 확인으로 고정) -->
+<!-- STEP 2: 건물 홈 확인 (드래그로 뷰 회전 → 확인으로 고정) -->
 <section class="step flow" id="step2">
   <h1 data-i18n="s2Title"></h1>
   <p class="sub direction" id="buildingInfo"></p>
@@ -776,7 +776,7 @@
   </div>
   <p class="sub direction" id="detectStatus"></p>
 
-  <!-- 매핑한 매스 -->
+  <!-- 매핑한 홈 -->
   <div class="canvas-wrap" style="max-width:280px">
     <canvas id="out4Canvas" width="960" height="960" style="background:#fff; border:1px solid var(--line)"></canvas>
   </div>
@@ -812,13 +812,13 @@
   <button id="dl2Btn" style="display:none" disabled></button>
 </section>
 
-<!-- 맵: 매스별 카테고리 → 미디어(GPS) 위치 마커 + 평균 스케일 게이지 + 떠다니는 단어 -->
+<!-- 맵: 홈별 카테고리 → 미디어(GPS) 위치 마커 + 평균 스케일 게이지 + 떠다니는 단어 -->
 <!-- STEP 96: Mass — 저장된 건물(검색 기록) -->
 <section class="step wide" id="step96">
   <div class="row" style="margin-top:0"><button id="back96Btn" class="secondary back-arrow">&lt;</button></div>
-  <h1>Mass</h1>
+  <h1>Home</h1>
   <p class="sub" data-i18n="s96Sub"></p>
-  <!-- 검색 기록 (확정된 매스 아카이브, localStorage) — 버튼으로 펼침 -->
+  <!-- 검색 기록 (확정된 홈 아카이브, localStorage) — 버튼으로 펼침 -->
   <div class="row" id="historyRow" style="margin-top:0; margin-bottom:18px">
     <button id="historyBtn" class="secondary" data-i18n="btnHistory"></button>
     <button id="myDataBtn" class="secondary" style="display:none" data-i18n="btnMyData"></button>
@@ -933,7 +933,7 @@
     <button id="recDelBtn" class="secondary" data-i18n="btnDelete" style="flex:0 0 auto; padding:6px 14px"></button>
   </div>
   <div id="recDetailCols" style="display:flex; gap:44px; flex-wrap:wrap; margin-top:8px; align-items:flex-start">
-    <!-- 왼쪽: 큰 매스 이미지 -->
+    <!-- 왼쪽: 큰 홈 이미지 -->
     <div style="flex:1 1 420px; min-width:280px">
       <div id="recOutputs"></div>
     </div>
@@ -977,11 +977,11 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 /* ============================================================
    레이아웃 상수 (handoff-prompt.md 실측 확정값)
-   - 캔버스 1080×1920, 이미지(매스) 영역 960×960 정중앙
+   - 캔버스 1080×1920, 이미지(홈) 영역 960×960 정중앙
    - 폰트 Helvetica 36px, 상단 텍스트는 위로/하단은 아래로 확장
    ============================================================ */
 const CANVAS_W = 1080, CANVAS_H = 1920;
-const AREA = 960;                      // 건물 매스가 들어갈 최대 크기
+const AREA = 960;                      // 건물 홈이 들어갈 최대 크기
 const AREA_X = (CANVAS_W - AREA) / 2;  // 60
 const AREA_Y = (CANVAS_H - AREA) / 2;  // 480
 // Apple iOS 시스템 폰트(SF Pro 계열) 34px — 사용자 확정 (이전: Helvetica 36px)
@@ -1010,7 +1010,7 @@ const I18N = {
     massHint: '드래그해서 보고 싶은 각도로 돌린 뒤, 확인을 누르면 이 뷰로 고정됩니다.',
     btnAgain: '다시 검색', btnConfirm: '확인', btnBack: '← 뒤로', btnHome: '⌂ 홈으로',
     readMore: 'Read more',
-    s96Sub: '확정한 건물 매스가 여기에 보관됩니다. 이름을 바꾸면 맵에도 반영됩니다.',
+    s96Sub: '확정한 건물 홈이 여기에 보관됩니다. 이름을 바꾸면 맵에도 반영됩니다.',
     confirmDelete: '이 기록을 삭제할까요?', btnEdit: '수정', editWord: '한 단어를 수정해주세요', editThought: '이 순간에 대한 생각을 수정해주세요',
     btnShareBoard: '보드 공유', btnUnshareBoard: '공유 취소', shareOn: '✓ 공유 중',
     unshareDone: '공유를 내렸습니다 — 링크가 더 이상 열리지 않습니다', unshareFail: '공유 취소 실패',
@@ -1106,12 +1106,12 @@ const I18N = {
     btnMyData: '내 기록 관리',
     btnMap: '맵',
     mapTitle: '맵',
-    renamePrompt: '이 매스의 이름을 정해주세요',
+    renamePrompt: '이 홈의 이름을 정해주세요',
     btnBoard: '보드', btnGeoMap: '지도', btnGlobe: '지구본', btnQuad: '감정 좌표',
     quadEmpty: '아직 감정 좌표가 있는 기록이 없어요. 새 기록은 감정 평면에서 위치가 정해집니다.',
-    edgeSameMass: '같은 매스', edgeScale: '비슷한 스케일',
+    edgeSameMass: '같은 홈', edgeScale: '비슷한 스케일',
     mapNoGps: n => `${n}건은 미디어에 위치 정보가 없어 지도에 표시되지 않습니다`,
-    mapSub: '미디어가 촬영된 위치에 매스가 놓입니다. 위(카테고리)에서 매스를 고르면 그 매스로 만든 미디어만 보이고, 우측 게이지는 평균 스케일입니다.',
+    mapSub: '미디어가 촬영된 위치에 홈이 놓입니다. 위(카테고리)에서 홈을 고르면 그 홈로 만든 미디어만 보이고, 우측 게이지는 평균 스케일입니다.',
     dataTitle: '내 기록',
     dataSub: '이 브라우저에서 만든 기록입니다. 삭제하면 서버에 동기화된 사본도 함께 삭제를 시도합니다.',
     btnDeleteAll: '전체 삭제',
@@ -1121,7 +1121,7 @@ const I18N = {
     btnView: '보기',
     recDetailTitle: '기록 상세',
     noOutputs: '저장된 산출물이 없습니다 — 이 기능이 추가되기 전에 만든 기록입니다. 다운로드한 시점의 산출물만 보관됩니다.',
-    outName1: '릴스', outName2: '도시 데이터 (구버전)', outName3: '릴스 썸네일', outName4: 'PNG (매스)',
+    outName1: '릴스', outName2: '도시 데이터 (구버전)', outName3: '릴스 썸네일', outName4: 'PNG (홈)',
     detecting: '이미지 내용 분석 중...',
     detected: objs => `인식된 사물: <b>${objs}</b>`,
     stSearching: '주소 검색 중...',
@@ -1131,8 +1131,8 @@ const I18N = {
     stRender: '건물 렌더링 중...',
     postcodeLoc: '우편번호 기준 위치', approxLoc: '근사 위치', manualLoc: '직접 입력',
     infoLevels: n => `${n}층 추정`, unnamedBuilding: '이름 없는 건물',
-    drawnMass: '직접 그린 매스',
-    vworldMass: '건축물대장 기반 매스', stVworld: '건물 형태 조회 중... (VWorld)',
+    drawnMass: '직접 그린 홈',
+    vworldMass: '건축물대장 기반 홈', stVworld: '건물 형태 조회 중... (VWorld)',
     btnDrawMass: '직접 그리기', btnDrawDone: '완료', btnUndo: '점 취소',
     drawTitle: '건물 외곽 그리기',
     drawHint: '위성 지도에서 건물 모서리를 순서대로 눌러 외곽선을 그려주세요. 최소 3점.',
@@ -1161,7 +1161,7 @@ const I18N = {
     errNoRecorder: '이 브라우저는 화면 녹화를 지원하지 않습니다.',
     errEmptyRec: '녹화 데이터가 비어있습니다.',
     errLatLon: '위도/경도를 숫자로 입력해주세요.',
-    savedTitle: '확정한 건물 매스가 여기에 아카이빙됩니다 (2단계에서 확인 시 자동 저장)',
+    savedTitle: '확정한 건물 홈이 여기에 아카이빙됩니다 (2단계에서 확인 시 자동 저장)',
     btnHistory: '검색 기록 보기', btnHistoryHide: '검색 기록 접기',
     btnLoad: '불러오기', btnDelete: '삭제', renameBuilding: '건물 이름을 정해주세요',
     btnPause: '⏸ 일시정지', btnPlay: '▶ 재생',
@@ -1182,7 +1182,7 @@ const I18N = {
     massHint: 'Drag to rotate to the angle you like, then press Confirm to lock this view.',
     btnAgain: 'Search again', btnConfirm: 'Confirm', btnBack: '← Back', btnHome: '⌂ Home',
     readMore: 'Read more',
-    s96Sub: 'Confirmed building masses live here. Renaming also updates the map.',
+    s96Sub: 'Confirmed building homes live here. Renaming also updates the map.',
     confirmDelete: 'Delete this record?', btnEdit: 'Edit', editWord: 'Edit your one word', editThought: 'Edit your thoughts on this moment',
     btnShareBoard: 'Share board', btnUnshareBoard: 'Unshare', shareOn: '✓ Shared',
     unshareDone: 'Board unshared — the link no longer opens', unshareFail: 'Unshare failed',
@@ -1277,12 +1277,12 @@ const I18N = {
     btnMyData: 'Manage my records',
     btnMap: 'Map',
     mapTitle: 'Map',
-    renamePrompt: 'Name this mass',
+    renamePrompt: 'Name this home',
     btnBoard: 'Board', btnGeoMap: 'Map', btnGlobe: 'Globe', btnQuad: 'Emotion',
     quadEmpty: 'No records with emotional coordinates yet. New moments get placed on the emotion plane.',
-    edgeSameMass: 'same mass', edgeScale: 'similar scale',
+    edgeSameMass: 'same home', edgeScale: 'similar scale',
     mapNoGps: n => `${n} record(s) have no media location and are not shown on the map`,
-    mapSub: 'Masses sit where the media was captured. Pick a mass above to filter its media; the gauge shows the average scale.',
+    mapSub: 'Homes sit where the media was captured. Pick a home above to filter its media; the gauge shows the average scale.',
     dataTitle: 'My records',
     dataSub: 'Records made in this browser. Deleting also attempts to remove the synced copy on the server.',
     btnDeleteAll: 'Delete all',
@@ -1292,7 +1292,7 @@ const I18N = {
     btnView: 'View',
     recDetailTitle: 'Record',
     noOutputs: 'No saved outputs — this record was made before this feature. Outputs are kept from the moment you download them.',
-    outName1: 'Reels', outName2: 'City data (legacy)', outName3: 'Reels thumbnail', outName4: 'PNG (mass)',
+    outName1: 'Reels', outName2: 'City data (legacy)', outName3: 'Reels thumbnail', outName4: 'PNG (home)',
     detecting: 'Analyzing content...',
     detected: objs => `Detected: <b>${objs}</b>`,
     stSearching: 'Searching address...',
@@ -1302,8 +1302,8 @@ const I18N = {
     stRender: 'Rendering building...',
     postcodeLoc: 'postcode-based location', approxLoc: 'approximate location', manualLoc: 'manual input',
     infoLevels: n => `est. ${n} floors`, unnamedBuilding: 'Unnamed building',
-    drawnMass: 'Hand-drawn mass',
-    vworldMass: 'Mass from KR building registry', stVworld: 'Fetching building shape... (VWorld)',
+    drawnMass: 'Hand-drawn home',
+    vworldMass: 'Home from KR building registry', stVworld: 'Fetching building shape... (VWorld)',
     btnDrawMass: 'Draw it', btnDrawDone: 'Done', btnUndo: 'Undo point',
     drawTitle: 'Draw the building outline',
     drawHint: 'Tap the building corners in order on the satellite map to trace its outline. At least 3 points.',
@@ -1332,7 +1332,7 @@ const I18N = {
     errNoRecorder: 'This browser does not support canvas recording.',
     errEmptyRec: 'Recording produced no data.',
     errLatLon: 'Please enter latitude/longitude as numbers.',
-    savedTitle: 'Confirmed building masses are archived here (auto-saved on confirm in step 2)',
+    savedTitle: 'Confirmed building homes are archived here (auto-saved on confirm in step 2)',
     btnHistory: 'View search history', btnHistoryHide: 'Hide search history',
     btnLoad: 'Load', btnDelete: 'Delete', renameBuilding: 'Name this building',
     btnPause: '⏸ Pause', btnPlay: '▶ Play',
@@ -1374,7 +1374,7 @@ const state = {
   amenities: null,       // { transitDistM, restaurants, cafes, parks }
   countryCode: null,
   maskCanvas: null,      // 1080×1920 luminance→alpha 마스크
-  massPngCanvas: null,   // 흰 매스 + 외곽선 원본 (합성 배경으로도 사용)
+  massPngCanvas: null,   // 흰 홈 + 외곽선 원본 (합성 배경으로도 사용)
   mediaType: null,       // 'image' | 'video'
   mediaEl: null,         // HTMLImageElement | HTMLVideoElement
   mediaDate: null,       // Date (파일 lastModified 기준 — 기준 시점은 문서상 미확정, 임시로 파일 수정시각 사용)
@@ -1423,8 +1423,8 @@ window.addEventListener('popstate', e => {
 history.replaceState({ step: 1 }, '');
 
 /* ============================================================
-   저장된 건물 매스 (localStorage) — 2단계 확인 시 자동 저장,
-   첫 화면에서 불러오기/삭제. 매스 PNG 대신 건물 데이터+뷰 각도만
+   저장된 건물 홈 (localStorage) — 2단계 확인 시 자동 저장,
+   첫 화면에서 불러오기/삭제. 홈 PNG 대신 건물 데이터+뷰 각도만
    저장해서 용량을 아끼고, 불러올 때 뷰어를 재구성한다.
    ============================================================ */
 const LS_KEY = 'lc_saved_buildings';
@@ -1444,12 +1444,12 @@ function renderSavedList() {
   // Mass 페이지는 목록을 바로 보여준다 (토글·이동 버튼 없음 — 사용자 확정)
   histRow.style.display = 'none';
   box.style.display = list.length ? '' : 'none';
-  renderQuickMasses(); // 검색 화면의 매스 바로가기도 동기화
+  renderQuickMasses(); // 검색 화면의 홈 바로가기도 동기화
   wrap.innerHTML = '';
   list.forEach(item => {
     const row = document.createElement('div');
     row.className = 'saved-item';
-    if (item.thumb) {                                  // 확정 시점의 매스 뷰 썸네일
+    if (item.thumb) {                                  // 확정 시점의 홈 뷰 썸네일
       const img = document.createElement('img');
       img.src = item.thumb;
       row.appendChild(img);
@@ -1470,7 +1470,7 @@ function renderSavedList() {
         if (v.trim()) target.customName = v.trim(); else delete target.customName;
         localStorage.setItem(LS_KEY, JSON.stringify(all));
         resyncBuilding(target); // 이름 변경도 서버 반영
-        // 맵의 매스 카테고리에도 같은 이름이 뜨게 (사용자 확정)
+        // 맵의 홈 카테고리에도 같은 이름이 뜨게 (사용자 확정)
         try {
           const names = JSON.parse(localStorage.getItem('lc_mass_names')) || {};
           const mk = massKeyOf(target);
@@ -1497,7 +1497,7 @@ function renderSavedList() {
 }
 function saveCurrentBuilding(view) {
   if (!state.building) return;
-  // 확정(픽스)된 매스 뷰를 작은 썸네일로 아카이브 (108×192 JPEG, 항목당 수 KB)
+  // 확정(픽스)된 홈 뷰를 작은 썸네일로 아카이브 (108×192 JPEG, 항목당 수 KB)
   let thumb = null;
   if (state.massPngCanvas) {
     const tc = document.createElement('canvas');
@@ -1523,7 +1523,7 @@ function saveCurrentBuilding(view) {
   syncBuildingToServer(entry);
   renderSavedList();
 }
-// 검색창 아래 저장된 매스 썸네일 — 클릭 = 바로 불러오기
+// 검색창 아래 저장된 홈 썸네일 — 클릭 = 바로 불러오기
 function renderQuickMasses() {
   const box = document.getElementById('quickMasses');
   if (!box) return;
@@ -1656,7 +1656,7 @@ function queueAddressEnglishization() {
         } catch (e) { /* rate limit 등 — 다음 기회에 재시도(플래그 안 세움) */ }
         await sleep(1100);
       }
-      // 건물 매스(buildings)
+      // 건물 홈(buildings)
       const blds = getSavedBuildings();
       for (const b of blds) {
         if (b._addrEn) continue;
@@ -2127,7 +2127,7 @@ function jsonp(baseUrl, cbParamBuilder, timeoutMs = 8000) {
 }
 
 // VWorld WFS로 한국 건물 형태 자동 조회 (OSM에 건물 없을 때 폴백).
-// 검색점 주변 BBOX의 lt_c_bldginfo 폴리곤 → 검색점 포함/최근접 하나를 매스로.
+// 검색점 주변 BBOX의 lt_c_bldginfo 폴리곤 → 검색점 포함/최근접 하나를 홈로.
 async function fetchBuildingVWorld(lat, lon) {
   const key = vworldKey();
   if (!key) return null; // 키 미설정이면 스킵 (다음 폴백=직접 그리기로)
@@ -2243,8 +2243,8 @@ function haversine(la1, lo1, la2, lo2) {
 }
 
 /* ============================================================
-   STEP 2 — Three.js 매스 뷰어 (인터랙티브)
-   순수 매스만 (창문/문 없음), 검은 배경 + 흰 매스 + 1.5px 검은 외곽선(Line2)
+   STEP 2 — Three.js 홈 뷰어 (인터랙티브)
+   순수 홈만 (창문/문 없음), 검은 배경 + 흰 홈 + 1.5px 검은 외곽선(Line2)
    사용자가 드래그로 yaw/pitch를 돌려 원하는 각도를 고르고, 확인을 누르면
    그 시점의 뷰가 고정되어 마스크로 사용된다.
    건물은 어느 각도에서든 960×960 중앙 영역에 크롭 없이 자동 핏.
@@ -2273,8 +2273,8 @@ function startMassViewer(building) {
   const group = new THREE.Group();
   const lineMat = new LineMaterial({ color: 0x000000, linewidth: 1.5, worldUnits: false });
   lineMat.resolution.set(CANVAS_W, CANVAS_H);
-  // 매스를 전부 먼저 추가하고 선을 나중에 추가 — 렌더 순서가 곧 depth 기록
-  // 순서라서, 섞어 추가하면 나중 매스가 앞선 선을 가리지 못해 내부 선이 비친다
+  // 홈을 전부 먼저 추가하고 선을 나중에 추가 — 렌더 순서가 곧 depth 기록
+  // 순서라서, 섞어 추가하면 나중 홈이 앞선 선을 가리지 못해 내부 선이 비친다
   const lineObjs = [];
   for (const piece of pieces) {
     if (!piece.coords || piece.coords.length < 3) continue;
@@ -2291,7 +2291,7 @@ function startMassViewer(building) {
     const edges = new THREE.EdgesGeometry(geometry, 12); // 12도 미만 꺾임(공면 삼각분할)은 제외
     const lineGeo = new LineSegmentsGeometry().fromEdgesGeometry(edges);
     const line = new LineSegments2(lineGeo, lineMat);
-    line.renderOrder = 1; // 항상 매스들 다음에 렌더
+    line.renderOrder = 1; // 항상 홈들 다음에 렌더
     lineObjs.push(line);
   }
   lineObjs.forEach(l => group.add(l));
@@ -2360,7 +2360,7 @@ function stopMassViewer() {
   }
 }
 
-// 매스 뷰 드래그 회전 (yaw 자유, pitch는 지평선 위~거의 수직 사이로 제한)
+// 홈 뷰 드래그 회전 (yaw 자유, pitch는 지평선 위~거의 수직 사이로 제한)
 let massDragging = false, massLastX = 0, massLastY = 0;
 massCanvas.addEventListener('pointerdown', e => {
   if (!massViewer) return;
@@ -2380,7 +2380,7 @@ const endMassDrag = () => { massDragging = false; massCanvas.style.cursor = 'gra
 massCanvas.addEventListener('pointerup', endMassDrag);
 massCanvas.addEventListener('pointercancel', endMassDrag);
 
-// 검증된 로직: 흰색(매스)→불투명, 검은색(배경)→투명 알파 마스크
+// 검증된 로직: 흰색(홈)→불투명, 검은색(배경)→투명 알파 마스크
 function buildAlphaMask(srcCanvas) {
   const c = document.createElement('canvas');
   c.width = srcCanvas.width; c.height = srcCanvas.height;
@@ -2511,7 +2511,7 @@ document.getElementById('home6Btn').addEventListener('click', () => {
 document.getElementById('confirmMassBtn').addEventListener('click', () => {
   if (massViewer) {
     // 마스크 캡처는 검은 배경 위에서 (미리보기는 흰 배경이지만, buildAlphaMask는
-    // 밝기를 알파로 쓰므로 배경이 검정이어야 매스만 불투명하게 남는다)
+    // 밝기를 알파로 쓰므로 배경이 검정이어야 홈만 불투명하게 남는다)
     massViewer.scene.background = new THREE.Color(0x000000);
     massViewer.renderFrame(); // 마지막 상태를 확실히 반영
     const src = document.createElement('canvas');
@@ -2519,7 +2519,7 @@ document.getElementById('confirmMassBtn').addEventListener('click', () => {
     src.getContext('2d').drawImage(massViewer.renderer.domElement, 0, 0);
     state.massPngCanvas = src;
     state.maskCanvas = buildAlphaMask(src);
-    // 흰 배경 산출물용 외곽선 레이어: 매스를 depth 전용(colorWrite=false)으로
+    // 흰 배경 산출물용 외곽선 레이어: 홈을 depth 전용(colorWrite=false)으로
     // 바꿔 가려짐은 유지한 채 검은 라인만 투명 배경 위에 렌더해서 캡처
     massViewer.scene.background = null;
     (massViewer.meshes || [massViewer.mesh]).forEach(m => { m.material.colorWrite = false; });
@@ -3303,8 +3303,8 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
   // 진짜 데이터는 클라우드에 안전하며, 다시 로그인하면 pullServerRecords()로 복원됨.
   try {
     localStorage.removeItem(REC_KEY);         // 기록
-    localStorage.removeItem(LS_KEY);          // 건물 매스
-    localStorage.removeItem('lc_mass_names'); // 매스 이름
+    localStorage.removeItem(LS_KEY);          // 건물 홈
+    localStorage.removeItem('lc_mass_names'); // 홈 이름
     localStorage.removeItem('lc_owner_uid');  // 캐시 소유자 표식
     indexedDB.deleteDatabase('lc-media');     // 산출물(out1~4) 로컬 캐시
   } catch (e) {}
@@ -4044,7 +4044,7 @@ async function enterResults() {
   dl2Btn.disabled = false;
 
   // 결과 페이지 도달 = 기록 자동 저장 (다운로드 없이도 — 사용자 확정).
-  // 매스 썸네일(toBlob)이 준비될 시간을 살짝 준 뒤 저장하고,
+  // 홈 썸네일(toBlob)이 준비될 시간을 살짝 준 뒤 저장하고,
   // 이후 다운로드하면 같은 기록이 갱신된다.
   setTimeout(() => { try { saveRecord(); } catch (e) {} }, 800);
 
@@ -4298,8 +4298,8 @@ function buildRecFields() {
     amenities: state.amenities,
     userContact: state.userText || '',
     contact: state.contact || null,     // {name, instagram, email, website} 또는 {anonymous:true}
-    massThumb: state._massThumb || null, // 매핑된 매스 축소 PNG (보드/지도 노드용)
-    massOsmId: (state.building && state.building.osmId != null) ? String(state.building.osmId) : null, // 건물 매스 식별자(OSM) — 같은 건물 그룹핑용
+    massThumb: state._massThumb || null, // 매핑된 홈 축소 PNG (보드/지도 노드용)
+    massOsmId: (state.building && state.building.osmId != null) ? String(state.building.osmId) : null, // 건물 홈 식별자(OSM) — 같은 건물 그룹핑용
   };
 }
 async function resyncRecord(rec) {
@@ -4484,7 +4484,7 @@ async function renderRecList() {
   for (const rec of list) {
     const row = document.createElement('div');
     row.className = 'rec-row';
-    // 좌: 매핑된 매스
+    // 좌: 매핑된 홈
     const th = document.createElement('div');
     th.className = 'rec-thumb';
     if (rec.massThumb) {
@@ -4547,7 +4547,7 @@ async function renderRecList() {
   }
 }
 /* ============================================================
-   맵 — 저장된 레코드의 매스(산출물 4, 투명 PNG)를 지도 위에 마커로 배치.
+   맵 — 저장된 레코드의 홈(산출물 4, 투명 PNG)를 지도 위에 마커로 배치.
    위치는 미디어 GPS 우선, 없으면 입력 주소 좌표. 클릭 시 기록 상세로.
    ============================================================ */
 let lcMap = null, lcMapLayer = null, lcMapSelKey = null;
@@ -4648,9 +4648,9 @@ function setMoodSort(open) {
 document.getElementById('moodSortBtn').addEventListener('click', () => setMoodSort(!moodSortOpen));
 document.getElementById('moodCloseBtn').addEventListener('click', () => setMoodSort(false));
 
-// 기록을 "매스(건물)" 단위로 그룹화 — 주소+좌표 반올림을 키로
+// 기록을 "홈(건물)" 단위로 그룹화 — 주소+좌표 반올림을 키로
 function massKeyOf(rec) {
-  // 같은 건물이면 같은 매스 — OSM 건물 ID가 있으면 그것으로 그룹핑(주소·좌표 오차 무관).
+  // 같은 건물이면 같은 홈 — OSM 건물 ID가 있으면 그것으로 그룹핑(주소·좌표 오차 무관).
   // record는 massOsmId, 저장된 건물 객체는 building.osmId 필드를 쓰므로 둘 다 지원.
   const raw = (rec.massOsmId != null && rec.massOsmId !== '') ? rec.massOsmId
             : (rec.building && rec.building.osmId != null && rec.building.osmId !== '') ? rec.building.osmId
@@ -4681,7 +4681,7 @@ async function renderMassCats() {
   let customNames = {};
   try { customNames = JSON.parse(localStorage.getItem('lc_mass_names')) || {}; } catch (e) {}
   if (viewerRecords) customNames = { ...customNames, ...viewerMassNames }; // 공유자가 지정한 이름
-  // "All" 칩 — 모든 매스의 기록을 한 번에 (기본 선택 상태)
+  // "All" 칩 — 모든 홈의 기록을 한 번에 (기본 선택 상태)
   {
     const allChip = document.createElement('button');
     allChip.className = 'mass-cat' + (lcMapSelKey === null ? ' sel' : '');
@@ -4690,7 +4690,7 @@ async function renderMassCats() {
     allChip.appendChild(span);
     allChip.addEventListener('click', () => {
       lcMapSelKey = null;
-      lcFitted = false; // 선택한 매스가 잘 보이게 자동 확대
+      lcFitted = false; // 선택한 홈이 잘 보이게 자동 확대
       renderMassCats();
       renderMapMarkers();
     });
@@ -4725,7 +4725,7 @@ async function renderMassCats() {
     // 이름 변경은 검색 기록(아카이브)의 ✏️에서만 — 맵 칩에서는 제거 (사용자 확정)
     chip.addEventListener('click', () => {
       lcMapSelKey = (lcMapSelKey === key) ? null : key; // 재클릭 = 전체 보기
-      lcFitted = false; // 선택한 매스의 기록들이 잘 보이게 자동 확대
+      lcFitted = false; // 선택한 홈의 기록들이 잘 보이게 자동 확대
       renderMassCats();
       renderMapMarkers();
     });
@@ -4760,7 +4760,7 @@ function renderFloatWords(recs) {
 
 /* ============================================================
    노드 보드 — 참조 이미지 스타일: 흰 캔버스에 미디어 카드 산포 +
-   관계선(같은 매스 / 공유 단어·물체 / 비슷한 스케일) + 라벨
+   관계선(같은 홈 / 공유 단어·물체 / 비슷한 스케일) + 라벨
    ============================================================ */
 let boardMode = 'board'; // 'board' | 'map'
 
@@ -4777,7 +4777,7 @@ function boardRelations(recs) {
       const sharedSeg = (a.segments || []).find(x => (b.segments || []).includes(x));
       const hasScales = typeof a.momentScale === 'number' && typeof b.momentScale === 'number';
       const gap = hasScales ? Math.abs(a.momentScale - b.momentScale) : null;
-      // 관계 라벨: 스케일 갭을 우선 표기 (사용자 확정 — "같은 매스" 문구 대체)
+      // 관계 라벨: 스케일 갭을 우선 표기 (사용자 확정 — "같은 홈" 문구 대체)
       if (massKeyOf(a) === massKeyOf(b)) label = gap !== null ? 'gap ' + gap : t('edgeSameMass');
       else if (a.momentWord && a.momentWord === b.momentWord) label = rec => a.momentWordEn || a.momentWord;
       else if (sharedSeg) label = sharedSeg;
@@ -4887,7 +4887,7 @@ const escHtml = str => String(str).replace(/[&<>"']/g, c =>
 
 /* ============================================================
    3D 지구본 뷰 (Three.js) — 무채색 위경선 그리드 구 위에
-   노드(매스 실루엣 스프라이트)를 GPS 좌표대로 배치. 드래그로 회전.
+   노드(홈 실루엣 스프라이트)를 GPS 좌표대로 배치. 드래그로 회전.
    노드/엣지 데이터는 renderMapMarkers()가 만든 것을 그대로 공유.
    ============================================================ */
 let globeReady = false;
@@ -5218,7 +5218,7 @@ async function renderMapMarkers() {
   const pts = [];
   const used = [];
   for (const rec of recs) {
-    // 위치 = 미디어 GPS 우선, 없으면 매스 주소 좌표
+    // 위치 = 미디어 GPS 우선, 없으면 홈 주소 좌표
     const g = rec.mediaGps || (isFinite(rec.lat) && isFinite(rec.lon) ? { lat: rec.lat, lon: rec.lon } : null);
     if (!g) continue;
     // 같은 좌표에 여러 기록이 겹치면 살짝 벌린다
@@ -5272,7 +5272,7 @@ async function renderMapMarkers() {
 // 내 보드 스냅샷을 공개 열람 테이블(shared_boards)에 저장하고 고정 링크 발급.
 // 개인 정보(생각·연락처·자동 태그)는 스냅샷에 넣지 않는다.
 let viewerRecords = null; // ?board= 뷰어 모드일 때 이 목록을 데이터 소스로 사용
-let viewerMassNames = {};  // 공유자가 지정한 매스 이름
+let viewerMassNames = {};  // 공유자가 지정한 홈 이름
 let viewerUid = null;      // 공유 보드 주인 uid (뷰어에서 산출물 storage 경로용)
 let viewerClient = null;   // 뷰어 anon Supabase client (산출물 storage 다운로드용)
 function boardRecords() { return viewerRecords || getRecords(); }
@@ -5292,7 +5292,7 @@ function buildBoardSnapshot() {
     countryCode: r.countryCode || null, // City-wide 재생에너지 국가값용
     massOsmId: r.massOsmId || null, // 같은 건물 그룹핑용
   }));
-  // 사용자가 지정한 매스 이름도 함께 담는다 (뷰어에서 동일하게 표시)
+  // 사용자가 지정한 홈 이름도 함께 담는다 (뷰어에서 동일하게 표시)
   const massNames = {};
   try { Object.assign(massNames, JSON.parse(localStorage.getItem('lc_mass_names')) || {}); } catch (e) {}
   const savedB = getSavedBuildings();
@@ -5488,7 +5488,7 @@ function buildInfoRows(rec, full) {
   else if (rec.momentEmotion) add(t('emotionFilterLabel'), rec.momentEmotion); // 옛 기록 폴백
   if (hasCoord(rec)) add(t('emoCoordLabel'), emoCoordText(rec.emoX, rec.emoY));
   add('Captured', rec.mediaDate ? fmtDate(new Date(rec.mediaDate)) : '');
-  if (!viewerRecords) add('Mass address', rec.address); // 방문자 뷰어에는 주소 노출 안 함
+  if (!viewerRecords) add('Home address', rec.address); // 방문자 뷰어에는 주소 노출 안 함
   if (typeof rec.gpsDistM === 'number' && rec.gpsDistM !== null) {
     add('Distance', rec.gpsDistM >= 1000 ? (rec.gpsDistM / 1000).toFixed(1) + 'km' : rec.gpsDistM + 'm');
   }
@@ -5530,7 +5530,7 @@ async function openRecordDetail(rec) {
   // 뒤로 버튼이 진입한 화면(맵 97 또는 내 기록 99)으로 돌아가게 출처를 기억
   const cur = document.querySelector('.step.active');
   state._detailFrom = cur && cur.id === 'step97' ? 97 : 99;
-  // 상단: 리스트 행과 같은 포맷 (매스 · 제목/글 · 날짜/날씨)
+  // 상단: 리스트 행과 같은 포맷 (홈 · 제목/글 · 날짜/날씨)
   {
     // 오른쪽 컬럼 상단 — 제목 · 생각 · 날짜/날씨 (세로 블록, 썸네일은 왼쪽 큰 이미지가 대체)
     const head = document.getElementById('recDetailHead');
@@ -5586,7 +5586,7 @@ async function openRecordDetail(rec) {
       const v = document.createElement('video');
       v.src = URL.createObjectURL(vidBlob);
       v.controls = true; v.playsInline = true;
-      // out1은 흰 배경에 매스 형태로 클리핑된 영상 — 요소 배경도 흰색으로(검은 레터박스 방지)
+      // out1은 흰 배경에 홈 형태로 클리핑된 영상 — 요소 배경도 흰색으로(검은 레터박스 방지)
       v.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border-radius:8px; background:#fff; object-fit:contain';
       box.appendChild(v);
       dlBlob = vidBlob; dlName = 'liquidcities.mp4';
