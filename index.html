@@ -6419,8 +6419,14 @@ async function exportVideoOffline(status, opts = {}) {
     await seekTo(v, Math.min(srcT, srcDur - 0.001));
     drawComposite(cctx, v, '#fff', state.edgeLayer);
     if (withText && state._out1TextLayer) cctx.drawImage(state._out1TextLayer, 0, 0);
-    if (square) { octx.clearRect(0, 0, W, H); octx.drawImage(comp, 0, cropY, CANVAS_W, CANVAS_W, 0, 0, W, H); }
-    const frame = new VideoFrame(off, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+    if (square) {
+      // clearRect(투명)로 비우면 off에 알파가 남아 VideoFrame 인코딩 시 회색 배경이 된다.
+      // 흰색으로 채운 뒤 크롭 이미지를 덮어 그려 투명 픽셀을 없앤다(흰 배경 보장).
+      octx.fillStyle = '#fff';
+      octx.fillRect(0, 0, W, H);
+      octx.drawImage(comp, 0, cropY, CANVAS_W, CANVAS_W, 0, 0, W, H);
+    }
+    const frame = new VideoFrame(off, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS), alpha: 'discard' });
     venc.encode(frame, { keyFrame: i % 60 === 0 });
     frame.close();
     if (venc.encodeQueueSize > 4) await new Promise(r => setTimeout(r, 5));
