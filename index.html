@@ -4621,25 +4621,41 @@ function saveRecord() {
     uploadOutputToStorage(rec.savedAt, 'out4', state._autoOut4); // 기기 간 동기화용 자동 업로드
     rec._out4Uploaded = true;
   }
-  // 영상이면 원본 영상(out0)을 저장 시 그대로 업로드 — 상세 페이지에서 재생.
-  // 과거엔 out5(WebCodecs)/out1(MediaRecorder)로 매핑 영상을 재인코딩했으나,
-  // 브라우저마다 인코딩이 실패하거나(맥에서 out5 실패) 프레임이 끊겨(iOS Safari)
-  // 신뢰할 수 없었다. 원본은 인코딩이 필요 없어 모든 브라우저에서 확실히 재생된다.
-  // (상세엔 실루엣 매핑 없는 원본이 뜨고, 목록 썸네일은 매핑된 out3를 그대로 사용.)
+  // 영상 저장 처리 — 상세 페이지 재생용.
+  // 1) 매핑 영상(out5)을 인코딩 시도 — 상세는 out5를 우선 재생하므로 성공하면
+  //    실루엣(홈 모양)에 매핑된 영상이 뜬다. 이게 이 앱의 핵심 비주얼.
+  // 2) 원본 영상(out0)은 항상 함께 업로드 — out5 인코딩이 실패하는 환경에서도
+  //    최소한 영상은 재생되게 하는 안전망(매핑은 없지만 이미지보다는 나음).
+  // out5 인코딩이 실패하면 그 원인(에러 메시지·스택)을 콘솔에 상세히 남긴다 —
+  // 어느 환경에서 왜 실패하는지 잡아야 매핑 영상 인코딩을 근본 해결할 수 있다.
   if (state.mediaType === 'video' && !state._out0Started) {
     state._out0Started = true;
     const rst = document.getElementById('detectStatus');
     if (rst) rst.textContent = t('reelEncoding');
     const savedAt = rec.savedAt;
+    // 안전망: 원본 영상 업로드 (인코딩과 독립적으로 항상 시도)
     uploadOriginalVideo(savedAt).then(ok => {
-      if (ok) {
-        console.log('[LC] 원본 영상(out0) 업로드 완료 — 상세에서 영상 재생 가능');
-        if (rst) rst.textContent = t('reelReady');
-      } else {
-        console.warn('[LC] 원본 영상(out0) 업로드 실패 — 이 기록은 이미지로 표시됨');
-        if (rst) rst.textContent = t('reelNotReady');
-      }
+      console.log('[LC] 원본 영상(out0) 업로드', ok ? '완료' : '실패/스킵');
     });
+    // 매핑 영상(out5) 인코딩 — 성공하면 상세에서 매핑 영상이 우선 재생됨
+    if ('VideoEncoder' in window) {
+      const encStatus = { textContent: '' }; // exportVideoOffline이 status.textContent를 씀
+      exportVideoOffline(encStatus, {
+        withText: false, square: true, download: false, outKind: 'out5', savedAt,
+        noAudio: true, // 제스처 밖 자동 생성 — 무음 인코딩
+      }).then(() => {
+        console.log('[LC] ✅ 매핑 영상(out5) 인코딩 완료 — 상세에서 매핑 영상 재생 가능');
+        if (rst) rst.textContent = t('reelReady');
+      }).catch(e => {
+        // ★ 진단 로그: out5 인코딩이 왜 실패하는지 여기서 정확히 드러난다
+        console.error('[LC] ❌ 매핑 영상(out5) 인코딩 실패 — 원인:', e && e.message);
+        console.error('[LC] 실패 상세 스택:', e && e.stack);
+        if (rst) rst.textContent = t('reelReady'); // 원본(out0)으로는 재생되므로
+      });
+    } else {
+      console.warn('[LC] 이 브라우저는 VideoEncoder(WebCodecs) 미지원 — 매핑 영상 인코딩 불가, 원본으로 재생');
+      if (rst) rst.textContent = t('reelReady');
+    }
   }
   // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
   syncRecordToServer(rec).then(ok => {
