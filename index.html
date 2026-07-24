@@ -4767,7 +4767,7 @@ function renderRecCats() {
     const legacyKey = `${(recs[0].address || '').split(',')[0].trim()}|` +
       `${isFinite(recs[0].lat) ? recs[0].lat.toFixed(4) : '?'},${isFinite(recs[0].lon) ? recs[0].lon.toFixed(4) : '?'}`;
     const name = customNames[key] || customNames[legacyKey] || (match && match.customName)
-      || (recs[0].address ? recs[0].address.split(',')[0].trim() : '') || '?';
+      || stableMassLabel(recs) || '?';   // 순서와 무관하게 안정적인 주소 폴백
     mkChip(`${name} (${recs.length})`, key);
   }
 }
@@ -4976,6 +4976,37 @@ function groupByMass() {
   }
   return groups;
 }
+// 그룹의 안정적인 폴백 이름(주소 기반) — 기록 순서와 무관하게 항상 같은 값을 반환.
+// 예전에는 recs[0].address만 썼는데, 같은 건물 그룹에 주소가 섞여 있으면
+// (예: '수진중학교' ↔ '13312'(우편번호), 'Westbridge Road' ↔ 'SW11 3PL')
+// 정렬·필터로 recs[0]이 바뀔 때마다 이름이 흔들렸다. 이를 막기 위해:
+//   1) 그룹 내 모든 주소의 첫 토큰을 모아
+//   2) 숫자·우편번호처럼 지명이 아닌 토큰은 제외하고
+//   3) 남은 후보 중 가장 자주 나오는 것(동률이면 사전순 첫 번째)을 고정 선택.
+function stableMassLabel(recs) {
+  const counts = new Map();
+  for (const r of recs) {
+    const tok = (r.address || '').split(',')[0].trim();
+    if (!tok) continue;
+    // 지명이 아닌 토큰 제외: 숫자로 시작하거나(번지 '14', 우편 '13312'),
+    // 영국 우편번호 형태('SW11 3PL')처럼 글자+숫자 조합의 코드.
+    if (/^\d/.test(tok)) continue;
+    if (/^[A-Z]{1,2}\d/.test(tok)) continue;
+    counts.set(tok, (counts.get(tok) || 0) + 1);
+  }
+  let best = '';
+  let bestN = -1;
+  for (const [tok, n] of counts) {
+    if (n > bestN || (n === bestN && tok < best)) { best = tok; bestN = n; }
+  }
+  // 지명 후보가 하나도 없으면(전부 숫자 주소) 첫 토큰이라도 결정론적으로 고른다:
+  // 좌표가 같은 그룹이므로 savedAt이 가장 작은(가장 오래된) 기록의 주소로 고정.
+  if (!best) {
+    const oldest = recs.reduce((a, b) => (a.savedAt <= b.savedAt ? a : b), recs[0]);
+    best = (oldest.address || '').split(',')[0].trim();
+  }
+  return best;
+}
 
 async function renderMassCats() {
   const box = document.getElementById('massCats');
@@ -5013,7 +5044,7 @@ async function renderMassCats() {
     const legacyKey = `${(recs[0].address || '').split(',')[0].trim()}|` +
       `${isFinite(recs[0].lat) ? recs[0].lat.toFixed(4) : '?'},${isFinite(recs[0].lon) ? recs[0].lon.toFixed(4) : '?'}`;
     const name = customNames[key] || customNames[legacyKey] || (match && match.customName)
-      || (recs[0].address ? recs[0].address.split(',')[0].trim() : '')
+      || stableMassLabel(recs)   // 순서와 무관하게 안정적인 주소 폴백
       || '(unnamed)';
     let thumbUrl = match && match.thumb;
     if (!thumbUrl) {
