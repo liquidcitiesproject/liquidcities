@@ -2855,6 +2855,7 @@ document.getElementById('mediaInput').addEventListener('change', async e => {
   state._recordSavedAt = null;
   state._out5Started = false;           // ★ 새 기록마다 out5(1:1 영상) 자동 생성을 다시 허용
                                         // (리셋 안 하면 첫 기록 이후 out5가 영원히 스킵됨)
+  state._out0Started = false;           // ★ 새 기록마다 원본 영상(out0) 업로드를 다시 허용
   state.locked = false;                 // 이전 잠금 해제
   editorCanvas.classList.remove('locked');
   state.pan = { x: 0, y: 0 };           // 위치·크기 리셋 (baseScale은 로드 후 resetTransform)
@@ -3673,7 +3674,7 @@ async function deleteOutputsFromStorage(savedAt) {
     const { data: u } = await sb.auth.getUser();
     const uid = u && u.user && u.user.id;
     if (!uid) return;
-    await sb.storage.from('outputs').remove(['out1', 'out2', 'out3', 'out4', 'out5'].map(k => `${uid}/${savedAt}-${k}`));
+    await sb.storage.from('outputs').remove(['out0', 'out1', 'out2', 'out3', 'out4', 'out5'].map(k => `${uid}/${savedAt}-${k}`));
   } catch (e) {}
 }
 async function deleteRecord(savedAt) {
@@ -4497,7 +4498,7 @@ async function idbGet(key) {
 async function idbDelRecord(savedAt) {
   const db = await idbOpen();
   const tx = db.transaction('outputs', 'readwrite');
-  ['out1', 'out2', 'out3', 'out4', 'out5'].forEach(k => tx.objectStore('outputs').delete(savedAt + ':' + k));
+  ['out0', 'out1', 'out2', 'out3', 'out4', 'out5'].forEach(k => tx.objectStore('outputs').delete(savedAt + ':' + k));
 }
 // 산출물을 레코드에 연결해 보관. savedAt 미지정 시 현재 레코드.
 // (백그라운드 인코딩 중 다른 레코드로 넘어가도 엉뚱한 곳에 저장되지 않게 savedAt 고정 가능)
@@ -4620,41 +4621,22 @@ function saveRecord() {
     uploadOutputToStorage(rec.savedAt, 'out4', state._autoOut4); // 기기 간 동기화용 자동 업로드
     rec._out4Uploaded = true;
   }
-  // 영상이면 out5(텍스트 없는 1:1 매핑 영상)를 저장 시 자동 생성 — 릴스 다운로드를
-  // 안 눌러도 상세에서 영상으로 재생·다운로드되게. 진행 상태를 사용자에게 표시한다.
-  if (state.mediaType === 'video' && 'VideoEncoder' in window && !state._out5Started) {
-    state._out5Started = true;
+  // 영상이면 원본 영상(out0)을 저장 시 그대로 업로드 — 상세 페이지에서 재생.
+  // 과거엔 out5(WebCodecs)/out1(MediaRecorder)로 매핑 영상을 재인코딩했으나,
+  // 브라우저마다 인코딩이 실패하거나(맥에서 out5 실패) 프레임이 끊겨(iOS Safari)
+  // 신뢰할 수 없었다. 원본은 인코딩이 필요 없어 모든 브라우저에서 확실히 재생된다.
+  // (상세엔 실루엣 매핑 없는 원본이 뜨고, 목록 썸네일은 매핑된 out3를 그대로 사용.)
+  if (state.mediaType === 'video' && !state._out0Started) {
+    state._out0Started = true;
     const rst = document.getElementById('detectStatus');
     if (rst) rst.textContent = t('reelEncoding');
     const savedAt = rec.savedAt;
-    exportVideoOffline({ textContent: '' }, {
-      withText: false, square: true, download: false, outKind: 'out5', savedAt,
-      noAudio: true, // 제스처 밖 자동 생성 — 오디오 조립 실패로 throw되지 않게 무음 인코딩
-    }).then(() => {
-      console.log('[LC] out5 자동 인코딩 완료 — 상세에서 1:1 영상 재생 가능');
-      if (rst) rst.textContent = t('reelReady');
-    }).catch(async e => {
-      // WebCodecs가 있어도 인코딩이 실패할 수 있다 — 이때 out1마저 없으면 상세가
-      // 이미지로만 뜨므로, MediaRecorder로 out1을 만들어 영상 소스를 확보한다.
-      console.warn('[LC] out5 자동 인코딩 실패 — out1 녹화로 폴백:', e && e.message);
-      const ok = await autoRecordOut1ToStorage(savedAt);
-      if (rst) rst.textContent = ok ? t('reelReady') : t('reelNotReady');
-    });
-  } else if (state.mediaType === 'video' && !('VideoEncoder' in window) && !state._out5Started) {
-    // WebCodecs(VideoEncoder) 미지원 브라우저(iOS Safari 등) — out5를 못 만든다.
-    // 이런 기록이 out1(릴스)마저 없으면 상세에서 영상으로 재생할 소스가 아예 없어
-    // 이미지로만 뜬다. 그래서 저장 시점에 MediaRecorder로 out1을 자동 생성·업로드해
-    // 상세 폴백(out5 없으면 out1 재생)이 항상 영상을 갖도록 보장한다.
-    state._out5Started = true; // out1 자동 생성으로 대체 — 중복 방지
-    const rst = document.getElementById('detectStatus');
-    if (rst) rst.textContent = t('reelEncoding');
-    const savedAt = rec.savedAt;
-    autoRecordOut1ToStorage(savedAt).then(ok => {
+    uploadOriginalVideo(savedAt).then(ok => {
       if (ok) {
-        console.log('[LC] out1 자동 녹화 완료(WebCodecs 미지원 폴백) — 상세에서 영상 재생 가능');
+        console.log('[LC] 원본 영상(out0) 업로드 완료 — 상세에서 영상 재생 가능');
         if (rst) rst.textContent = t('reelReady');
       } else {
-        console.warn('[LC] out1 자동 녹화 실패 — 이 기록은 이미지로 표시됨');
+        console.warn('[LC] 원본 영상(out0) 업로드 실패 — 이 기록은 이미지로 표시됨');
         if (rst) rst.textContent = t('reelNotReady');
       }
     });
@@ -6016,16 +5998,16 @@ async function openRecordDetail(rec) {
     // out5가 없으면 out1(릴스, 9:16)로 폴백 — WebCodecs 미지원 브라우저(iOS Safari 등)에서
     // 저장된 기록은 out5가 없을 수 있는데, 그런 기록도 out1만 있으면 영상으로 재생되게 한다.
     // (out1은 흰 배경 홈 클리핑이라 요소 background:#fff로 검은 레터박스를 막는다.)
+    // 재생 소스 우선순위: out5(1:1 매핑) → out1(릴스) → out0(원본 영상).
+    // 현재는 저장 시 out0(원본)만 올리므로 대부분 out0로 재생되고,
+    // 과거에 out5/out1이 있던 기록은 그걸 그대로 재생한다.
     let vidKind = null;
     let vidBlob = null;
     if (isVideo) {
-      vidBlob = await fetchOutputBlob(rec.savedAt, 'out5');
-      if (vidBlob) vidKind = 'out5';
-      else {
-        vidBlob = await fetchOutputBlob(rec.savedAt, 'out1');
-        // out1이 이미지(jpg) 폴백으로 저장된 경우(사진 릴스)는 영상으로 취급하지 않음
-        if (vidBlob && /^video\//.test(vidBlob.type || '')) vidKind = 'out1';
-        else vidBlob = null;
+      for (const kind of ['out5', 'out1', 'out0']) {
+        const b = await fetchOutputBlob(rec.savedAt, kind);
+        // 영상 blob인지 확인(out1은 사진 릴스면 jpg일 수 있어 제외)
+        if (b && /^video\//.test(b.type || '')) { vidBlob = b; vidKind = kind; break; }
       }
     }
     console.log('[LC] 상세 영상 조회 — mediaType:', rec.mediaType, '| savedAt:', rec.savedAt,
@@ -6599,6 +6581,36 @@ async function recordRealtime(status) {
   downloadBlob(outBlob, `liquidcities-reels.${ext}`);
   saveOutputBlob('out1', outBlob);
   status.textContent = ext === 'webm' ? t('dlDoneWebm') : t('dlDoneRT');
+}
+
+// 저장 시 원본 영상(out0) 업로드 — 상세 페이지 재생용.
+// video.src는 원본 파일의 blob URL(URL.createObjectURL)이라, 이를 fetch하면
+// 사용자가 올린 원본 영상 blob을 그대로 다시 얻는다(recordRealtime에서 검증된 패턴).
+// 인코딩이 없으므로 모든 브라우저에서 확실히 동작한다. 실패해도 throw하지 않음.
+// 반환: 성공 true / 실패 false.
+async function uploadOriginalVideo(savedAt) {
+  try {
+    if (state.mediaType !== 'video' || !video.src) return false;
+    const resp = await fetch(video.src);
+    if (!resp.ok) { console.warn('[LC] 원본 영상 fetch 실패:', resp.status); return false; }
+    let blob = await resp.blob();
+    // blob type이 비어있으면(iOS 등) 재생용 mp4로 가정해 보정
+    if (!/^video\//.test(blob.type || '')) {
+      blob = new Blob([blob], { type: 'video/mp4' });
+    }
+    // Storage 버킷 업로드 제한(영상 100MB)을 넘으면 로컬만 저장하고 업로드는 스킵.
+    const MAX = 100 * 1024 * 1024;
+    if (blob.size > MAX) {
+      console.warn('[LC] 원본 영상이 100MB 초과 — 로컬만 저장, 서버 업로드 스킵:', blob.size);
+      idbPut(savedAt + ':out0', blob).catch(() => {}); // 같은 기기에선 재생되게 로컬 캐시
+      return false;
+    }
+    saveOutputBlob('out0', blob, savedAt); // IndexedDB + Storage 업로드
+    return true;
+  } catch (e) {
+    console.warn('[LC] uploadOriginalVideo 예외:', e && e.message);
+    return false;
+  }
 }
 
 // 저장 시 자동 out1 생성 — WebCodecs(VideoEncoder) 미지원 브라우저 폴백.
