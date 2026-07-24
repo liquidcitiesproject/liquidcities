@@ -4633,14 +4633,31 @@ function saveRecord() {
     }).then(() => {
       console.log('[LC] out5 자동 인코딩 완료 — 상세에서 1:1 영상 재생 가능');
       if (rst) rst.textContent = t('reelReady');
-    }).catch(e => {
-      console.warn('[LC] out5 자동 인코딩 실패:', e && e.message);
-      if (rst) rst.textContent = t('reelNotReady');
+    }).catch(async e => {
+      // WebCodecs가 있어도 인코딩이 실패할 수 있다 — 이때 out1마저 없으면 상세가
+      // 이미지로만 뜨므로, MediaRecorder로 out1을 만들어 영상 소스를 확보한다.
+      console.warn('[LC] out5 자동 인코딩 실패 — out1 녹화로 폴백:', e && e.message);
+      const ok = await autoRecordOut1ToStorage(savedAt);
+      if (rst) rst.textContent = ok ? t('reelReady') : t('reelNotReady');
     });
-  } else if (state.mediaType === 'video' && !('VideoEncoder' in window)) {
-    console.warn('[LC] 이 브라우저는 VideoEncoder 미지원 — out5 자동 생성 불가. 릴스는 산출물 화면에서 다운로드 필요.');
+  } else if (state.mediaType === 'video' && !('VideoEncoder' in window) && !state._out5Started) {
+    // WebCodecs(VideoEncoder) 미지원 브라우저(iOS Safari 등) — out5를 못 만든다.
+    // 이런 기록이 out1(릴스)마저 없으면 상세에서 영상으로 재생할 소스가 아예 없어
+    // 이미지로만 뜬다. 그래서 저장 시점에 MediaRecorder로 out1을 자동 생성·업로드해
+    // 상세 폴백(out5 없으면 out1 재생)이 항상 영상을 갖도록 보장한다.
+    state._out5Started = true; // out1 자동 생성으로 대체 — 중복 방지
     const rst = document.getElementById('detectStatus');
-    if (rst) rst.textContent = t('reelNotReady');
+    if (rst) rst.textContent = t('reelEncoding');
+    const savedAt = rec.savedAt;
+    autoRecordOut1ToStorage(savedAt).then(ok => {
+      if (ok) {
+        console.log('[LC] out1 자동 녹화 완료(WebCodecs 미지원 폴백) — 상세에서 영상 재생 가능');
+        if (rst) rst.textContent = t('reelReady');
+      } else {
+        console.warn('[LC] out1 자동 녹화 실패 — 이 기록은 이미지로 표시됨');
+        if (rst) rst.textContent = t('reelNotReady');
+      }
+    });
   }
   // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
   syncRecordToServer(rec).then(ok => {
@@ -5995,11 +6012,24 @@ async function openRecordDetail(rec) {
   let found = 0;
   {
     const isVideo = rec.mediaType === 'video';
-    // 영상: 텍스트 없는 1:1 매핑 영상(out5)만 재생 — out1(릴스, 9:16)은 배경이
-    // 검게 나올 수 있어 상세 재생엔 쓰지 않는다. out5 없으면 매핑 이미지로 폴백.
-    let vidBlob = isVideo ? await fetchOutputBlob(rec.savedAt, 'out5') : null;
+    // 영상 재생용 blob: out5(텍스트 없는 1:1 매핑 영상) 우선.
+    // out5가 없으면 out1(릴스, 9:16)로 폴백 — WebCodecs 미지원 브라우저(iOS Safari 등)에서
+    // 저장된 기록은 out5가 없을 수 있는데, 그런 기록도 out1만 있으면 영상으로 재생되게 한다.
+    // (out1은 흰 배경 홈 클리핑이라 요소 background:#fff로 검은 레터박스를 막는다.)
+    let vidKind = null;
+    let vidBlob = null;
+    if (isVideo) {
+      vidBlob = await fetchOutputBlob(rec.savedAt, 'out5');
+      if (vidBlob) vidKind = 'out5';
+      else {
+        vidBlob = await fetchOutputBlob(rec.savedAt, 'out1');
+        // out1이 이미지(jpg) 폴백으로 저장된 경우(사진 릴스)는 영상으로 취급하지 않음
+        if (vidBlob && /^video\//.test(vidBlob.type || '')) vidKind = 'out1';
+        else vidBlob = null;
+      }
+    }
     console.log('[LC] 상세 영상 조회 — mediaType:', rec.mediaType, '| savedAt:', rec.savedAt,
-      '| out5:', vidBlob ? '있음' : '없음');
+      '| 영상소스:', vidKind || '없음');
     const imgBlob = (!isVideo || !vidBlob) ? await fetchOutputBlob(rec.savedAt, 'out4') : null;
     if (gen !== state._detailGen) return; // 다른 기록으로 넘어감 — 중단
     let dlBlob = null, dlName = 'liquidcities.png';
@@ -6011,7 +6041,9 @@ async function openRecordDetail(rec) {
       // out1은 흰 배경에 홈 형태로 클리핑된 영상 — 요소 배경도 흰색으로(검은 레터박스 방지)
       v.style.cssText = 'width:100%; max-width:420px; display:block; margin:0 auto; border-radius:8px; background:#fff; object-fit:contain';
       box.appendChild(v);
-      dlBlob = vidBlob; dlName = 'liquidcities.mp4';
+      // out1 폴백은 webm일 수 있으므로 blob type으로 확장자를 맞춘다(mp4 기본)
+      dlBlob = vidBlob;
+      dlName = /webm/.test(vidBlob.type || '') ? 'liquidcities.webm' : 'liquidcities.mp4';
     } else {
       const imgSrc = imgBlob ? URL.createObjectURL(imgBlob) : (rec.massThumb || null);
       if (imgSrc) {
@@ -6567,6 +6599,85 @@ async function recordRealtime(status) {
   downloadBlob(outBlob, `liquidcities-reels.${ext}`);
   saveOutputBlob('out1', outBlob);
   status.textContent = ext === 'webm' ? t('dlDoneWebm') : t('dlDoneRT');
+}
+
+// 저장 시 자동 out1 생성 — WebCodecs(VideoEncoder) 미지원 브라우저 폴백.
+// recordRealtime과 달리 UI(다운로드/상태)에 묶이지 않고, 순수하게 out1 blob을
+// MediaRecorder로 만들어 IndexedDB+Storage에 저장만 한다. 상세 폴백(out5 없으면
+// out1 재생)이 항상 영상 소스를 갖도록 보장하는 것이 목적. 실패해도 throw하지 않음.
+// 반환: 성공하면 true, 실패하면 false.
+async function autoRecordOut1ToStorage(savedAt) {
+  try {
+    if (state.mediaType !== 'video' || !state._drawOut1) return false;
+    if (!window.MediaRecorder) return false;
+    const candidates = [
+      'video/mp4;codecs=avc1,mp4a', 'video/mp4',
+      'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm',
+    ];
+    const mimeType = candidates.find(m => MediaRecorder.isTypeSupported(m));
+    if (!mimeType) return false;
+
+    // out1Canvas 라이브 렌더 루프(_drawOut1)가 프레임을 계속 그리므로 30fps 캡처.
+    const stream = out1Canvas.captureStream(30);
+
+    // 오디오: 원본을 디코드해 [구간시작, +10초]를 반복·컷한 버퍼를 조립해 공급.
+    // 제스처 밖 호출이라 실패할 수 있으므로 실패 시 무음으로 진행(throw 안 함).
+    const cs0 = state.clipStart || 0;
+    let recAudioCtx = null, recAudioNode = null;
+    try {
+      if (!state._mix10 || state._mix10.src !== video.src || state._mix10.cs !== cs0) {
+        const ab = await (await fetch(video.src)).arrayBuffer();
+        const dctx = new (window.AudioContext || window.webkitAudioContext)();
+        const full = await dctx.decodeAudioData(ab);
+        dctx.close().catch(() => {});
+        const clipLen = Math.max(0.1, Math.min(full.duration - cs0, TARGET_DURATION));
+        const oc = new OfflineAudioContext(full.numberOfChannels,
+          Math.ceil(TARGET_DURATION * full.sampleRate), full.sampleRate);
+        for (let t0 = 0; t0 < TARGET_DURATION; t0 += clipLen) {
+          const bs = oc.createBufferSource();
+          bs.buffer = full;
+          bs.connect(oc.destination);
+          bs.start(t0, cs0, Math.min(clipLen, TARGET_DURATION - t0));
+        }
+        state._mix10 = { buf: await oc.startRendering(), src: video.src, cs: cs0 };
+      }
+      recAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      recAudioCtx.resume().catch(() => {});
+      const dest = recAudioCtx.createMediaStreamDestination();
+      recAudioNode = recAudioCtx.createBufferSource();
+      recAudioNode.buffer = state._mix10.buf;
+      recAudioNode.connect(dest);
+      dest.stream.getAudioTracks().forEach(tr => stream.addTrack(tr));
+    } catch (e) {
+      recAudioNode = null; // 무음으로 진행
+    }
+
+    // 캡처 동안 out1Canvas가 실제 영상 프레임으로 갱신되도록 재생 보장.
+    video.currentTime = cs0;
+    await video.play().catch(() => {});
+
+    const rec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 10_000_000 });
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+    const done = new Promise((ok, no) => {
+      rec.onstop = ok;
+      rec.onerror = ev => no(ev.error || new Error('recorder error'));
+    });
+    rec.start(1000);
+    if (recAudioNode) recAudioNode.start();
+    await new Promise(r => setTimeout(r, TARGET_DURATION * 1000)); // 10초에 컷
+    if (rec.state !== 'inactive') rec.stop();
+    await done;
+    if (recAudioCtx) recAudioCtx.close().catch(() => {});
+
+    if (!chunks.length) return false;
+    const outBlob = new Blob(chunks, { type: mimeType });
+    saveOutputBlob('out1', outBlob, savedAt); // IndexedDB + Storage 업로드
+    return true;
+  } catch (e) {
+    console.warn('[LC] autoRecordOut1ToStorage 예외:', e && e.message);
+    return false;
+  }
 }
 
 // 릴스: 사진→JPG / 영상→5초 MP4 (오프라인 렌더 기본, 실시간 녹화 폴백)
