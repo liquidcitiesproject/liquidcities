@@ -142,7 +142,8 @@
   #quadView.quad-tone::after { content: ''; position: absolute; right: 0; bottom: 0; width: 50%; height: 50%;
     background: rgba(0,0,0,0.035); pointer-events: none; }
   #quadView.quad-tone .quad-lbl, #quadView.quad-minimal .quad-lbl { font-size: 14px; font-weight: 600;
-    color: var(--ink); background: rgba(255,255,255,0.92); padding: 2px 10px; border-radius: 999px; }
+    color: var(--ink); background: rgba(255,255,255,0.92); padding: 2px 10px; border-radius: 999px;
+    z-index: 6; } /* 노드 위에 표시 */
   #quadView.quad-minimal .quad-axis-x { background: none; border-top: 1px dashed var(--ink); }
   #quadView.quad-minimal .quad-axis-y { background: none; border-left: 1px dashed var(--ink); }
   /* 클러스터 노드(개수 배지) & 펼침 */
@@ -279,8 +280,8 @@
   body.board-viewer #emotionFilter {
     position: fixed; left: 12px; right: 160px; z-index: 1200; margin: 0;
   }
-  body.board-viewer #cityYearFilter { top: 12px; }
-  body.board-viewer #emotionFilter { top: 48px; display: flex !important; }
+  body.board-viewer #cityYearFilter { top: 60px; }
+  body.board-viewer #emotionFilter { top: 96px; display: flex !important; }
   body.board-viewer #cityYearFilter .ai-chip,
   body.board-viewer #emotionFilter .ai-chip { background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
   body.board-viewer #cityYearFilter span,
@@ -289,9 +290,8 @@
   body.board-viewer #cityYearFilter .ai-chip.sel,
   body.board-viewer #emotionFilter .ai-chip.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
   /* 상단 축 라벨이 필터 오버레이에 가리지 않게 아래로 */
-  body.board-viewer .quad-lbl-top { top: 130px; }
-  body.board-viewer #mapSearch { position: fixed; top: 84px; left: 12px; z-index: 1200; margin: 0; }
-  body.board-viewer #mapSearch input { box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
+  body.board-viewer .quad-lbl-top { top: 140px; }
+  body.board-viewer #mapSearch { position: fixed; top: 0; left: 0; right: 0; z-index: 1200; margin: 0; }
   /* 방문자 뷰어 — 뷰 전환(보드/감정)만 우상단에. 나머지 컨트롤은 숨김 */
   body.board-viewer #mapCtrlRow {
     display: flex !important; position: fixed; top: 12px; right: 12px; z-index: 1200;
@@ -912,9 +912,10 @@
     <div id="massCats" style="display:none"></div>
     <!-- 도시별 · 시간별 필터 -->
     <div id="cityYearFilter" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"></div>
-    <!-- 검색 필터 (단어·매스·주소·생각·감정 즉시 필터) -->
-    <div id="mapSearch"><input id="mapSearchInput" type="search" style="width:240px; padding:6px 12px;
-      font-size:12px; border:1px solid var(--line); border-radius:999px; background:#fff"></div>
+    <!-- 검색 필터 (단어·매스·주소·생각·감정 즉시 필터) — 전체 폭, 아래 블랙 라인 -->
+    <div id="mapSearch" style="background:#fff; border-bottom:1px solid var(--ink)">
+      <input id="mapSearchInput" type="search" style="width:100%; padding:13px 20px;
+      font-size:14px; border:none; border-radius:0; background:transparent; outline:none"></div>
     <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
     <div id="emotionFilter" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"></div>
     <div class="status" id="shareStatus" style="margin:0; user-select:text; -webkit-user-select:text"></div>
@@ -5423,6 +5424,8 @@ const QUAD_OVERLAP = _quadParams.get('overlap') || 'swarm';   // 확정: 비스�
 const QUAD_STYLE = _quadParams.get('quadstyle') || 'tone';     // 확정: 실선 축 + 분면 톤
 let _quadExpanded = null;   // 펼쳐진 클러스터 index
 let _quadLastRecs = null;   // 펼침 재렌더용
+// 뷰어에선 상단 필터 오버레이(검색+칩)에 노드가 가리지 않게 위 여백 확보
+function quadYMin() { return document.body.classList.contains('board-viewer') ? 17 : 6; }
 
 function renderQuad(recs) {
   const box = document.getElementById('quadNodes');
@@ -5438,7 +5441,7 @@ function renderQuad(recs) {
   const pts = withCoord.map(rec => ({
     rec,
     x: Math.max(5, Math.min(95, (rec.emoX + 1) / 2 * 100)),
-    y: Math.max(6, Math.min(92, (1 - rec.emoY) / 2 * 100)),
+    y: Math.max(quadYMin(), Math.min(92, (1 - rec.emoY) / 2 * 100)),
   }));
   if (QUAD_OVERLAP === 'swarm') renderQuadSwarm(box, pts);
   else renderQuadCluster(box, pts);
@@ -5481,7 +5484,7 @@ function renderQuadSwarm(box, pts) {
       moved = true;
     }
     // 매 pass 화면 안으로 클램프 (경계 밖 발산 방지)
-    pts.forEach(p => { p.x = Math.max(5, Math.min(95, p.x)); p.y = Math.max(6, Math.min(92, p.y)); });
+    pts.forEach(p => { p.x = Math.max(5, Math.min(95, p.x)); p.y = Math.max(quadYMin(), Math.min(92, p.y)); });
     if (!moved) break;
   }
   pts.forEach(p => {
@@ -5518,7 +5521,7 @@ function renderQuadCluster(box, pts) {
       c.items.forEach((p, i) => {
         const ang = (i / n) * Math.PI * 2 - Math.PI / 2;
         const x = Math.max(5, Math.min(95, c.x + rad * Math.cos(ang)));
-        const y = Math.max(6, Math.min(92, c.y + rad * Math.sin(ang) * 1.15));
+        const y = Math.max(quadYMin(), Math.min(92, c.y + rad * Math.sin(ang) * 1.15));
         const node = quadMakeNode(p.rec, x, y, 'expanded-member');
         node.addEventListener('click', (e) => { e.stopPropagation(); openRecordDetail(p.rec); });
         box.appendChild(node);
