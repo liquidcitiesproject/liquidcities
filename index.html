@@ -135,6 +135,22 @@
     text-shadow: 0 1px 4px rgba(255,255,255,0.9); pointer-events: none; }
   .quad-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     font-size: 13px; color: var(--dim); text-align: center; padding: 0 24px; }
+  /* ---- 사분면 시안 (?quadstyle=tone|minimal) ---- */
+  #quadView.quad-tone .quad-axis-x, #quadView.quad-tone .quad-axis-y { background: var(--ink); }
+  #quadView.quad-tone::before { content: ''; position: absolute; left: 0; top: 0; width: 50%; height: 50%;
+    background: rgba(0,0,0,0.035); pointer-events: none; }
+  #quadView.quad-tone::after { content: ''; position: absolute; right: 0; bottom: 0; width: 50%; height: 50%;
+    background: rgba(0,0,0,0.035); pointer-events: none; }
+  #quadView.quad-tone .quad-lbl, #quadView.quad-minimal .quad-lbl { font-size: 14px; font-weight: 600;
+    color: var(--ink); background: rgba(255,255,255,0.92); padding: 2px 10px; border-radius: 999px; }
+  #quadView.quad-minimal .quad-axis-x { background: none; border-top: 1px dashed var(--ink); }
+  #quadView.quad-minimal .quad-axis-y { background: none; border-left: 1px dashed var(--ink); }
+  /* 클러스터 노드(개수 배지) & 펼침 */
+  .quad-node .quad-badge { position: absolute; top: -7px; right: -9px; min-width: 18px; height: 18px;
+    border-radius: 999px; background: var(--ink); color: #fff; font-size: 11px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+  .quad-node.cluster { z-index: 5; }
+  .quad-node.expanded-member { z-index: 6; }
   /* ---- 오늘의 기분 정렬 패널 (기본 숨김, 열리면 지도 위 오버레이 시트) ---- */
   #moodSortPanel { display: none; }
   #moodSortPanel.open { display: block; }
@@ -258,6 +274,22 @@
     margin: 0; padding-bottom: 0;
   }
   body.board-viewer #massCats .mass-cat { box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
+  /* 방문자 뷰어 — 도시/시간·감정 필터를 지도 위 오버레이로 */
+  body.board-viewer #cityYearFilter,
+  body.board-viewer #emotionFilter {
+    position: fixed; left: 12px; right: 160px; z-index: 1200; margin: 0;
+  }
+  body.board-viewer #cityYearFilter { top: 12px; }
+  body.board-viewer #emotionFilter { top: 48px; display: flex !important; }
+  body.board-viewer #cityYearFilter .ai-chip,
+  body.board-viewer #emotionFilter .ai-chip { background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
+  body.board-viewer #cityYearFilter span,
+  body.board-viewer #emotionFilter span { background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 4px; }
+  /* 선택된 칩은 오버레이 흰 배경 규칙보다 우선해 블랙 유지 */
+  body.board-viewer #cityYearFilter .ai-chip.sel,
+  body.board-viewer #emotionFilter .ai-chip.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
+  /* 상단 축 라벨이 필터 오버레이에 가리지 않게 아래로 */
+  body.board-viewer .quad-lbl-top { top: 96px; }
   /* 방문자 뷰어 — 뷰 전환(보드/감정)만 우상단에. 나머지 컨트롤은 숨김 */
   body.board-viewer #mapCtrlRow {
     display: flex !important; position: fixed; top: 12px; right: 12px; z-index: 1200;
@@ -265,8 +297,7 @@
   }
   body.board-viewer #viewSelect { box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
   body.board-viewer #moodSortBtn,
-  body.board-viewer #shareToggleBtn,
-  body.board-viewer #emotionFilter { display: none !important; }
+  body.board-viewer #shareToggleBtn { display: none !important; }
   body.board-viewer #scaleGauge { position: fixed !important; z-index: 1200; }
   body.board-viewer #langBar, body.board-viewer #buildTag { display: none; }
   body.board-viewer #recActions { display: none !important; } /* 방문자는 편집/삭제 불가 */
@@ -875,7 +906,10 @@
       <!-- 감정 좌표 뷰에서 전시용 아틀라스(60×90cm) 내보내기 -->
       <button id="atlasBtn" class="secondary" style="flex:0 0 auto; display:none" data-i18n="btnAtlasExport"></button>
     </div>
-    <div id="massCats" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:2px"></div>
+    <!-- 매스별 칩은 필터 개편으로 비표시 (renderMassCats 코드는 보존) -->
+    <div id="massCats" style="display:none"></div>
+    <!-- 도시별 · 시간별 필터 -->
+    <div id="cityYearFilter" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"></div>
     <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
     <div id="emotionFilter" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"></div>
     <div class="status" id="shareStatus" style="margin:0; user-select:text; -webkit-user-select:text"></div>
@@ -1051,6 +1085,7 @@ const I18N = {
     emotionSub: '가장 가까운 감정을 최대 두 개 골라주세요.',
     errEmotionRequired: '감정을 최소 하나 골라주세요',
     emotionFilterLabel: '감정으로 보기',
+    cityFilterLabel: '도시로 보기', yearFilterLabel: '시간으로 보기',
     planeTitle: '감정 좌표', planeSub: '고른 단어로 위치를 잡았어요. 원하면 눌러서 옮겨보세요.',
     emoAxisXNeg: '낯섦', emoAxisXPos: '편안함', emoAxisYNeg: '고요함', emoAxisYPos: '격렬함',
     emoCoordLabel: '이 순간의 느낌',
@@ -1229,6 +1264,7 @@ const I18N = {
     emotionSub: 'Pick up to two feelings closest to this moment.',
     errEmotionRequired: 'Please choose at least one feeling',
     emotionFilterLabel: 'By emotion',
+    cityFilterLabel: 'By city', yearFilterLabel: 'By time',
     planeTitle: 'Emotional coordinates', planeSub: 'Placed from your words. Tap to move it if you like.',
     emoAxisXNeg: 'unfamiliar', emoAxisXPos: 'comfortable', emoAxisYNeg: 'calm', emoAxisYPos: 'intense',
     emoCoordLabel: 'How it felt',
@@ -4866,6 +4902,55 @@ async function renderRecList() {
 let lcMap = null, lcMapLayer = null, lcMapSelKey = null;
 const emotionSel = new Set(); // 감정 필터 선택 태그 id(최대 2개, OR). 비면 전체.
 // 감정 필터 칩 렌더 — 데이터에 실제 등장한 태그만 (라벨은 t('emo_'+id))
+// ---- 도시별 · 시간별 필터 (감정 필터와 AND 결합) ----
+let citySel = null, yearSel = null;
+function cityOfRec(r) {
+  const a = r.address || '';
+  if (/seoul|서울/i.test(a)) return 'Seoul';
+  if (/london/i.test(a)) return 'London';
+  if (/singapore|싱가포르/i.test(a)) return 'Singapore';
+  if (/shanghai|상하이/i.test(a)) return 'Shanghai';
+  if (/jeju|제주/i.test(a)) return 'Jeju';
+  const parts = a.split(',').map(x => x.trim()).filter(Boolean);
+  const c = parts.length >= 2 ? parts[parts.length - 2].replace(/[0-9-]/g, '').trim() : '';
+  return c || 'Etc';
+}
+function yearOfRec(r) {
+  const d = new Date(r.mediaDate || r.savedAt);
+  return isNaN(d) ? null : d.getFullYear();
+}
+function renderCityYearFilter() {
+  const box = document.getElementById('cityYearFilter');
+  if (!box) return;
+  box.innerHTML = '';
+  const recs = boardRecords();
+  const mkChip = (label, sel, on) => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'ai-chip' + (sel ? ' sel' : '');
+    chip.style.cssText = 'padding:4px 12px; font-size:12px';
+    chip.textContent = label;
+    chip.addEventListener('click', on);
+    return chip;
+  };
+  const lab1 = document.createElement('span');
+  lab1.textContent = t('cityFilterLabel');
+  lab1.style.cssText = 'font-size:12px; color:var(--dim); margin-right:4px';
+  box.appendChild(lab1);
+  [...new Set(recs.map(cityOfRec))].forEach(c => box.appendChild(mkChip(c, citySel === c, () => {
+    citySel = citySel === c ? null : c;
+    lcFitted = false; renderCityYearFilter(); renderMapMarkers();
+  })));
+  const lab2 = document.createElement('span');
+  lab2.textContent = t('yearFilterLabel');
+  lab2.style.cssText = 'font-size:12px; color:var(--dim); margin:0 4px 0 14px';
+  box.appendChild(lab2);
+  [...new Set(recs.map(yearOfRec).filter(Boolean))].sort().forEach(y => box.appendChild(mkChip(String(y), yearSel === y, () => {
+    yearSel = yearSel === y ? null : y;
+    lcFitted = false; renderCityYearFilter(); renderMapMarkers();
+  })));
+}
+
 function renderEmotionFilter() {
   const box = document.getElementById('emotionFilter');
   if (!box) return;
@@ -5312,42 +5397,135 @@ document.getElementById('atlasBtn').addEventListener('click', async () => {
 });
 
 // 감정 좌표 사분면 뷰 렌더 — 좌표(emoX,emoY)를 가진 기록을 평면 위에 노드로 배치.
+// ---- 사분면 시안 토글: ?overlap=cluster|swarm (중첩 처리) · ?quadstyle=tone|minimal (분면 표시) ----
+const _quadParams = new URLSearchParams(location.search);
+const QUAD_OVERLAP = _quadParams.get('overlap') || 'swarm';   // 확정: 비스웜(전부 표시)
+const QUAD_STYLE = _quadParams.get('quadstyle') || 'tone';     // 확정: 실선 축 + 분면 톤
+let _quadExpanded = null;   // 펼쳐진 클러스터 index
+let _quadLastRecs = null;   // 펼침 재렌더용
+
 function renderQuad(recs) {
   const box = document.getElementById('quadNodes');
   const empty = document.getElementById('quadEmpty');
+  const view = document.getElementById('quadView');
   if (!box) return;
+  _quadLastRecs = recs;
+  view.classList.remove('quad-tone', 'quad-minimal');
+  view.classList.add('quad-' + QUAD_STYLE);
   box.innerHTML = '';
   const withCoord = recs.filter(hasCoord);
   if (empty) empty.style.display = withCoord.length ? 'none' : 'flex';
-  const placed = []; // 겹침 살짝 분산용 [x%,y%]
-  for (const rec of withCoord) {
-    let xp = (rec.emoX + 1) / 2 * 100;
-    let yp = (1 - rec.emoY) / 2 * 100;
-    // 같은 자리 겹치면 나선으로 조금 벌림
-    let k = 0;
-    while (placed.some(p => Math.abs(p[0] - xp) < 4 && Math.abs(p[1] - yp) < 4) && k < 12) {
-      k++; xp += 3 * Math.cos(k * 2.4); yp += 3 * Math.sin(k * 2.4);
-    }
-    xp = Math.max(5, Math.min(95, xp)); yp = Math.max(6, Math.min(92, yp));
-    placed.push([xp, yp]);
-    const node = document.createElement('div');
-    node.className = 'quad-node';
-    node.style.left = xp + '%'; node.style.top = yp + '%';
-    const img = document.createElement('img');
-    if (rec.massThumb) {
-      img.src = rec.massThumb;
-      fetchOutputBlob(rec.savedAt, 'out4').then(b => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
-    } else {
-      fetchOutputBlob(rec.savedAt, 'out4').then(b => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
-    }
-    node.appendChild(img);
-    const word = rec.momentWordEn || rec.momentWord;
-    if (word) { const cap = document.createElement('div'); cap.className = 'quad-cap'; cap.textContent = word; node.appendChild(cap); }
-    node.title = (rec.emoTags || []).map(id => t('emo_' + id)).join(' · ');
-    node.addEventListener('click', () => openRecordDetail(rec));
-    box.appendChild(node);
-  }
+  const pts = withCoord.map(rec => ({
+    rec,
+    x: Math.max(5, Math.min(95, (rec.emoX + 1) / 2 * 100)),
+    y: Math.max(6, Math.min(92, (1 - rec.emoY) / 2 * 100)),
+  }));
+  if (QUAD_OVERLAP === 'swarm') renderQuadSwarm(box, pts);
+  else renderQuadCluster(box, pts);
 }
+
+function quadMakeNode(rec, x, y, extraClass) {
+  const node = document.createElement('div');
+  node.className = 'quad-node' + (extraClass ? ' ' + extraClass : '');
+  node.style.left = x + '%'; node.style.top = y + '%';
+  const img = document.createElement('img');
+  if (rec.massThumb) img.src = rec.massThumb;
+  fetchOutputBlob(rec.savedAt, 'out4').then(b => { if (b) img.src = URL.createObjectURL(b); }).catch(() => {});
+  node.appendChild(img);
+  const word = rec.momentWordEn || rec.momentWord;
+  if (word) { const cap = document.createElement('div'); cap.className = 'quad-cap'; cap.textContent = word; node.appendChild(cap); }
+  node.title = (rec.emoTags || []).map(id => t('emo_' + id)).join(' · ');
+  return node;
+}
+
+// 시안 A2 — 비스웜: 타원 충돌 반복 밀어내기(아틀라스 로직과 동일 아이디어).
+// 모든 기록이 겹침 없이 항상 다 보인다. 좌표는 근사(살짝 밀림).
+function renderQuadSwarm(box, pts) {
+  const MIN_X = 7, MIN_Y = 10; // 노드 46px + 캡션 기준 최소 간격(%)
+  const STEP = 0.5;            // 한 번에 미는 거리(%) — 완만하게 여러 번
+  for (let pass = 0; pass < 300; pass++) {
+    let moved = false;
+    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
+      let dx = pts[j].x - pts[i].x, dy = pts[j].y - pts[i].y;
+      // 완전히 같은 자리면 결정적 각도로 미세 분리
+      if (Math.abs(dx) < 1e-6 && Math.abs(dy) < 1e-6) {
+        const a = (i * 7 + j) * 0.9;
+        dx = Math.cos(a) * 0.01; dy = Math.sin(a) * 0.01;
+      }
+      const nd = (dx / MIN_X) ** 2 + (dy / MIN_Y) ** 2;
+      if (nd >= 1) continue;
+      const len = Math.hypot(dx, dy) || 0.001;
+      const ux = dx / len * STEP, uy = dy / len * STEP;
+      pts[i].x -= ux; pts[i].y -= uy;
+      pts[j].x += ux; pts[j].y += uy;
+      moved = true;
+    }
+    // 매 pass 화면 안으로 클램프 (경계 밖 발산 방지)
+    pts.forEach(p => { p.x = Math.max(5, Math.min(95, p.x)); p.y = Math.max(6, Math.min(92, p.y)); });
+    if (!moved) break;
+  }
+  pts.forEach(p => {
+    const node = quadMakeNode(p.rec, p.x, p.y);
+    node.addEventListener('click', () => openRecordDetail(p.rec));
+    box.appendChild(node);
+  });
+}
+
+// 시안 A1 — 클러스터+펼침: 가까운 기록을 개수 배지로 묶고, 누르면 원형으로 펼친다.
+function renderQuadCluster(box, pts) {
+  const R = 7; // 클러스터 반경(%)
+  const clusters = [];
+  pts.forEach(p => {
+    const c = clusters.find(c => Math.abs(c.x - p.x) < R && Math.abs(c.y - p.y) < R * 1.15);
+    if (c) {
+      c.items.push(p);
+      c.x = c.items.reduce((sum, q) => sum + q.x, 0) / c.items.length;
+      c.y = c.items.reduce((sum, q) => sum + q.y, 0) / c.items.length;
+    } else clusters.push({ x: p.x, y: p.y, items: [p] });
+  });
+  clusters.forEach((c, ci) => {
+    if (c.items.length === 1) {
+      const p = c.items[0];
+      const node = quadMakeNode(p.rec, p.x, p.y);
+      node.addEventListener('click', () => openRecordDetail(p.rec));
+      box.appendChild(node);
+      return;
+    }
+    if (_quadExpanded === ci) {
+      // 펼침 — 원형 배치, 바깥 클릭으로 접힘
+      const n = c.items.length;
+      const rad = Math.min(16, 7 + n * 1.5);
+      c.items.forEach((p, i) => {
+        const ang = (i / n) * Math.PI * 2 - Math.PI / 2;
+        const x = Math.max(5, Math.min(95, c.x + rad * Math.cos(ang)));
+        const y = Math.max(6, Math.min(92, c.y + rad * Math.sin(ang) * 1.15));
+        const node = quadMakeNode(p.rec, x, y, 'expanded-member');
+        node.addEventListener('click', (e) => { e.stopPropagation(); openRecordDetail(p.rec); });
+        box.appendChild(node);
+      });
+      return;
+    }
+    // 접힘 — 대표 썸네일 + 개수 배지
+    const node = quadMakeNode(c.items[0].rec, c.x, c.y, 'cluster');
+    const badge = document.createElement('div');
+    badge.className = 'quad-badge';
+    badge.textContent = c.items.length;
+    node.appendChild(badge);
+    node.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _quadExpanded = ci;
+      renderQuad(_quadLastRecs || []);
+    });
+    box.appendChild(node);
+  });
+}
+// 사분면 바깥 클릭 → 펼침 접기
+document.getElementById('quadView').addEventListener('click', (e) => {
+  if (_quadExpanded != null && !e.target.closest('.quad-node')) {
+    _quadExpanded = null;
+    renderQuad(_quadLastRecs || []);
+  }
+});
 
 let lcTileLayer = null;
 let lcFitted = false; // 모드 전환마다 뷰를 리셋하지 않도록 1회만 fit
@@ -5677,6 +5855,10 @@ async function renderMapMarkers() {
   // 감정 필터 (선택 시 OR — 선택한 태그 중 하나라도 가진 기록만)
   if (emotionSel.size) recs = recs.filter(r => (r.emoTags || []).some(id => emotionSel.has(id)));
   renderEmotionFilter();
+  // 도시별 · 시간별 필터 (AND)
+  if (citySel) recs = recs.filter(r => cityOfRec(r) === citySel);
+  if (yearSel) recs = recs.filter(r => yearOfRec(r) === yearSel);
+  renderCityYearFilter();
   updateGauge(recs);
   if (boardMode === 'map') renderFloatWords(recs);
   else document.getElementById('wordFloat').innerHTML = '';
