@@ -275,23 +275,20 @@
     margin: 0; padding-bottom: 0;
   }
   body.board-viewer #massCats .mass-cat { box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
-  /* 방문자 뷰어 — 도시/시간·감정 필터를 지도 위 오버레이로 */
-  body.board-viewer #cityYearFilter,
-  body.board-viewer #emotionFilter {
-    position: fixed; left: 12px; right: 160px; z-index: 1200; margin: 0;
-  }
-  body.board-viewer #cityYearFilter { top: 60px; }
-  body.board-viewer #emotionFilter { top: 96px; display: flex !important; }
-  body.board-viewer #cityYearFilter .ai-chip,
-  body.board-viewer #emotionFilter .ai-chip { background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,0.12); }
-  body.board-viewer #cityYearFilter span,
-  body.board-viewer #emotionFilter span { background: rgba(255,255,255,0.9); padding: 2px 6px; border-radius: 4px; }
-  /* 선택된 칩은 오버레이 흰 배경 규칙보다 우선해 블랙 유지 */
-  body.board-viewer #cityYearFilter .ai-chip.sel,
-  body.board-viewer #emotionFilter .ai-chip.sel { background: var(--ink); color: #fff; border-color: var(--ink); }
-  /* 상단 축 라벨이 필터 오버레이에 가리지 않게 아래로 */
-  body.board-viewer .quad-lbl-top { top: 140px; }
-  body.board-viewer #mapSearch { position: fixed; top: 0; left: 0; right: 0; z-index: 1200; margin: 0; }
+  /* 검색 바 통합 필터 패널 */
+  #filterPanel { display: none; padding: 2px 20px 12px; background: #fff; }
+  #filterPanel.open { display: block; }
+  .fp-row { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+  .fp-label { flex: 0 0 86px; font-size: 12px; color: var(--dim); padding-top: 5px; }
+  .fp-chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+  .filter-tag { display: inline-flex; align-items: center; gap: 6px; background: var(--ink); color: #fff;
+    border-radius: 999px; padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+  .filter-tag button { background: none; border: none; color: #fff; cursor: pointer; padding: 0;
+    font-size: 13px; line-height: 1; }
+  /* 상단 축 라벨이 검색 바에 가리지 않게 아래로 */
+  body.board-viewer .quad-lbl-top { top: 64px; }
+  body.board-viewer #mapSearch { position: fixed; top: 0; left: 0; right: 0; z-index: 1200; margin: 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
   /* 방문자 뷰어 — 뷰 전환(보드/감정)만 우상단에. 나머지 컨트롤은 숨김 */
   body.board-viewer #mapCtrlRow {
     display: flex !important; position: fixed; top: 12px; right: 12px; z-index: 1200;
@@ -910,14 +907,19 @@
     </div>
     <!-- 매스별 칩은 필터 개편으로 비표시 (renderMassCats 코드는 보존) -->
     <div id="massCats" style="display:none"></div>
-    <!-- 도시별 · 시간별 필터 -->
-    <div id="cityYearFilter" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"></div>
-    <!-- 검색 필터 (단어·매스·주소·생각·감정 즉시 필터) — 전체 폭, 아래 블랙 라인 -->
+    <div id="emotionFilter" style="display:none"></div>
+    <div id="cityYearFilter" style="display:none"></div>
+    <!-- 검색 + 필터 바 — 선택 태그는 검색창 안, Filters 버튼으로 아래 패널 토글 -->
     <div id="mapSearch" style="background:#fff; border-bottom:1px solid var(--ink)">
-      <input id="mapSearchInput" type="search" style="width:100%; padding:13px 20px;
-      font-size:14px; border:none; border-radius:0; background:transparent; outline:none"></div>
-    <!-- 감정 필터 (데이터에 존재하는 감정 칩, 최대 2개 OR) -->
-    <div id="emotionFilter" style="display:flex; flex-wrap:wrap; gap:6px; align-items:center"></div>
+      <div style="display:flex; align-items:center; gap:8px; padding:0 20px">
+        <div id="activeFilterTags" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center"></div>
+        <input id="mapSearchInput" type="search" style="flex:1; min-width:120px; padding:13px 0;
+          font-size:14px; border:none; border-radius:0; background:transparent; outline:none">
+        <button id="filterToggleBtn" type="button" style="flex:0 0 auto; padding:5px 14px; font-size:12px;
+          border:1px solid var(--line); background:#fff; border-radius:999px; cursor:pointer"></button>
+      </div>
+      <div id="filterPanel"></div>
+    </div>
     <div class="status" id="shareStatus" style="margin:0; user-select:text; -webkit-user-select:text"></div>
     <div class="status" id="mapStatus" style="margin:0"></div>
   </div>
@@ -1091,7 +1093,7 @@ const I18N = {
     emotionSub: '가장 가까운 감정을 최대 두 개 골라주세요.',
     errEmotionRequired: '감정을 최소 하나 골라주세요',
     emotionFilterLabel: '감정으로 보기',
-    cityFilterLabel: '도시로 보기', yearFilterLabel: '시간으로 보기', mapSearchPh: '검색',
+    cityFilterLabel: '도시로 보기', yearFilterLabel: '시간으로 보기', mapSearchPh: '검색', filtersLabel: '필터',
     planeTitle: '감정 좌표', planeSub: '고른 단어로 위치를 잡았어요. 원하면 눌러서 옮겨보세요.',
     emoAxisXNeg: '낯섦', emoAxisXPos: '편안함', emoAxisYNeg: '고요함', emoAxisYPos: '격렬함',
     emoCoordLabel: '이 순간의 느낌',
@@ -1270,7 +1272,7 @@ const I18N = {
     emotionSub: 'Pick up to two feelings closest to this moment.',
     errEmotionRequired: 'Please choose at least one feeling',
     emotionFilterLabel: 'By emotion',
-    cityFilterLabel: 'By city', yearFilterLabel: 'By time', mapSearchPh: 'Search',
+    cityFilterLabel: 'By city', yearFilterLabel: 'By time', mapSearchPh: 'Search', filtersLabel: 'Filters',
     planeTitle: 'Emotional coordinates', planeSub: 'Placed from your words. Tap to move it if you like.',
     emoAxisXNeg: 'unfamiliar', emoAxisXPos: 'comfortable', emoAxisYNeg: 'calm', emoAxisYPos: 'intense',
     emoCoordLabel: 'How it felt',
@@ -4940,65 +4942,89 @@ function yearOfRec(r) {
   const d = new Date(r.mediaDate || r.savedAt);
   return isNaN(d) ? null : d.getFullYear();
 }
-function renderCityYearFilter() {
-  const box = document.getElementById('cityYearFilter');
-  if (!box) return;
-  box.innerHTML = '';
+function renderFilterPanel() {
+  renderActiveTags();
+  const panel = document.getElementById('filterPanel');
+  if (!panel) return;
+  const wasOpen = panel.classList.contains('open');
+  panel.innerHTML = '';
+  if (wasOpen) panel.classList.add('open');
   const recs = boardRecords();
-  const mkChip = (label, sel, on) => {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'ai-chip' + (sel ? ' sel' : '');
-    chip.style.cssText = 'padding:4px 12px; font-size:12px';
-    chip.textContent = label;
-    chip.addEventListener('click', on);
-    return chip;
+  const row = (labelKey) => {
+    const r = document.createElement('div');
+    r.className = 'fp-row';
+    const l = document.createElement('span');
+    l.className = 'fp-label';
+    l.textContent = t(labelKey);
+    const chips = document.createElement('div');
+    chips.className = 'fp-chips';
+    r.appendChild(l); r.appendChild(chips);
+    panel.appendChild(r);
+    return chips;
   };
-  const lab1 = document.createElement('span');
-  lab1.textContent = t('cityFilterLabel');
-  lab1.style.cssText = 'font-size:12px; color:var(--dim); margin-right:4px';
-  box.appendChild(lab1);
-  [...new Set(recs.map(cityOfRec))].forEach(c => box.appendChild(mkChip(c, citySel === c, () => {
-    citySel = citySel === c ? null : c;
-    lcFitted = false; renderCityYearFilter(); renderMapMarkers();
+  const chip = (label, sel, dimmed, on) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ai-chip' + (sel ? ' sel' : '');
+    b.style.cssText = 'padding:4px 12px; font-size:12px' + (dimmed ? '; opacity:0.4' : '');
+    b.textContent = label;
+    b.addEventListener('click', on);
+    return b;
+  };
+  // 도시
+  const rc = row('cityFilterLabel');
+  [...new Set(recs.map(cityOfRec))].forEach(c => rc.appendChild(chip(c, citySel === c, false, () => {
+    citySel = citySel === c ? null : c; lcFitted = false; renderMapMarkers();
   })));
-  const lab2 = document.createElement('span');
-  lab2.textContent = t('yearFilterLabel');
-  lab2.style.cssText = 'font-size:12px; color:var(--dim); margin:0 4px 0 14px';
-  box.appendChild(lab2);
-  [...new Set(recs.map(yearOfRec).filter(Boolean))].sort().forEach(y => box.appendChild(mkChip(String(y), yearSel === y, () => {
-    yearSel = yearSel === y ? null : y;
-    lcFitted = false; renderCityYearFilter(); renderMapMarkers();
+  // 시간(연도)
+  const ry = row('yearFilterLabel');
+  [...new Set(recs.map(yearOfRec).filter(Boolean))].sort().forEach(y => ry.appendChild(chip(String(y), yearSel === y, false, () => {
+    yearSel = yearSel === y ? null : y; lcFitted = false; renderMapMarkers();
+  })));
+  // 감정 (최대 2개 OR)
+  const re = row('emotionFilterLabel');
+  const present = new Set();
+  recs.forEach(r => (r.emoTags || []).forEach(id => { if (EMO_BY_ID[id]) present.add(id); }));
+  EMO_TAGS.forEach(tg => re.appendChild(chip(t('emo_' + tg.id), emotionSel.has(tg.id), !present.has(tg.id), () => {
+    if (emotionSel.has(tg.id)) emotionSel.delete(tg.id);
+    else { if (emotionSel.size >= 2) emotionSel.delete([...emotionSel][0]); emotionSel.add(tg.id); }
+    lcFitted = false; renderMapMarkers();
   })));
 }
 
-function renderEmotionFilter() {
-  const box = document.getElementById('emotionFilter');
+// 선택된 필터를 검색창 안 블랙 태그로 표시 (×로 개별 해제)
+function renderActiveTags() {
+  const box = document.getElementById('activeFilterTags');
+  const btn = document.getElementById('filterToggleBtn');
   if (!box) return;
   box.innerHTML = '';
-  // 데이터에 실제 등장한 태그 — 없는 태그는 흐리게 표시(항상 7개 다 보여줌)
-  const present = new Set();
-  boardRecords().forEach(r => (r.emoTags || []).forEach(id => { if (EMO_BY_ID[id]) present.add(id); }));
-  const lab = document.createElement('span');
-  lab.textContent = t('emotionFilterLabel');
-  lab.style.cssText = 'font-size:12px; color:var(--dim); margin-right:4px';
-  box.appendChild(lab);
-  EMO_TAGS.forEach(tg => {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'ai-chip' + (emotionSel.has(tg.id) ? ' sel' : '');
-    // 기록에 없는 감정은 흐리게 (눌러도 결과 0임을 힌트)
-    chip.style.cssText = 'padding:4px 12px; font-size:12px' + (present.has(tg.id) ? '' : '; opacity:0.4');
-    chip.textContent = t('emo_' + tg.id);
-    chip.addEventListener('click', () => {
-      if (emotionSel.has(tg.id)) emotionSel.delete(tg.id);
-      else { if (emotionSel.size >= 2) emotionSel.delete([...emotionSel][0]); emotionSel.add(tg.id); }
-      renderEmotionFilter();
-      lcFitted = false;
-      renderMapMarkers();
-    });
-    box.appendChild(chip);
-  });
+  const tag = (label, onRemove) => {
+    const el = document.createElement('span');
+    el.className = 'filter-tag';
+    el.textContent = label;
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.textContent = '×';
+    x.addEventListener('click', onRemove);
+    el.appendChild(x);
+    box.appendChild(el);
+  };
+  if (citySel) tag(citySel, () => { citySel = null; lcFitted = false; renderMapMarkers(); });
+  if (yearSel) tag(String(yearSel), () => { yearSel = null; lcFitted = false; renderMapMarkers(); });
+  [...emotionSel].forEach(id => tag(t('emo_' + id), () => {
+    emotionSel.delete(id); lcFitted = false; renderMapMarkers();
+  }));
+  const n = (citySel ? 1 : 0) + (yearSel ? 1 : 0) + emotionSel.size;
+  if (btn) btn.textContent = t('filtersLabel') + (n ? ' (' + n + ')' : '');
+}
+(function initFilterToggle() {
+  const btn = document.getElementById('filterToggleBtn');
+  if (!btn) return;
+  btn.addEventListener('click', () => document.getElementById('filterPanel').classList.toggle('open'));
+})();
+
+function renderEmotionFilter() {
+  renderFilterPanel(); // 검색 바 통합 패널로 대체
 }
 
 // ---- 오늘의 기분 정렬 (프로토타입 B) ----
@@ -5425,7 +5451,7 @@ const QUAD_STYLE = _quadParams.get('quadstyle') || 'tone';     // 확정: 실선
 let _quadExpanded = null;   // 펼쳐진 클러스터 index
 let _quadLastRecs = null;   // 펼침 재렌더용
 // 뷰어에선 상단 필터 오버레이(검색+칩)에 노드가 가리지 않게 위 여백 확보
-function quadYMin() { return document.body.classList.contains('board-viewer') ? 17 : 6; }
+function quadYMin() { return document.body.classList.contains('board-viewer') ? 11 : 6; }
 
 function renderQuad(recs) {
   const box = document.getElementById('quadNodes');
@@ -5881,7 +5907,6 @@ async function renderMapMarkers() {
   // 도시별 · 시간별 필터 (AND)
   if (citySel) recs = recs.filter(r => cityOfRec(r) === citySel);
   if (yearSel) recs = recs.filter(r => yearOfRec(r) === yearSel);
-  renderCityYearFilter();
   // 검색 필터 (모든 토큰 포함, AND)
   const q = mapSearchQ.trim().toLowerCase();
   if (q) {
