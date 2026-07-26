@@ -3508,10 +3508,13 @@ async function initSupabase() {
       if (event === 'SIGNED_IN') {
         updateAccountBar();
         updateSbStatus();
+        // 화면은 즉시 연다 — 서버 기록 복원(수 MB일 수 있음)은 백그라운드로.
+        // (복원을 기다리면 느린 네트워크에서 로그인 후 빈 화면으로 보인다)
+        unlockApp();
         pullServerRecords().then(() => {
           syncPendingRecords(); // 로그인 전 로컬에만 있던 미전송분을 계정으로 올림
           compactRecordThumbs(); // 저장공간 확보 (1회성 썸네일 압축)
-          unlockApp();
+          try { renderRecList(); renderSavedList(); } catch (e) {}
         });
       }
     });
