@@ -456,6 +456,7 @@
   </div>
   <nav class="hdr-row hdr-menu">
     <span class="hdr-link" id="hdrMap">Map</span>
+    <span class="hdr-link" id="hdrEmoMap">Emotional map</span>
     <span class="hdr-link" id="hdrMy">My Cities</span>
     <span class="hdr-link" id="hdrMass">Home</span>
     <span class="hdr-link" id="hdrPage">My page</span>
@@ -6295,6 +6296,11 @@ document.getElementById('hdrLogo').addEventListener('click', () => goto(1));
 document.getElementById('hdrMy').addEventListener('click', () => { renderRecList(); goto(99); });
 document.getElementById('hdrMap').addEventListener('click', () => {
   goto(97); renderMassCats(); setMapMode(boardMode || 'board');
+});
+// Emotional map — 홈페이지 Research 탭과 같은 대표 공유 보드(감정 사분면) 열기
+document.getElementById('hdrEmoMap').addEventListener('click', () => {
+  location.href = location.origin + location.pathname +
+    '?board=310d9356-cd15-42cd-8c85-4e9988233a64';
 });
 document.getElementById('hdrMass').addEventListener('click', () => { renderSavedList(); goto(96); });
 document.getElementById('hdrPage').addEventListener('click', () => { renderMyPage(); goto(95); });
