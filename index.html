@@ -4769,7 +4769,7 @@ function saveRecord() {
       const encStatus = { textContent: '' }; // exportVideoOffline이 status.textContent를 씀
       exportVideoOffline(encStatus, {
         withText: false, square: true, download: false, outKind: 'out5', savedAt,
-        noAudio: true, // 제스처 밖 자동 생성 — 무음 인코딩
+        tryAudioCopy: true, // 원본 오디오 무손실 복사 시도 — 실패 시 무음
       }).then(() => {
         console.log('[LC] ✅ 매핑 영상(out5) 인코딩 완료 — 상세에서 매핑 영상 재생 가능');
         if (rst) rst.textContent = t('reelReady');
@@ -6652,9 +6652,10 @@ async function exportVideoOffline(status, opts = {}) {
   const square = opts.square === true;
   const doDownload = opts.download !== false;
   const outKind = opts.outKind || 'out1';
-  // out5(정사각 1:1 상세 재생용)는 항상 무음으로 인코딩 — 오디오 조립이 실패해도
-  // ('no audio samples' 등) 영상 자체는 확실히 만들어지게 한다.
-  if (square) opts = { ...opts, noAudio: true, reuseAudio: null };
+  // out5(정사각 1:1 상세 재생용): 기본은 무음이지만 tryAudioCopy면 원본 AAC
+  // 무손실 복사만 시도(AudioContext 불필요 — 제스처 밖 자동 저장에서도 안전).
+  // 복사가 실패하면 무음으로 계속 — 영상 자체는 확실히 만들어진다.
+  if (square && !opts.tryAudioCopy) opts = { ...opts, noAudio: true, reuseAudio: null };
   const { Muxer, ArrayBufferTarget } = await import('https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.5/+esm');
   const FPS = 30, TOTAL = TARGET_DURATION * FPS;
   const W = square ? CANVAS_W : CANVAS_W, H = square ? CANVAS_W : CANVAS_H; // 정사각이면 H=W(1080)
@@ -6666,6 +6667,17 @@ async function exportVideoOffline(status, opts = {}) {
   } else if (opts.noAudio) {
     // 무음 인코딩 — 오디오 조립을 아예 건너뛴다(제스처 밖 자동 out5가 조립 실패로 throw되지 않게)
     audioMode = null; audioMuxCodec = null; muxSampleRate = 44100; muxChannels = 2;
+  } else if (opts.tryAudioCopy) {
+    // 원본 AAC 무손실 복사만 시도 — 실패 시 무음 (자동 out5용)
+    try {
+      mrAAC = await extractSourceAAC(video.src, state.clipStart || 0, TARGET_DURATION);
+      audioMode = 'mediarec';
+      audioMuxCodec = 'aac'; muxSampleRate = mrAAC.sampleRate; muxChannels = mrAAC.channels;
+      console.log('[LC] out5 오디오: 원본 AAC 복사 성공');
+    } catch (e) {
+      console.warn('[LC] out5 오디오 복사 불가 — 무음 인코딩:', e && e.message);
+      audioMode = null; audioMuxCodec = null; muxSampleRate = 44100; muxChannels = 2;
+    }
   } else {
   // Safari: AudioContext는 어떤 await보다 먼저(클릭 제스처 안) 만들어야 산다
   const gestureAC = new (window.AudioContext || window.webkitAudioContext)();
@@ -6739,12 +6751,14 @@ async function exportVideoOffline(status, opts = {}) {
   }
   if (!vCodecCfg) throw new Error(t('errNoRecorder'));
 
+  // 색 범위 태깅: Safari(iOS/맥) VideoEncoder는 limited(16–235)로 인코딩하므로 태그도
+  // limited여야 한다 — full로 태깅하면 iOS 플레이어에서 흰 배경(235)이 회색으로 보인다.
+  // Chrome 계열 인코더는 full-range라 기존대로 full 태깅.
+  const _safariEnc = /apple/i.test(navigator.vendor || '');
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
-    // color를 full-range BT.709로 태깅 — 이게 없으면 플레이어가 영상을 limited(16–235)
-    // range로 해석해 흰 배경(255)이 회색빛으로 눌린다. fullRange:true로 흰색을 그대로.
     video: { codec: videoMuxCodec, width: W, height: H,
-             color: { matrix: 'bt709', transfer: 'bt709', primaries: 'bt709', fullRange: true } },
+             color: { matrix: 'bt709', transfer: 'bt709', primaries: 'bt709', fullRange: !_safariEnc } },
     ...(audioMuxCodec ? { audio: { codec: audioMuxCodec, sampleRate: muxSampleRate, numberOfChannels: muxChannels } } : {}),
     fastStart: 'in-memory',
   });
