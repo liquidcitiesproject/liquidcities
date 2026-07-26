@@ -3628,9 +3628,18 @@ async function pullServerRecords() {
         localStorage.setItem('lc_owner_uid', uid);
       }
     } catch (e) {}
-    const { data, error } = await sb.from('records').select('id, payload').order('created_at', { ascending: true });
-    if (error) throw error;
-    if (!data || !data.length) return;
+    // 한 번에 전부 받으면 응답이 수 MB — 폰(iOS)에서 실패하기 쉽다 → 5행씩 나눠 받기
+    const PAGE = 5;
+    const data = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data: chunk, error } = await sb.from('records')
+        .select('id, payload').order('created_at', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      if (chunk && chunk.length) data.push(...chunk);
+      if (!chunk || chunk.length < PAGE) break;
+    }
+    if (!data.length) { window._lcPulling = false; window._lcPullInfo = '서버 기록 0행'; try { renderRecList(); } catch (e) {} return; }
     const list = getRecords();
     const bySavedAt = new Map(list.map(r => [r.savedAt, r]));
     const blds = getSavedBuildings();
