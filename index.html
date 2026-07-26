@@ -3679,11 +3679,12 @@ async function pullServerRecords() {
     }
     if (added > 0) {
       list.sort((a, b) => a.savedAt - b.savedAt);
-      localStorage.setItem(REC_KEY, JSON.stringify(list));
+      setRecordsSafe(list); // 아이폰 용량 초과 시 옛 썸네일 정리 후 재시도 (실패해도 복원 자체는 계속)
     }
     if (bAdded > 0) {
       blds.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
-      localStorage.setItem(LS_KEY, JSON.stringify(blds.slice(0, 100)));
+      try { localStorage.setItem(LS_KEY, JSON.stringify(blds.slice(0, 100)));
+      } catch (e) { console.warn('building list save skipped (quota):', e && e.name); }
     }
     if (added > 0 || bAdded > 0) renderSavedList();
     window._lcPulling = false;
@@ -3692,7 +3693,7 @@ async function pullServerRecords() {
   } catch (e) {
     console.warn('pull records failed:', e.message);
     window._lcPulling = false;
-    window._lcPullInfo = '복원 실패: ' + (e && e.message);
+    window._lcPullInfo = '복원 실패: ' + ((e && e.name) ? e.name + ' — ' : '') + (e && e.message);
     try { renderRecList(); } catch (e2) {}
     if (!window._lcPullAlerted) {
       window._lcPullAlerted = true;
