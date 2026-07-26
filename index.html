@@ -3609,6 +3609,8 @@ document.getElementById('accPwBtn').addEventListener('click', async () => {
 // 로그인해도 기록이 보이게 하는 복원 경로 (업로드만 있던 동기화의 반쪽)
 async function pullServerRecords() {
   if (!sb) return;
+  window._lcPulling = true;
+  try { renderRecList(); } catch (e) {}
   try {
     // 공용 PC 격리 — 이 기기 로컬 캐시의 소유자와 현재 로그인 계정이 다르면
     // 이전 사용자의 데이터가 섞이지 않게 로컬을 비운다 (진짜 데이터는 서버에 있음).
@@ -3674,7 +3676,19 @@ async function pullServerRecords() {
       localStorage.setItem(LS_KEY, JSON.stringify(blds.slice(0, 100)));
     }
     if (added > 0 || bAdded > 0) renderSavedList();
-  } catch (e) { console.warn('pull records failed:', e.message); }
+    window._lcPulling = false;
+    window._lcPullInfo = '서버 기록 ' + data.length + '행 확인, 로컬 ' + getRecords().length + '개';
+    try { renderRecList(); } catch (e) {}
+  } catch (e) {
+    console.warn('pull records failed:', e.message);
+    window._lcPulling = false;
+    window._lcPullInfo = '복원 실패: ' + (e && e.message);
+    try { renderRecList(); } catch (e2) {}
+    if (!window._lcPullAlerted) {
+      window._lcPullAlerted = true;
+      try { alert('기록 복원 실패: ' + (e && e.message)); } catch (e3) {}
+    }
+  }
 }
 // 건물 아카이브 동기화 — records 테이블 재사용, payload._kind='building'
 async function syncBuildingToServer(item) {
@@ -4912,7 +4926,9 @@ async function renderRecList() {
   if (!list.length) {
     const pEmpty = document.createElement('p');
     pEmpty.className = 'hint';
-    pEmpty.textContent = t('noRecords');
+    // 비어 있을 때 복원 상태를 보여준다 (폰에서 콘솔 없이 진단 가능)
+    pEmpty.textContent = window._lcPulling ? '서버에서 기록 불러오는 중…'
+      : (window._lcPullInfo || t('noRecords'));
     wrap.appendChild(pEmpty);
     return;
   }
