@@ -523,11 +523,11 @@
 
   <!-- 통합 검색: 창 하나 + 입력 중 추천 목록에서 선택 (사용자 확정) -->
   <div id="uniForm" style="margin-top:14px; position:relative">
-    <input type="text" id="uniInput" data-ph="phUni" autocomplete="off">
+    <input type="search" id="uniInput" data-ph="phUni" autocomplete="street-address" name="building-search">
     <div id="uniSuggest" style="display:none; border:1px solid var(--line); border-top:none;
       max-width:640px; background:#fff; max-height:300px; overflow-y:auto"></div>
     <div class="row">
-      <input type="text" id="unitInput2" data-ph="phUnit">
+      <input type="text" id="unitInput2" data-ph="phUnit" autocomplete="off" name="unit-label">
     </div>
     <div class="row">
       <button id="uniSearchBtn" data-i18n="btnFind"></button>
