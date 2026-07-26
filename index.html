@@ -6802,14 +6802,14 @@ async function exportVideoOffline(status, opts = {}) {
   }
   if (!vCodecCfg) throw new Error(t('errNoRecorder'));
 
-  // 색 범위 태깅: Safari(iOS/맥) VideoEncoder는 limited(16–235)로 인코딩하므로 태그도
-  // limited여야 한다 — full로 태깅하면 iOS 플레이어에서 흰 배경(235)이 회색으로 보인다.
-  // Chrome 계열 인코더는 full-range라 기존대로 full 태깅.
-  const _safariEnc = /apple/i.test(navigator.vendor || '');
+  // 색 범위 태깅은 항상 limited(16–235)로 — 브라우저 인코더들은 비트스트림(VUI)에
+  // limited로 기록하는데, 컨테이너 태그(colr)를 full로 쓰면 둘이 어긋난다.
+  // Chrome은 VUI를 우선해 흰색(235→255 확장)으로, iOS는 colr을 우선해 회색(235 그대로)으로
+  // 보여서 기기마다 배경색이 달라졌다. 둘을 일치(limited)시키면 모든 기기에서 흰색.
   const muxer = new Muxer({
     target: new ArrayBufferTarget(),
     video: { codec: videoMuxCodec, width: W, height: H,
-             color: { matrix: 'bt709', transfer: 'bt709', primaries: 'bt709', fullRange: !_safariEnc } },
+             color: { matrix: 'bt709', transfer: 'bt709', primaries: 'bt709', fullRange: false } },
     ...(audioMuxCodec ? { audio: { codec: audioMuxCodec, sampleRate: muxSampleRate, numberOfChannels: muxChannels } } : {}),
     fastStart: 'in-memory',
   });
