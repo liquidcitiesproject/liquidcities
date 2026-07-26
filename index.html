@@ -1629,8 +1629,9 @@ function loadSavedBuilding(item) {
   state.amenities = null; state.amenitiesPromise = Promise.resolve(null);
   startMassViewer(item.building);
   if (item.view && massViewer) {
-    massViewer.view.yaw = item.view.yaw;
-    massViewer.view.pitch = item.view.pitch;
+    // 축 고정 — 저장된 각도 복원 안 함 (모든 기록 동일 등각)
+    // massViewer.view.yaw = item.view.yaw;
+    // massViewer.view.pitch = item.view.pitch;
   }
   document.getElementById('buildingInfo').textContent =
     `${item.customName || item.building.name || t('unnamedBuilding')} · ${t('infoLevels', item.building.levels)} · ${item.address}`;
@@ -2613,6 +2614,7 @@ massCanvas.addEventListener('pointerdown', e => {
 });
 massCanvas.addEventListener('pointermove', e => {
   if (!massDragging || !massViewer) return;
+  return; // 축 고정 — 모든 기록이 같은 등각(0.25, 0.62, -0.65)으로 렌더 (요청 시 회전 복원)
   massViewer.view.yaw -= (e.clientX - massLastX) * 0.006;
   massViewer.view.pitch = Math.min(1.35, Math.max(0.12,
     massViewer.view.pitch + (e.clientY - massLastY) * 0.004));
@@ -2730,10 +2732,7 @@ document.getElementById('back3Btn').addEventListener('click', () => {
   // 건물 확인으로 복귀 — 뷰어 재시작 + 확정했던 각도 복원
   if (state.building) {
     startMassViewer(state.building);
-    if (state._lastView && massViewer) {
-      massViewer.view.yaw = state._lastView.yaw;
-      massViewer.view.pitch = state._lastView.pitch;
-    }
+    // 축 고정 — 직전 드래그 각도 복원 안 함
   }
   goto(2);
 });
