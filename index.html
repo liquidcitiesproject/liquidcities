@@ -6433,6 +6433,22 @@ async function openRecordDetail(rec) {
       // out1 폴백은 webm일 수 있으므로 blob type으로 확장자를 맞춘다(mp4 기본)
       dlBlob = vidBlob;
       dlName = /webm/.test(vidBlob.type || '') ? 'liquidcities.webm' : 'liquidcities.mp4';
+      // 방금 저장한 기록은 매핑 영상(out5)이 아직 인코딩/업로드 중일 수 있다 —
+      // 준비되는 대로 재생 소스를 자동 교체 (4초 간격, 최대 ~90초)
+      if (vidKind !== 'out5') {
+        let tries = 0;
+        const poll = setInterval(async () => {
+          if (gen !== state._detailGen || ++tries > 22) { clearInterval(poll); return; }
+          const b5 = await fetchOutputBlob(rec.savedAt, 'out5');
+          if (b5 && /^video\//.test(b5.type || '')) {
+            clearInterval(poll);
+            if (gen !== state._detailGen) return;
+            v.src = URL.createObjectURL(b5);
+            v.play && v.play().catch(() => {});
+            console.log('[LC] 매핑 영상(out5) 준비 완료 — 상세 재생 교체');
+          }
+        }, 4000);
+      }
     } else {
       const imgSrc = imgBlob ? URL.createObjectURL(imgBlob) : (rec.massThumb || null);
       if (imgSrc) {
