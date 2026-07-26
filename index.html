@@ -4210,7 +4210,7 @@ function radiusLinesFor(a, countryCode) {
   const f = a ? `Restaurants ${num(a.restaurants)}, cafes ${num(a.cafes)}` : 'Restaurants —';
   const p = a ? `Parks & green space: ${num(a.parks)}` : 'Parks —';
   // City-wide 재생에너지: Ember API 미연동 상태의 국가별 샘플값 (문서에 명시된 한계)
-  const renewMap = { kr: '9.2%', sg: '4.1%', gb: '46%', us: '23%' };
+  const renewMap = { kr: '9.2%', sg: '4.1%', gb: '46%', us: '23%', cn: '31%' };
   const r = renewMap[countryCode] || '—';
   return [
     `Immediate (~200m) — ${t}`,
