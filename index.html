@@ -4673,9 +4673,17 @@ async function uploadOutputToStorage(savedAt, kind, blob) {
     const { data } = await sb.auth.getUser();
     const uid = data && data.user && data.user.id;
     if (!uid) return;
-    await sb.storage.from('outputs').upload(`${uid}/${savedAt}-${kind}`, blob,
+    const { error } = await sb.storage.from('outputs').upload(`${uid}/${savedAt}-${kind}`, blob,
       { upsert: true, contentType: blob.type || 'application/octet-stream' });
-  } catch (e) { /* 버킷 미설정 등 — 로컬 전용 */ }
+    if (error) throw error;
+    if (kind === 'out5') console.log('[LC] out5 서버 업로드 완료');
+  } catch (e) {
+    console.warn('[LC] 산출물 업로드 실패:', kind, e && e.message);
+    if (kind === 'out5' && !window._lcOut5UpAlerted) {
+      window._lcOut5UpAlerted = true;
+      try { alert('매핑 영상 서버 업로드 실패 — ' + (e && e.message) + '\n(네트워크 좋은 곳에서 앱을 다시 열면 재생은 원본으로 유지됩니다)'); } catch (e2) {}
+    }
+  }
 }
 // 산출물 로드: 로컬(IndexedDB) 우선, 없으면 Storage에서 내려받아 로컬에 캐시
 async function fetchOutputBlob(savedAt, kind) {
@@ -4811,10 +4819,16 @@ function saveRecord() {
         console.error('[LC] ❌ 매핑 영상(out5) 인코딩 실패 — 원인:', e && e.message);
         console.error('[LC] 실패 상세 스택:', e && e.stack);
         if (rst) rst.textContent = t('reelReady'); // 원본(out0)으로는 재생되므로
+        // 폰에서 콘솔 없이 원인 파악 — 알림으로 노출 (기록은 정상 저장됨)
+        try { alert('매핑 영상 생성 실패 — ' + ((e && e.name) || '') + ': ' + (e && e.message) + '\n(기록·원본은 정상 저장됐어요)'); } catch (e2) {}
       });
     } else {
       console.warn('[LC] 이 브라우저는 VideoEncoder(WebCodecs) 미지원 — 매핑 영상 인코딩 불가, 원본으로 재생');
       if (rst) rst.textContent = t('reelReady');
+      if (!window._lcNoEncAlerted) {
+        window._lcNoEncAlerted = true;
+        try { alert('이 브라우저는 매핑 영상 인코딩(WebCodecs)을 지원하지 않아 원본으로 재생됩니다.'); } catch (e2) {}
+      }
     }
   }
   // 서버 동기화 (Supabase 설정 시) — 실패하면 synced=false로 남아 다음 로드 때 재전송
@@ -6443,7 +6457,7 @@ async function openRecordDetail(rec) {
       if (vidKind !== 'out5') {
         let tries = 0;
         const poll = setInterval(async () => {
-          if (gen !== state._detailGen || ++tries > 22) { clearInterval(poll); return; }
+          if (gen !== state._detailGen || ++tries > 60) { clearInterval(poll); return; } // 최대 ~4분
           const b5 = await fetchOutputBlob(rec.savedAt, 'out5');
           if (b5 && /^video\//.test(b5.type || '')) {
             clearInterval(poll);
